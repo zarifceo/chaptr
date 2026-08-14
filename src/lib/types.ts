@@ -42,6 +42,8 @@ export interface StudyTask {
   chapterId: string;
   title: string;
   plannedTime: string;
+  plannedStart?: string;
+  plannedEnd?: string;
   duration: number;
   origin: "recommended" | "manual";
   pinned?: boolean;
@@ -51,6 +53,15 @@ export interface StudyTask {
   priorityScore: number;
   focusedSeconds?: number;
   deferredUntil?: string;
+}
+
+export interface ChapterPreference {
+  chapterId: string;
+  includedForSsc: boolean;
+  targetMonth?: string;
+  excluded: boolean;
+  exclusionReason?: string;
+  priority: 1 | 2 | 3 | 4 | 5;
 }
 
 export interface JournalEntry {

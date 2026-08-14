@@ -4,10 +4,10 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight, BookOpen, Books, Brain, CalendarBlank, CaretDown, CaretRight,
+  ArrowCounterClockwise, ArrowRight, BookOpen, Books, Brain, CalendarBlank, CalendarPlus, CaretDown, CaretLeft, CaretRight,
   ChartBar, Check, CheckCircle, Clock, CloudCheck, Exam, Headphones, House,
-  ListChecks, MagnifyingGlass, NotePencil, Pause, Play, Plus, PushPin, Rows,
-  Sigma, SignIn, SignOut, SlidersHorizontal, Sparkle, Timer, Warning, X,
+  EyeSlash, ListChecks, MagnifyingGlass, NotePencil, Pause, Play, Plus, PushPin, Rows,
+  Sigma, SignIn, SignOut, SlidersHorizontal, Sparkle, Target, Timer, Warning, X,
 } from "@phosphor-icons/react";
 import {
   chapters as seedChapters, exams, marksDistributions, subjects, workflowSteps,
@@ -15,11 +15,11 @@ import {
 import { flushCloudSync, getPendingSyncCount, installOnlineSync, queueCloudSync } from "@/lib/offline-sync";
 import { recommendTasks } from "@/lib/recommendations";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import type { Chapter, JournalEntry, Mistake, MockResult, PlanningSettings, StudyTask } from "@/lib/types";
+import type { Chapter, ChapterPreference, JournalEntry, Mistake, MockResult, PlanningSettings, StudyTask } from "@/lib/types";
 
 const nav = [
   ["Dashboard", House], ["Today", CalendarBlank], ["Syllabus", Books],
-  ["Journal", NotePencil], ["Progress", ChartBar], ["Maths Lab", Sigma],
+  ["Goals", Target], ["Calendar", CalendarPlus], ["Journal", NotePencil], ["Progress", ChartBar], ["Maths Lab", Sigma],
   ["Exam Plan", Exam], ["Settings", SlidersHorizontal],
 ] as const;
 
@@ -36,6 +36,22 @@ const seededMistakes: Mistake[] = [
 ];
 const officialExamTotals: Record<string, number> = { "bangla-1": 100, "bangla-2": 100, "english-1": 100, "english-2": 100, mathematics: 100, science: 100, islam: 100, ict: 50, accounting: 100, finance: 100, business: 100 };
 const defaultPlanning: PlanningSettings = { mainStart: "15:00", mainEnd: "19:00", mathStart: "20:00", mathEnd: "22:00", dailyTarget: 240, mathDaysPerWeek: 6, agricultureDaysPerWeek: 4, remindersEnabled: false };
+const currentMonthKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit" }).format(new Date()) + "-01";
+const preferenceFor = (chapterId: string, list: ChapterPreference[]) => list.find((item) => item.chapterId === chapterId) ?? { chapterId, includedForSsc: false, excluded: false, priority: 3 as const };
+const monthLabel = (month: string) => new Date(`${month}T00:00:00+06:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "Asia/Dhaka" });
+const plannedDate = (task: StudyTask) => task.plannedStart?.slice(0, 10);
+const scheduleOn = (task: StudyTask, date: string) => {
+  const match = task.plannedTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  let hour = 15;
+  let minute = "00";
+  if (match) {
+    hour = Number(match[1]) % 12;
+    if (match[3].toUpperCase() === "PM") hour += 12;
+    minute = match[2];
+  }
+  const start = new Date(`${date}T${String(hour).padStart(2, "0")}:${minute}:00+06:00`);
+  return { ...task, plannedStart: start.toISOString(), plannedEnd: new Date(start.getTime() + task.duration * 60000).toISOString() };
+};
 
 function useStored<T>(key: string, seed: T) {
   const [value, setValue] = useState<T>(seed);
@@ -63,9 +79,9 @@ function isTaskAvailable(task: StudyTask) {
 
 function taskRow(task: StudyTask) {
   const match = task.plannedTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  let plannedStart: string | null = null;
-  let plannedEnd: string | null = null;
-  if (match) {
+  let plannedStart: string | null = task.plannedStart ?? null;
+  let plannedEnd: string | null = task.plannedEnd ?? null;
+  if (!plannedStart && match) {
     let hour = Number(match[1]) % 12;
     if (match[3].toUpperCase() === "PM") hour += 12;
     const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -87,6 +103,17 @@ function chapterRow(chapter: Chapter) {
     confidence: chapter.confidence, last_studied: chapter.lastStudied ?? null,
     next_review: chapter.nextReview ?? null, questions_attempted: chapter.questionsAttempted,
     questions_correct: chapter.questionsCorrect,
+  };
+}
+
+function preferenceRow(preference: ChapterPreference) {
+  return {
+    chapter_id: preference.chapterId,
+    included_for_ssc: preference.includedForSsc,
+    target_month: preference.targetMonth ?? null,
+    excluded: preference.excluded,
+    exclusion_reason: preference.exclusionReason ?? null,
+    priority: preference.priority,
   };
 }
 
@@ -132,8 +159,9 @@ function SectionTitle({ kicker, title, children }: { kicker: string; title: stri
   return <div className="section-title"><div><small>{kicker}</small><h2>{title}</h2></div>{children}</div>;
 }
 
-function Dashboard({ tasks, chapters, mistakes, entries, go }: { tasks: StudyTask[]; chapters: Chapter[]; mistakes: Mistake[]; entries: JournalEntry[]; go: (value: string) => void }) {
-  const visible = tasks.filter((task) => task.status !== "completed" && isTaskAvailable(task));
+function Dashboard({ tasks, chapters, preferences, mistakes, entries, go }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; go: (value: string) => void }) {
+  const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
+  const visible = tasks.filter((task) => task.status !== "completed" && isTaskAvailable(task) && !excluded.has(task.chapterId));
   const first = visible[0] ?? seededTasks[0];
   const subject = bySubject(first.subjectId);
   const chapter = byChapter(first.chapterId);
@@ -155,6 +183,7 @@ function Dashboard({ tasks, chapters, mistakes, entries, go }: { tasks: StudyTas
       </article>
       <div className="countdown-stack"><Countdown name="Full-Syllabus Test" date={exams[0].start} tone="lilac" /><Countdown name="SSC 2027" date={exams[1].start} tone="mint" /></div>
     </section>
+    <section className="strategy-ribbon"><button onClick={() => go("Goals")}><Target weight="fill" /><span><small>SSC STRATEGY</small><strong>{preferences.filter((item) => item.includedForSsc && !item.excluded).length} selected</strong></span><CaretRight /></button><button onClick={() => go("Goals")}><CalendarPlus weight="fill" /><span><small>{monthLabel(currentMonthKey()).toUpperCase()}</small><strong>{preferences.filter((item) => item.targetMonth === currentMonthKey() && !item.excluded).length} chapter goals</strong></span><CaretRight /></button><button onClick={() => go("Syllabus")}><EyeSlash weight="fill" /><span><small>STRATEGICALLY SKIPPED</small><strong>{preferences.filter((item) => item.excluded).length} excluded</strong></span><CaretRight /></button></section>
     <section className="dashboard-grid">
       <article className="panel weekly"><SectionTitle kicker="LIVE EVIDENCE" title="Work that protects your result" /><div className="bars">{weeklyBars.map(([label, value, tone]) => <div key={label}><span>{label}</span><i><b className={tone} style={{ width: `${value}%` }} /></i><strong>{value}%</strong></div>)}</div></article>
       <article className="panel risks"><SectionTitle kicker="URGENT" title="Repair queue"><Warning weight="fill" /></SectionTitle>{[["Maths", `${openMaths} open mistake${openMaths === 1 ? "" : "s"} need reattempts`, "lilac"], ["Agriculture", `${readiness("agriculture")}% readiness · deliberate exposure`, "mint"], ["Accounting", `${readiness("accounting")}% readiness · concepts plus practice`, "yellow"]].map(([name, note, tone]) => <button key={name} onClick={() => go(name === "Maths" ? "Maths Lab" : "Syllabus")}><i className={tone} /><span><strong>{name}</strong><small>{note}</small></span><CaretRight /></button>)}</article>
@@ -185,8 +214,9 @@ function FocusTimer({ seconds, onChange }: { seconds: number; onChange: (seconds
   return <div className="timer-box"><Timer /><strong>{label}</strong><button className="primary" onClick={() => setRunning(!running)}>{running ? <><Pause weight="fill" />Pause</> : <><Play weight="fill" />Focus</>}</button><button onClick={() => { setRunning(false); onChange(0); }}>Reset</button></div>;
 }
 
-function Today({ tasks, update, journal, add }: { tasks: StudyTask[]; update: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void }) {
-  const visible = tasks.filter((task) => task.status !== "completed" && isTaskAvailable(task));
+function Today({ tasks, preferences, update, remove, journal, add }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void }) {
+  const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
+  const visible = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped" && isTaskAvailable(task) && !excluded.has(task.chapterId));
   const [expanded, setExpanded] = useState(visible[0]?.id ?? "");
   const advance = (task: StudyTask, total: number) => {
     if (task.currentStep + 1 >= total) return journal(task);
@@ -202,7 +232,7 @@ function Today({ tasks, update, journal, add }: { tasks: StudyTask[]; update: (t
         return <article className={`timeline-task ${subject.accent} ${open ? "open" : ""}`} key={task.id}>
           <time>{task.plannedTime}</time><span className="timeline-rail"><i /></span>
           <div className="task-card">
-            <button className="task-summary" onClick={() => setExpanded(open ? "" : task.id)}><span className="subject-token">{subject.shortName.slice(0, 2)}</span><p><small>{index + 1}. {subject.shortName}{task.pinned ? " · PINNED" : ""}</small><strong>{task.title}</strong><em>{task.reason} · {task.duration} min</em></p><CaretDown /></button>
+            <div className="task-heading"><button className="task-summary" onClick={() => setExpanded(open ? "" : task.id)}><span className="subject-token">{subject.shortName.slice(0, 2)}</span><p><small>{index + 1}. {subject.shortName}{task.pinned ? " · PINNED" : ""}</small><strong>{task.title}</strong><em>{task.reason} · {task.duration} min</em></p><CaretDown /></button><button className="remove-today" onClick={() => remove(task)} aria-label={`Remove ${task.title} from today's timeline`} title="Remove from today"><X /></button></div>
             {open && <div className="steps">
               <FocusTimer seconds={task.focusedSeconds ?? 0} onChange={(focusedSeconds) => update({ ...task, focusedSeconds, status: focusedSeconds ? "in-progress" : task.status })} />
               <div className="task-actions"><button className={task.pinned ? "pinned" : ""} onClick={() => update({ ...task, pinned: !task.pinned, priorityScore: task.pinned ? task.priorityScore : 100 })}><PushPin weight={task.pinned ? "fill" : "regular"} />{task.pinned ? "Pinned" : "Pin first"}</button><label><span className="sr-only">Study time</span><input value={task.plannedTime} onChange={(event) => update({ ...task, plannedTime: event.target.value })} aria-label="Study time" /></label><button onClick={() => update({ ...task, status: "planned", plannedTime: "Tomorrow", deferredUntil: new Date(Date.now() + 86400000).toISOString() })}>Move to tomorrow</button></div>
@@ -217,11 +247,12 @@ function Today({ tasks, update, journal, add }: { tasks: StudyTask[]; update: (t
   </main>;
 }
 
-function Syllabus({ list, setList }: { list: Chapter[]; setList: (value: Chapter[]) => void }) {
+function Syllabus({ list, setList, preferences, updatePreference, goGoals }: { list: Chapter[]; setList: (value: Chapter[]) => void; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; goGoals: () => void }) {
   const [selected, setSelected] = useState("mathematics");
   const [query, setQuery] = useState("");
+  const [showExcluded, setShowExcluded] = useState(false);
   const subject = bySubject(selected);
-  const mine = list.filter((chapter) => chapter.subjectId === selected && chapter.title.toLowerCase().includes(query.toLowerCase()));
+  const mine = list.filter((chapter) => chapter.subjectId === selected && chapter.title.toLowerCase().includes(query.toLowerCase()) && (showExcluded || !preferenceFor(chapter.id, preferences).excluded));
   const marks = marksDistributions.filter((mark) => mark.subjectId === selected);
   const cycle = (chapter: Chapter) => {
     const states: Chapter["status"][] = ["not-started", "learning", "practising", "exam-ready", "needs-revision"];
@@ -239,7 +270,74 @@ function Syllabus({ list, setList }: { list: Chapter[]; setList: (value: Chapter
   const hasConflict = Boolean(officialTotal && listedTotal && listedTotal !== officialTotal);
   return <main id="main-content" tabIndex={-1} className="page syllabus-page">
     <section className="subject-strip" aria-label="Subjects">{subjects.map((item) => <button key={item.id} className={selected === item.id ? `active ${item.accent}` : ""} onClick={() => setSelected(item.id)}><span>{item.shortName.slice(0, 2)}</span><strong>{item.shortName}</strong><small>{list.filter((chapter) => chapter.subjectId === item.id).length} topics</small></button>)}</section>
-    <section className="syllabus-layout"><div><SectionTitle kicker={`${subject.strength.replace("-", " ")} · ${subject.workflow === "accounting" ? "separate accounting workflow" : subject.workflow}`} title={subject.name}><label className="search"><MagnifyingGlass /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a chapter" aria-label="Find a chapter" /></label></SectionTitle><div className="chapters">{mine.map((chapter) => <article key={chapter.id}><span className={`number ${subject.accent}`}>{chapter.number ?? "•"}</span><p><strong>{chapter.title}</strong><small>{[chapter.division, chapter.note].filter(Boolean).join(" · ") || chapter.formats.join(" · ")}</small></p><button className={`status ${chapter.status}`} onClick={() => cycle(chapter)} aria-label={`Change status for ${chapter.title}`}>{chapter.status.replace("-", " ")}</button><span className="confidence" role="group" aria-label={`Confidence for ${chapter.title}`}>{([1, 2, 3, 4, 5] as const).map((n) => <button type="button" className={n <= chapter.confidence ? "on" : ""} key={n} onClick={() => setConfidence(chapter, n)} aria-label={`Set confidence to ${n} out of 5`} aria-pressed={chapter.confidence === n} />)}</span></article>)}</div></div><aside className="marks"><small>OFFICIAL QUESTION-TYPE DISTRIBUTION</small><h3>{officialTotal ? `${officialTotal} marks` : marks.length ? `${listedTotal} marks listed` : "Pattern pending"}</h3>{hasConflict && <p className="source-warning"><Warning weight="fill" />The source says {officialTotal} total, while its listed rows add to {listedTotal}. Kept visible for confirmation; no chapter marks were invented.</p>}{marks.length ? marks.map((mark) => <div key={`${mark.part}-${mark.questionType}`}><p><strong>{mark.questionType}</strong><small>{mark.rule}</small></p><b>{mark.marks}</b></div>) : <p>No complete readable Agriculture marks table was available. No chapter weights have been invented.</p>}</aside></section>
+    <section className="syllabus-layout"><div><SectionTitle kicker={`${subject.strength.replace("-", " ")} · ${subject.workflow === "accounting" ? "separate accounting workflow" : subject.workflow}`} title={subject.name}><div className="syllabus-tools"><label className="search"><MagnifyingGlass /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a chapter" aria-label="Find a chapter" /></label><button className={showExcluded ? "active" : ""} onClick={() => setShowExcluded(!showExcluded)}><EyeSlash />{showExcluded ? "Hide excluded" : "Show excluded"}</button><button onClick={goGoals}><Target />Plan goals</button></div></SectionTitle><div className="chapters">{mine.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); return <article className={preference.excluded ? "excluded" : ""} key={chapter.id}><span className={`number ${subject.accent}`}>{chapter.number ?? "•"}</span><p><strong>{chapter.title}</strong><small>{preference.excluded ? `Excluded${preference.exclusionReason ? ` · ${preference.exclusionReason}` : ""}` : [chapter.division, chapter.note].filter(Boolean).join(" · ") || chapter.formats.join(" · ")}</small></p><div className="chapter-actions"><button className={preference.targetMonth === currentMonthKey() ? "selected" : ""} onClick={() => updatePreference({ ...preference, excluded: false, targetMonth: preference.targetMonth === currentMonthKey() ? undefined : currentMonthKey() })}>Month</button><button className={preference.includedForSsc ? "selected" : ""} onClick={() => updatePreference({ ...preference, excluded: false, includedForSsc: !preference.includedForSsc })}>SSC</button><button className={preference.excluded ? "danger selected" : "danger"} onClick={() => updatePreference({ ...preference, excluded: !preference.excluded, includedForSsc: preference.excluded ? preference.includedForSsc : false, targetMonth: preference.excluded ? preference.targetMonth : undefined, exclusionReason: preference.excluded ? undefined : "Strategic skip" })} aria-label={preference.excluded ? `Restore ${chapter.title}` : `Exclude ${chapter.title}`}>{preference.excluded ? <ArrowCounterClockwise /> : <EyeSlash />}</button></div><button className={`status ${chapter.status}`} onClick={() => cycle(chapter)} aria-label={`Change status for ${chapter.title}`}>{chapter.status.replace("-", " ")}</button><span className="confidence" role="group" aria-label={`Confidence for ${chapter.title}`}>{([1, 2, 3, 4, 5] as const).map((n) => <button type="button" className={n <= chapter.confidence ? "on" : ""} key={n} onClick={() => setConfidence(chapter, n)} aria-label={`Set confidence to ${n} out of 5`} aria-pressed={chapter.confidence === n} />)}</span></article>; })}</div></div><aside className="marks"><small>OFFICIAL QUESTION-TYPE DISTRIBUTION</small><h3>{officialTotal ? `${officialTotal} marks` : marks.length ? `${listedTotal} marks listed` : "Pattern pending"}</h3>{hasConflict && <p className="source-warning"><Warning weight="fill" />The source says {officialTotal} total, while its listed rows add to {listedTotal}. Kept visible for confirmation; no chapter marks were invented.</p>}{marks.length ? marks.map((mark) => <div key={`${mark.part}-${mark.questionType}`}><p><strong>{mark.questionType}</strong><small>{mark.rule}</small></p><b>{mark.marks}</b></div>) : <p>No complete readable Agriculture marks table was available. No chapter weights have been invented.</p>}</aside></section>
+  </main>;
+}
+
+function GoalMetrics({ chapters }: { chapters: Chapter[] }) {
+  const ready = chapters.filter((chapter) => chapter.status === "exam-ready").length;
+  const active = chapters.filter((chapter) => chapter.status !== "not-started" && chapter.status !== "exam-ready").length;
+  const left = chapters.filter((chapter) => chapter.status === "not-started").length;
+  const percent = chapters.length ? Math.round(ready / chapters.length * 100) : 0;
+  return <div className="goal-metrics"><article><small>Selected</small><strong>{chapters.length}</strong></article><article><small>Exam-ready</small><strong>{ready}</strong></article><article><small>In progress</small><strong>{active}</strong></article><article><small>Left</small><strong>{left}</strong></article><article className="wide"><small>Completion</small><i><b style={{ width: `${percent}%` }} /></i><strong>{percent}%</strong></article></div>;
+}
+
+function Goals({ list, preferences, updatePreference, buildQueue }: { list: Chapter[]; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; buildQueue: (chapters: Chapter[], label: string) => void }) {
+  const [month, setMonth] = useState(currentMonthKey());
+  const [subjectId, setSubjectId] = useState("all");
+  const [mode, setMode] = useState<"monthly" | "ssc" | "excluded">("monthly");
+  const monthly = list.filter((chapter) => preferenceFor(chapter.id, preferences).targetMonth === month && !preferenceFor(chapter.id, preferences).excluded);
+  const ssc = list.filter((chapter) => preferenceFor(chapter.id, preferences).includedForSsc && !preferenceFor(chapter.id, preferences).excluded);
+  const excluded = list.filter((chapter) => preferenceFor(chapter.id, preferences).excluded);
+  const selected = mode === "monthly" ? monthly : mode === "ssc" ? ssc : excluded;
+  const candidates = list.filter((chapter) => subjectId === "all" || chapter.subjectId === subjectId);
+  const deadline = mode === "monthly" ? new Date(new Date(`${month}T00:00:00+06:00`).getFullYear(), new Date(`${month}T00:00:00+06:00`).getMonth() + 1, 0) : new Date("2027-01-07T00:00:00+06:00");
+  const weeks = Math.max(1, Math.ceil((deadline.getTime() - Date.now()) / 604800000));
+  const remaining = selected.filter((chapter) => chapter.status !== "exam-ready").length;
+  const pace = Math.ceil(remaining / weeks);
+  const toggle = (chapter: Chapter) => {
+    const preference = preferenceFor(chapter.id, preferences);
+    if (mode === "monthly") updatePreference({ ...preference, excluded: false, exclusionReason: undefined, targetMonth: preference.targetMonth === month ? undefined : month });
+    else if (mode === "ssc") updatePreference({ ...preference, excluded: false, exclusionReason: undefined, includedForSsc: !preference.includedForSsc });
+    else updatePreference({ ...preference, excluded: !preference.excluded, includedForSsc: preference.excluded ? preference.includedForSsc : false, targetMonth: preference.excluded ? preference.targetMonth : undefined, exclusionReason: preference.excluded ? undefined : "Strategic skip" });
+  };
+  return <main id="main-content" tabIndex={-1} className="page goals-page">
+    <SectionTitle kicker="BUILD THE SYLLABUS YOU WILL ACTUALLY STUDY" title="Strategic chapter goals"><span><Target weight="fill" />{pace} chapter{pace === 1 ? "" : "s"}/week needed</span></SectionTitle>
+    <section className="goal-controls"><div className="segmented">{(["monthly", "ssc", "excluded"] as const).map((item) => <button className={mode === item ? "active" : ""} key={item} onClick={() => setMode(item)}>{item === "monthly" ? "Monthly goal" : item === "ssc" ? "Before SSC" : "Excluded"}</button>)}</div>{mode === "monthly" && <label>Target month<input type="month" value={month.slice(0, 7)} onChange={(event) => setMonth(`${event.target.value}-01`)} /></label>}<label>Subject<select value={subjectId} onChange={(event) => setSubjectId(event.target.value)}><option value="all">All subjects</option>{subjects.map((subject) => <option value={subject.id} key={subject.id}>{subject.name}</option>)}</select></label></section>
+    <GoalMetrics chapters={selected} />
+    <section className="goal-layout"><article className="panel goal-selected"><SectionTitle kicker={mode === "monthly" ? monthLabel(month) : mode === "ssc" ? "SSC 2027 TARGET SET" : "REVERSIBLE STRATEGIC SKIPS"} title={mode === "excluded" ? "Chapters you chose not to prepare" : "Selected chapters"}>{mode !== "excluded" && selected.length > 0 && <button className="accent" onClick={() => buildQueue(selected, mode === "monthly" ? `${monthLabel(month)} goal` : "SSC target")}><ListChecks />Build next 5</button>}</SectionTitle>{selected.length ? selected.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); return <div className="goal-row" key={chapter.id}><span className={`number ${bySubject(chapter.subjectId).accent}`}>{chapter.number ?? "•"}</span><p><strong>{chapter.title}</strong><small>{bySubject(chapter.subjectId).shortName} · {chapter.status.replace("-", " ")}</small></p>{mode !== "excluded" && <label className="priority-control">Priority<select value={preference.priority} onChange={(event) => updatePreference({ ...preference, priority: Number(event.target.value) as ChapterPreference["priority"] })}>{[1, 2, 3, 4, 5].map((level) => <option value={level} key={level}>{level}</option>)}</select></label>}<button onClick={() => toggle(chapter)}>{mode === "excluded" ? <><ArrowCounterClockwise />Restore</> : "Remove"}</button></div>; }) : <div className="empty compact"><Target /><h3>No chapters selected yet.</h3><p>Choose only the chapters that belong in this campaign.</p></div>}</article><aside className="panel goal-picker"><SectionTitle kicker="CHAPTER PICKER" title="Add or remove" />{candidates.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); const chosen = mode === "monthly" ? preference.targetMonth === month : mode === "ssc" ? preference.includedForSsc : preference.excluded; return <button className={chosen ? "chosen" : ""} key={chapter.id} onClick={() => toggle(chapter)}><span>{bySubject(chapter.subjectId).shortName}</span><p><strong>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</strong><small>{preference.excluded && mode !== "excluded" ? "Excluded · select to restore and add" : chosen ? "Selected" : "Not selected"}</small></p>{chosen ? <CheckCircle weight="fill" /> : <Plus />}</button>; })}</aside></section>
+  </main>;
+}
+
+type CalendarHealth = { authenticated: boolean; configured: boolean; connected: boolean; lastSuccessfulSync?: string | null; linkedEvents?: number; missing?: string[] };
+
+function StudyCalendar({ tasks, preferences, update, add, openTask }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; add: (date?: string) => void; openTask: () => void }) {
+  const router = useRouter();
+  const [month, setMonth] = useState(currentMonthKey());
+  const [health, setHealth] = useState<CalendarHealth | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
+  const activeTasks = tasks.filter((task) => !excluded.has(task.chapterId) && task.status !== "skipped");
+  useEffect(() => { void fetch("/api/calendar/status").then((response) => response.json()).then(setHealth).catch(() => setHealth(null)); }, []);
+  const first = new Date(`${month}T00:00:00+06:00`);
+  const year = first.getFullYear();
+  const monthIndex = first.getMonth();
+  const blanks = (first.getDay() + 6) % 7;
+  const days = new Date(year, monthIndex + 1, 0).getDate();
+  const cells = [...Array(blanks).fill(null), ...Array.from({ length: days }, (_, index) => index + 1)];
+  const moveMonth = (offset: number) => setMonth(new Date(year, monthIndex + offset, 1).toLocaleDateString("en-CA", { year: "numeric", month: "2-digit" }) + "-01");
+  const unscheduled = activeTasks.filter((task) => task.status !== "completed" && !plannedDate(task));
+  const syncCalendar = async () => {
+    setSyncing(true);
+    const response = await fetch("/api/calendar/sync", { method: "POST" }).catch(() => null);
+    setSyncing(false);
+    if (response?.ok) location.reload();
+    else setHealth((current) => current ? { ...current, connected: false } : current);
+  };
+  return <main id="main-content" tabIndex={-1} className="page calendar-page">
+    <SectionTitle kicker="APP-OWNED STUDY BLOCKS ONLY" title="Study calendar"><div className="calendar-actions"><button onClick={() => moveMonth(-1)} aria-label="Previous month"><CaretLeft /></button><strong>{monthLabel(month)}</strong><button onClick={() => moveMonth(1)} aria-label="Next month"><CaretRight /></button><button className="accent" onClick={() => add()}><Plus />Add task</button></div></SectionTitle>
+    <section className={`calendar-health ${health?.connected ? "ok" : "warn"}`}><CalendarBlank weight="fill" /><p><strong>{health?.connected ? "Google Calendar connected" : health?.authenticated ? health?.configured ? "Google Calendar is ready to connect" : "Calendar configuration is incomplete" : "Sign in to enable Google Calendar"}</strong><small>{health?.connected ? `${health.linkedEvents ?? 0} linked app event${health.linkedEvents === 1 ? "" : "s"}${health.lastSuccessfulSync ? ` · last sync ${new Date(health.lastSuccessfulSync).toLocaleString("en-GB")}` : ""}` : health?.missing?.length ? `Missing: ${health.missing.join(", ")}` : "Your in-app calendar works locally; cloud sync requires authentication."}</small></p><button disabled={syncing} onClick={health?.connected ? syncCalendar : () => router.push("/api/calendar/connect")}>{health?.connected ? syncing ? "Syncing…" : "Sync now" : "Connect"}</button></section>
+    <section className="calendar-layout"><div className="month-grid"><div className="weekday-row">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}</div><div className="day-grid">{cells.map((day, index) => { if (!day) return <div className="day empty-cell" key={`blank-${index}`} />; const date = `${month.slice(0, 8)}${String(day).padStart(2, "0")}`; const items = activeTasks.filter((task) => plannedDate(task) === date); return <article className="day" key={date}><button className="day-number" onClick={() => add(date)}>{day}<Plus /></button>{items.slice(0, 3).map((task) => <button className={`calendar-task ${bySubject(task.subjectId).accent}`} key={task.id} onClick={openTask}><strong>{task.plannedTime}</strong><span>{bySubject(task.subjectId).shortName}</span></button>)}{items.length > 3 && <small>+{items.length - 3} more</small>}</article>; })}</div></div><aside className="panel unscheduled"><SectionTitle kicker="NEEDS A DATE" title={`${unscheduled.length} unscheduled`} />{unscheduled.slice(0, 12).map((task) => <div key={task.id}><p><strong>{task.title}</strong><small>{bySubject(task.subjectId).shortName} · {task.duration} min</small></p><input type="date" aria-label={`Schedule ${task.title}`} onChange={(event) => event.target.value && update(scheduleOn(task, event.target.value))} /></div>)}{!unscheduled.length && <div className="empty compact"><CheckCircle /><h3>Everything is placed.</h3><p>Move a task in Google Calendar, then sync to bring the change back.</p></div>}</aside></section>
   </main>;
 }
 
@@ -272,6 +370,8 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
   const [email, setEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(0);
+  const [health, setHealth] = useState<CalendarHealth | null>(null);
+  const refreshHealth = () => void fetch("/api/calendar/status").then((response) => response.json()).then(setHealth).catch(() => setHealth(null));
   useEffect(() => {
     const client = createSupabaseClient();
     if (!client) return;
@@ -285,13 +385,26 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
     window.addEventListener("ssc-sync-queue-change", refresh);
     return () => window.removeEventListener("ssc-sync-queue-change", refresh);
   }, []);
+  useEffect(() => {
+    refreshHealth();
+    const status = new URLSearchParams(location.search).get("calendar");
+    if (status) {
+      const timer = window.setTimeout(() => setMessage(status === "connected" ? "Google Calendar connected. Run Sync now to create your study blocks." : "Google Calendar connection did not complete. Check the OAuth configuration and try again."), 0);
+      history.replaceState(null, "", location.pathname);
+      return () => window.clearTimeout(timer);
+    }
+  }, []);
   const signIn = async () => {
     const client = createSupabaseClient();
     if (!client) return setMessage("Add Supabase environment variables to enable cloud sign-in.");
     await client.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${location.origin}/auth/callback?next=/`, scopes: "openid email profile" } });
   };
   const signOut = async () => { const client = createSupabaseClient(); await client?.auth.signOut(); setEmail(null); };
-  const calendar = () => { if (!email) return setMessage("Sign in first, then connect Calendar."); router.push("/api/calendar/connect"); };
+  const calendar = () => {
+    if (!email) return setMessage("Sign in first, then connect Calendar.");
+    if (!health?.configured) return setMessage(`Calendar setup is incomplete${health?.missing?.length ? `: ${health.missing.join(", ")}` : ""}. Add the missing server variables, then try again.`);
+    router.push("/api/calendar/connect");
+  };
   const syncNow = async () => {
     setMessage("Syncing saved study changes…");
     const local = await flushCloudSync();
@@ -299,6 +412,7 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
     const response = await fetch("/api/calendar/sync", { method: "POST" }).catch(() => null);
     const body = response ? await response.json().catch(() => null) as { synced?: number; error?: string } | null : null;
     setMessage(response?.ok ? `Cloud queue synced. Calendar checked ${body?.synced ?? 0} app-owned event${body?.synced === 1 ? "" : "s"}.` : body?.error ?? "Calendar is not connected yet. Your study data remains queued safely.");
+    refreshHealth();
   };
   const enableReminders = async () => {
     if (!("Notification" in window)) return setMessage("This browser does not support notifications.");
@@ -308,7 +422,7 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
   };
   return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="PRIVATE BY DEFAULT" title="Planning settings" /><section className="settings">
     <article className="auth-card"><span className="lilac"><CloudCheck /></span><p><strong>{email ? "Cloud account connected" : "Cloud account"}</strong><small>{email ?? "Sign in once to sync phone and desktop."}</small></p><button onClick={email ? signOut : signIn}>{email ? <><SignOut />Sign out</> : <><SignIn />Sign in with Google</>}</button></article>
-    <article><span className="lilac"><CalendarBlank /></span><p><strong>Google Calendar</strong><small>Sync only app-owned study blocks. Unrelated events stay untouched.</small></p><div className="settings-actions"><button onClick={calendar}>Connect</button><button onClick={syncNow}>Sync now</button></div></article>
+    <article><span className="lilac"><CalendarBlank /></span><p><strong>{health?.connected ? "Google Calendar connected" : "Google Calendar"}</strong><small>{health?.connected ? `${health.linkedEvents ?? 0} linked study blocks. Unrelated events stay untouched.` : health?.configured ? "Ready to connect app-owned study blocks." : health?.missing?.length ? `Setup missing: ${health.missing.join(", ")}` : "Sync only app-owned study blocks. Unrelated events stay untouched."}</small></p><div className="settings-actions"><button className={health?.connected ? "connected" : ""} onClick={calendar}>{health?.connected ? "Reconnect" : "Connect"}</button><button onClick={syncNow}>Sync now</button></div></article>
     <article className="settings-editor"><span className="mint"><Clock /></span><p><strong>Study windows</strong><small>These guide planning without locking every day into a rigid routine.</small></p><div className="inline-fields"><label>Main starts<input type="time" value={planning.mainStart} onChange={(event) => setPlanning({ ...planning, mainStart: event.target.value })} /></label><label>Main ends<input type="time" value={planning.mainEnd} onChange={(event) => setPlanning({ ...planning, mainEnd: event.target.value })} /></label><label>Maths starts<input type="time" value={planning.mathStart} onChange={(event) => setPlanning({ ...planning, mathStart: event.target.value })} /></label><label>Maths ends<input type="time" value={planning.mathEnd} onChange={(event) => setPlanning({ ...planning, mathEnd: event.target.value })} /></label></div></article>
     <article className="settings-editor"><span className="yellow"><Brain /></span><p><strong>Recommendation control</strong><small>Weakness-first rules stay explainable; manual pins still override them.</small></p><div className="inline-fields"><label>Daily target<input type="number" min="60" max="600" value={planning.dailyTarget} onChange={(event) => setPlanning({ ...planning, dailyTarget: Number(event.target.value) })} /><em>min</em></label><label>Maths<input type="number" min="1" max="7" value={planning.mathDaysPerWeek} onChange={(event) => setPlanning({ ...planning, mathDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label><label>Agriculture<input type="number" min="1" max="7" value={planning.agricultureDaysPerWeek} onChange={(event) => setPlanning({ ...planning, agricultureDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label></div></article>
     <article><span className="pink"><CloudCheck /></span><p><strong>Offline journal queue</strong><small>{pending} pending change{pending === 1 ? "" : "s"}. Repeated edits are merged before upload.</small></p><button onClick={syncNow}>Retry now</button></article>
@@ -317,13 +431,17 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
   </section></main>;
 }
 
-function ManualTaskModal({ close, save }: { close: () => void; save: (task: StudyTask) => void }) {
-  const [subjectId, setSubjectId] = useState("mathematics");
-  const available = seedChapters.filter((chapter) => chapter.subjectId === subjectId);
-  const [chapterId, setChapterId] = useState(available[0].id);
+function ManualTaskModal({ close, save, defaultDate, preferences }: { close: () => void; save: (task: StudyTask) => void; defaultDate?: string; preferences: ChapterPreference[] }) {
+  const selectable = seedChapters.filter((chapter) => !preferenceFor(chapter.id, preferences).excluded);
+  const selectableSubjects = subjects.filter((subject) => selectable.some((chapter) => chapter.subjectId === subject.id));
+  const initialSubject = selectable.some((chapter) => chapter.subjectId === "mathematics") ? "mathematics" : selectable[0]?.subjectId ?? "mathematics";
+  const [subjectId, setSubjectId] = useState(initialSubject);
+  const available = selectable.filter((chapter) => chapter.subjectId === subjectId);
+  const [chapterId, setChapterId] = useState(available[0]?.id ?? selectable[0]?.id ?? seedChapters[0].id);
   const [time, setTime] = useState("3:00 PM");
   const [duration, setDuration] = useState(45);
-  return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="manual-task-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form onSubmit={(event) => { event.preventDefault(); const chapter = byChapter(chapterId); save({ id: crypto.randomUUID(), subjectId, chapterId, title: chapter.title, plannedTime: time, duration, origin: "manual", pinned: true, status: "planned", currentStep: 0, reason: "Manual priority · pinned first", priorityScore: 100, focusedSeconds: 0 }); }}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>MANUAL CONTROL</small><h2 id="manual-task-title">Add a study task</h2><label>Subject<select autoFocus value={subjectId} onChange={(event) => { const nextSubject = event.target.value; setSubjectId(nextSubject); setChapterId(seedChapters.find((chapter) => chapter.subjectId === nextSubject)!.id); }}>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label><label>Chapter<select value={chapterId} onChange={(event) => setChapterId(event.target.value)}>{available.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</option>)}</select></label><div className="form-row"><label>Planned time<input value={time} onChange={(event) => setTime(event.target.value)} /></label><label>Minutes<input type="number" min="10" max="240" value={duration} onChange={(event) => setDuration(Number(event.target.value))} /></label></div><button className="solid-cta"><Plus />Add and pin first</button></form></div>;
+  const [date, setDate] = useState(defaultDate ?? "");
+  return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="manual-task-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form onSubmit={(event) => { event.preventDefault(); const chapter = byChapter(chapterId); const task: StudyTask = { id: crypto.randomUUID(), subjectId, chapterId, title: chapter.title, plannedTime: time, duration, origin: "manual", pinned: true, status: "planned", currentStep: 0, reason: "Manual priority · pinned first", priorityScore: 100, focusedSeconds: 0 }; save(date ? scheduleOn(task, date) : task); }}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>MANUAL CONTROL</small><h2 id="manual-task-title">Add a study task</h2><label>Subject<select autoFocus value={subjectId} onChange={(event) => { const nextSubject = event.target.value; setSubjectId(nextSubject); setChapterId(selectable.find((chapter) => chapter.subjectId === nextSubject)!.id); }}>{selectableSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label><label>Chapter<select value={chapterId} onChange={(event) => setChapterId(event.target.value)}>{available.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</option>)}</select></label><div className="form-row"><label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label>Planned time<input value={time} onChange={(event) => setTime(event.target.value)} /></label><label>Minutes<input type="number" min="10" max="240" value={duration} onChange={(event) => setDuration(Number(event.target.value))} /></label></div><button className="solid-cta"><Plus />Add and pin first</button></form></div>;
 }
 
 function JournalModal({ task, close, save }: { task: StudyTask; close: () => void; save: (entry: JournalEntry) => void }) {
@@ -359,8 +477,10 @@ export default function CommandCenter() {
   const [mistakes, setMistakes] = useStored<Mistake[]>("ssc-mistakes", seededMistakes);
   const [mocks, setMocks] = useStored<MockResult[]>("ssc-mocks", []);
   const [planning, setPlanning] = useStored<PlanningSettings>("ssc-planning", defaultPlanning);
+  const [preferences, setPreferences] = useStored<ChapterPreference[]>("ssc-chapter-preferences", []);
   const [journalTask, setJournalTask] = useState<StudyTask | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
+  const [manualDate, setManualDate] = useState<string | undefined>();
   const [mockOpen, setMockOpen] = useState(false);
 
   useEffect(() => installOnlineSync(), []);
@@ -372,7 +492,8 @@ export default function CommandCenter() {
       const payload = response?.ok ? await response.json().catch(() => null) as { mode?: string; data?: Record<string, Record<string, unknown>[]> } | null : null;
       if (cancelled || payload?.mode !== "cloud" || !payload.data) return;
       const data = payload.data;
-      if (data.study_tasks?.length) setTasks(data.study_tasks.map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), plannedTime: row.planned_start ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "numeric", minute: "2-digit" }).format(new Date(String(row.planned_start))) : "Unscheduled", duration: Number(row.duration_minutes), origin: row.origin as StudyTask["origin"], pinned: Boolean(row.pinned), status: row.status as StudyTask["status"], currentStep: Number(row.current_step), reason: String(row.priority_explanation ?? "Cloud task"), priorityScore: Number(row.priority_score), focusedSeconds: Number(row.focused_seconds ?? 0) })));
+      if (data.study_tasks?.length) setTasks(data.study_tasks.map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), plannedTime: row.planned_start ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "numeric", minute: "2-digit" }).format(new Date(String(row.planned_start))) : "Unscheduled", plannedStart: row.planned_start ? String(row.planned_start) : undefined, plannedEnd: row.planned_end ? String(row.planned_end) : undefined, duration: Number(row.duration_minutes), origin: row.origin as StudyTask["origin"], pinned: Boolean(row.pinned), status: row.status as StudyTask["status"], currentStep: Number(row.current_step), reason: String(row.priority_explanation ?? "Cloud task"), priorityScore: Number(row.priority_score), focusedSeconds: Number(row.focused_seconds ?? 0) })));
+      if (data.chapter_preferences?.length) setPreferences(data.chapter_preferences.map((row) => ({ chapterId: String(row.chapter_id), includedForSsc: Boolean(row.included_for_ssc), targetMonth: row.target_month ? String(row.target_month) : undefined, excluded: Boolean(row.excluded), exclusionReason: row.exclusion_reason ? String(row.exclusion_reason) : undefined, priority: Number(row.priority) as ChapterPreference["priority"] })));
       if (data.chapter_progress?.length) {
         const progress = new Map(data.chapter_progress.map((row) => [String(row.chapter_id), row]));
         setChapterList(seedChapters.map((chapter) => { const row = progress.get(chapter.id); return row ? { ...chapter, status: row.status as Chapter["status"], confidence: Number(row.confidence) as Chapter["confidence"], lastStudied: row.last_studied ? String(row.last_studied) : undefined, nextReview: row.next_review ? String(row.next_review) : undefined, questionsAttempted: Number(row.questions_attempted), questionsCorrect: Number(row.questions_correct) } : chapter; }));
@@ -383,7 +504,7 @@ export default function CommandCenter() {
     };
     void bootstrap();
     return () => { cancelled = true; };
-  }, [setChapterList, setEntries, setMistakes, setMocks, setTasks]);
+  }, [setChapterList, setEntries, setMistakes, setMocks, setPreferences, setTasks]);
 
   const updateTask = (updated: StudyTask) => {
     const next = tasks.map((task) => task.id === updated.id ? updated : task);
@@ -392,11 +513,66 @@ export default function CommandCenter() {
     void queueCloudSync("study_tasks", [taskRow(updated)]);
   };
 
+  const removeTaskFromToday = (task: StudyTask) => {
+    updateTask({
+      ...task,
+      status: "skipped",
+      pinned: false,
+      plannedTime: "Removed",
+      plannedStart: undefined,
+      plannedEnd: undefined,
+      deferredUntil: undefined,
+    });
+  };
+
   const addTask = (task: StudyTask) => {
+    if (preferenceFor(task.chapterId, preferences).excluded) return;
     setTasks([task, ...tasks]);
     void queueCloudSync("study_tasks", [taskRow(task)]);
     setManualOpen(false);
+    setManualDate(undefined);
     setActive("Today");
+  };
+
+  const openManual = (date?: string) => { setManualDate(date); setManualOpen(true); };
+
+  const updatePreference = (updated: ChapterPreference) => {
+    setPreferences([...preferences.filter((item) => item.chapterId !== updated.chapterId), updated]);
+    void queueCloudSync("chapter_preferences", [preferenceRow(updated)]);
+    if (updated.excluded) {
+      const affected = tasks.filter((task) => task.chapterId === updated.chapterId && task.status !== "completed" && task.status !== "skipped").map((task) => ({ ...task, status: "skipped" as const, plannedStart: undefined, plannedEnd: undefined }));
+      if (affected.length) {
+        const byId = new Map(affected.map((task) => [task.id, task]));
+        setTasks(tasks.map((task) => byId.get(task.id) ?? task));
+        void queueCloudSync("study_tasks", affected.map(taskRow));
+      }
+    }
+  };
+
+  const buildGoalQueue = (selected: Chapter[], label: string) => {
+    const openChapterIds = new Set(tasks.filter((task) => task.status !== "completed" && task.status !== "skipped").map((task) => task.chapterId));
+    const candidates = selected
+      .filter((chapter) => chapter.status !== "exam-ready" && !openChapterIds.has(chapter.id) && !preferenceFor(chapter.id, preferences).excluded)
+      .sort((a, b) => preferenceFor(b.id, preferences).priority - preferenceFor(a.id, preferences).priority || a.confidence - b.confidence)
+      .slice(0, 5);
+    const generated = candidates.map((chapter) => {
+      const base = recommendTasks(subjects, [chapter], { mistakes, mocks })[0];
+      const priority = preferenceFor(chapter.id, preferences).priority;
+      return {
+        ...base,
+        id: crypto.randomUUID(),
+        plannedTime: "Unscheduled",
+        plannedStart: undefined,
+        plannedEnd: undefined,
+        reason: `${label} · priority ${priority}/5`,
+        priorityScore: Math.max(base.priorityScore, 65 + priority * 6),
+      };
+    });
+    if (!generated.length) return;
+    const next = [...generated, ...tasks];
+    setTasks(next);
+    void queueCloudSync("study_tasks", generated.map(taskRow));
+    setActive("Calendar");
   };
 
   const save = (entry: JournalEntry) => {
@@ -406,7 +582,8 @@ export default function CommandCenter() {
     const updatedTasks = tasks.map((task) => task.id === entry.taskId ? { ...task, status: "completed" as const } : task);
     const updatedChapters = chapterList.map((chapter) => chapter.id === entry.chapterId ? updatedChapter : chapter);
     const nextMistakes = entry.subjectId === "mathematics" && entry.mistakesText ? [{ id: crypto.randomUUID(), chapterId: entry.chapterId, prompt: entry.mistakesText, errorType: "Session mistake", reattemptDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10), resolved: false }, ...mistakes] : mistakes;
-    const recommended = recommendTasks(subjects, updatedChapters, { mistakes: nextMistakes, mocks }).find((candidate) => !updatedTasks.some((task) => task.status !== "completed" && task.chapterId === candidate.chapterId));
+    const allowedChapters = updatedChapters.filter((chapter) => !preferenceFor(chapter.id, preferences).excluded);
+    const recommended = recommendTasks(subjects, allowedChapters, { mistakes: nextMistakes, mocks }).find((candidate) => !updatedTasks.some((task) => task.status !== "completed" && task.chapterId === candidate.chapterId));
     if (recommended) updatedTasks.push({ ...recommended, plannedTime: "Tomorrow", deferredUntil: new Date(Date.now() + 86400000).toISOString() });
     setEntries([entry, ...entries]);
     setTasks(updatedTasks);
@@ -435,12 +612,14 @@ export default function CommandCenter() {
     void queueCloudSync("mistakes", [{ id: updated.id, subject_id: "mathematics", chapter_id: updated.chapterId, prompt: updated.prompt, error_type: updated.errorType, reattempt_date: updated.reattemptDate, resolved: updated.resolved, resolved_at: updated.resolved ? new Date().toISOString() : null }]);
   };
 
-  const firstOpenTask = () => setJournalTask(tasks.find((task) => task.status !== "completed" && isTaskAvailable(task)) ?? tasks[0]);
+  const firstOpenTask = () => setJournalTask(tasks.find((task) => task.status !== "completed" && !preferenceFor(task.chapterId, preferences).excluded && isTaskAvailable(task)) ?? null);
   const content = (() => {
     switch (active) {
-      case "Dashboard": return <Dashboard tasks={tasks} chapters={chapterList} mistakes={mistakes} entries={entries} go={setActive} />;
-      case "Today": return <Today tasks={tasks} update={updateTask} journal={setJournalTask} add={() => setManualOpen(true)} />;
-      case "Syllabus": return <Syllabus list={chapterList} setList={setChapterList} />;
+      case "Dashboard": return <Dashboard tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} go={setActive} />;
+      case "Today": return <Today tasks={tasks} preferences={preferences} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} />;
+      case "Syllabus": return <Syllabus list={chapterList} setList={setChapterList} preferences={preferences} updatePreference={updatePreference} goGoals={() => setActive("Goals")} />;
+      case "Goals": return <Goals list={chapterList} preferences={preferences} updatePreference={updatePreference} buildQueue={buildGoalQueue} />;
+      case "Calendar": return <StudyCalendar tasks={tasks} preferences={preferences} update={updateTask} add={openManual} openTask={() => setActive("Today")} />;
       case "Journal": return <Journal entries={entries} add={firstOpenTask} />;
       case "Progress": return <Progress entries={entries} list={chapterList} mocks={mocks} addMock={() => setMockOpen(true)} />;
       case "Maths Lab": return <MathsLab mistakes={mistakes} resolve={resolveMistake} />;
@@ -454,8 +633,8 @@ export default function CommandCenter() {
     <Sidebar active={active} setActive={setActive} open={menu} close={() => setMenu(false)} />
     {menu && <button className="mobile-scrim" onClick={() => setMenu(false)} aria-label="Close navigation" />}
     <div className="workspace"><Topbar active={active} open={() => setMenu(true)} />{content}</div>
-    <nav className="bottom-nav">{[["Dashboard", House], ["Today", CalendarBlank], ["Syllabus", Books], ["Progress", ChartBar], ["Settings", SlidersHorizontal]].map(([label, Icon]) => <button key={String(label)} aria-label={String(label)} className={active === label ? "active" : ""} onClick={() => setActive(String(label))}><Icon size={22} weight={active === label ? "fill" : "regular"} /></button>)}</nav>
-    {manualOpen && <ManualTaskModal close={() => setManualOpen(false)} save={addTask} />}
+    <nav className="bottom-nav">{[["Dashboard", House], ["Today", CalendarBlank], ["Goals", Target], ["Calendar", CalendarPlus], ["Settings", SlidersHorizontal]].map(([label, Icon]) => <button key={String(label)} aria-label={String(label)} className={active === label ? "active" : ""} onClick={() => setActive(String(label))}><Icon size={22} weight={active === label ? "fill" : "regular"} /></button>)}</nav>
+    {manualOpen && <ManualTaskModal close={() => { setManualOpen(false); setManualDate(undefined); }} save={addTask} defaultDate={manualDate} preferences={preferences} />}
     {journalTask && <JournalModal task={journalTask} close={() => setJournalTask(null)} save={save} />}
     {mockOpen && <MockResultModal close={() => setMockOpen(false)} save={saveMock} />}
     <p className="sr-only" aria-live="polite">{manualOpen ? "Add task dialog opened" : journalTask ? "Session journal opened" : mockOpen ? "Mock result dialog opened" : ""}</p>

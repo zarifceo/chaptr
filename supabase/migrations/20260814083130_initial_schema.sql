@@ -204,3 +204,5 @@ create index mistakes_user_open on public.mistakes(user_id, resolved, reattempt_
 create index calendar_links_user_task on public.calendar_links(user_id, task_id);
 
 comment on table public.marks_distributions is 'Official question-type marks only. Never infer per-chapter marks.';
+
+

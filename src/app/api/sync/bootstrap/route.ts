@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ensureAcademicData } from "@/lib/seed-academics";
 
-const tables = ["study_tasks", "chapter_progress", "journal_entries", "mistakes", "mock_results"] as const;
+const tables = ["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results"] as const;
 
 export async function GET() {
   await ensureAcademicData();

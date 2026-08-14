@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { googleOAuth } from "@/lib/google-calendar";
 import { encryptToken } from "@/lib/token-crypto";
 import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -9,8 +10,8 @@ export async function GET(request: Request) {
   const state = url.searchParams.get("state");
   const supabase = await createClient();
   const { data } = await supabase?.auth.getUser() ?? { data: { user: null } };
-  const expected = (await import("next/headers")).cookies().then((store) => store.get("calendar_oauth_state")?.value);
-  if (!data.user || !code || !state || state !== await expected) return NextResponse.redirect(new URL("/?calendar=denied", request.url));
+  const expected = (await cookies()).get("calendar_oauth_state")?.value;
+  if (!data.user || !code || !state || state !== expected) return NextResponse.redirect(new URL("/?calendar=denied", request.url));
   try {
     const auth = googleOAuth();
     const { tokens } = await auth.getToken(code);

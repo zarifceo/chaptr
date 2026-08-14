@@ -52,15 +52,17 @@ async function runSeed() {
     syllabus_scope: "Complete SSC syllabus",
   }));
 
-  for (const group of [
-    { table: "subjects", rows: subjectRows },
-    { table: "chapters", rows: chapterRows },
-    { table: "marks_distributions", rows: markRows },
-    { table: "exams", rows: examRows },
-  ]) {
-    const { error } = await admin.from(group.table).upsert(group.rows as never[]);
-    if (error) throw new Error(`Could not seed ${group.table}: ${error.message}`);
-  }
+  const results = await Promise.all([
+    admin.from("subjects").upsert(subjectRows),
+    admin.from("chapters").upsert(chapterRows),
+    admin.from("marks_distributions").upsert(markRows),
+    admin.from("exams").upsert(examRows),
+  ]);
+
+  const tables = ["subjects", "chapters", "marks_distributions", "exams"] as const;
+  results.forEach(({ error }, index) => {
+    if (error) throw new Error(`Could not seed ${tables[index]}: ${error.message}`);
+  });
 }
 
 export function ensureAcademicData() {
