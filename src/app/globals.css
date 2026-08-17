@@ -330,3 +330,198 @@ button { border-radius: 10px; }
 @media(max-width:1050px){.analytics-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-grid{grid-template-columns:1fr}}
 @media(max-width:780px){.sidebar{background:#ffffff}.topbar{padding:18px}.page{padding:22px 17px 105px}.analytics-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.analytics-stat-grid{grid-template-columns:1fr 1fr}.analytics-stat-card .card-title{font-size:24px}.database-gate .panel{padding:26px 20px}}
+
+
+/* Definitive visual cleanup: one light system across every route */
+:root {
+  --surface-0: #f8fafc;
+  --surface-1: #ffffff;
+  --surface-2: #f1f5f9;
+  --surface-3: #eaf0f7;
+  --ink-1: #0f172a;
+  --ink-2: #334155;
+  --ink-3: #64748b;
+  --ink-4: #94a3b8;
+  --stroke: #dfe6ef;
+  --stroke-strong: #cbd5e1;
+  --primary-soft: #eef3ff;
+}
+
+body { background: var(--surface-0); color: var(--ink-1); }
+.page { background: transparent; }
+.panel,
+.mini-card,
+.countdown,
+.marks,
+.chapters article,
+.journal-grid article,
+.mistakes article,
+.division,
+.phases article,
+.settings article,
+.goal-metrics article,
+.goal-selected-subject,
+.goal-subject-section,
+.calendar-layout > *,
+.resource-card,
+.evidence-map,
+.analytics-chart,
+.analytics-subjects,
+.countdown-timeline,
+.countdown-detail,
+.countdown-guidance,
+.focus-evidence article,
+.analytics-chart-card,
+.analytics-subjects-card {
+  background: var(--surface-1) !important;
+  border: 1px solid var(--stroke) !important;
+  color: var(--ink-1);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .045);
+}
+.panel h2, .panel h3, .panel h4,
+.mini-card h3, .marks h3,
+.journal-grid h3, .feature-heading h3,
+.countdown-detail h3, .countdown-timeline h3,
+.resource-card h3, .goal-selected-subject strong,
+.goal-subject-section strong, .countdown-guidance h3 { color: var(--ink-1) !important; }
+.panel p, .panel small, .panel span,
+.mini-card p, .journal-grid p, .resource-card p,
+.goal-intro p, .goal-row small, .goal-picker small,
+.countdown-detail p, .countdown-guidance p { color: var(--ink-3); }
+
+/* Keep all buttons square-rounded rather than pill-shaped. */
+button, .solid-cta, .accent, .finish,
+.section-title > button, .section-title > span,
+.queue .section-title button, .status,
+.chapter-actions button, .syllabus-tools > button,
+.segmented, .segmented button, .settings article button,
+.timer-box button, .task-actions button,
+.resource-actions a, .resource-actions button,
+.goal-row > button, .goal-bulk-actions button,
+.calendar-actions button, .calendar-health button,
+.bottom-nav, .bottom-nav button { border-radius: 10px !important; }
+
+/* Consistent input treatment. */
+input, textarea, select,
+.search, .goal-controls input, .goal-controls select,
+.inline-fields input, .resource-controls select,
+.compact-select select, .focus-task-select select {
+  border: 1px solid var(--stroke-strong) !important;
+  border-radius: 10px !important;
+  background: var(--surface-1) !important;
+  color: var(--ink-1) !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,.025);
+}
+input::placeholder, textarea::placeholder { color: var(--ink-4); }
+
+/* Dashboard empty state: intentional setup surface, not a blank page. */
+.empty-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 16px; }
+.empty-dashboard-card { min-height: 310px; display: grid; grid-template-columns: 82px minmax(0, 1fr); align-items: center; gap: 24px; padding: 34px; }
+.empty-dashboard-card .empty-illustration { display: grid; place-items: center; width: 76px; height: 76px; border-radius: 18px; background: var(--primary-soft); color: var(--primary); }
+.empty-dashboard-card .empty-illustration svg { width: 38px; height: 38px; }
+.empty-dashboard-card small, .setup-checklist > small { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: .14em; }
+.empty-dashboard-card h2 { max-width: 500px; margin: 9px 0 8px; color: var(--ink-1); font-size: clamp(28px, 4vw, 44px); letter-spacing: -.055em; line-height: 1; }
+.empty-dashboard-card p { max-width: 570px; margin: 0; color: var(--ink-3); line-height: 1.6; }
+.empty-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 22px; }
+.setup-checklist { display: grid; align-content: center; gap: 14px; padding: 26px; }
+.setup-checklist h3 { margin: 0; color: var(--ink-1); font-size: 20px; letter-spacing: -.03em; }
+.setup-checklist ol { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; counter-reset: setup; }
+.setup-checklist li { display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: 10px; color: var(--ink-2); font-size: 12px; }
+.setup-checklist li::before { counter-increment: setup; content: counter(setup); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--surface-2); color: var(--primary); font-size: 11px; font-weight: 800; }
+
+/* Repair sections that previously retained dark mode values. */
+.adaptive-planner, .goal-intro, .countdown-guidance { background: linear-gradient(135deg, #ffffff 0%, #f5f8ff 100%) !important; border-color: #d8e3fa !important; }
+.adaptive-planner h3, .goal-intro h3, .countdown-guidance h3 { color: var(--ink-1) !important; }
+.adaptive-planner p, .adaptive-planner .planner-note, .planner-result, .goal-intro p, .countdown-guidance p { color: var(--ink-3) !important; }
+.revision-prompt { background: #f8fafc !important; border: 1px solid var(--stroke) !important; color: var(--ink-1) !important; }
+.revision-next { background: var(--primary-soft) !important; color: var(--ink-2) !important; }
+.goal-metrics article { min-height: 112px; background: var(--surface-1) !important; border-color: var(--stroke) !important; }
+.goal-metrics article small, .goal-metrics article strong, .goal-metrics article span { color: var(--ink-1) !important; }
+.goal-metrics article small { color: var(--ink-3) !important; }
+.goal-metrics .wide i { background: var(--surface-3) !important; }
+.goal-selected-subject, .goal-subject-section { overflow: hidden; }
+.goal-selected-subject > header, .goal-subject-section > header { background: var(--surface-2) !important; }
+.goal-selected-subject .goal-row, .goal-chapter-option { border-top-color: var(--stroke) !important; }
+.goal-chapter-option strong { color: var(--ink-2) !important; }
+.goal-chapter-option:hover, .goal-chapter-option.chosen { background: var(--primary-soft) !important; }
+
+/* Countdown should feel like a deadline dashboard, not a dark landing page. */
+.countdown-command-hero { background: linear-gradient(135deg, #ffffff 0%, #eef3ff 100%) !important; border: 1px solid #d3def5 !important; box-shadow: 0 12px 30px rgba(49,94,251,.08) !important; }
+.countdown-hero-copy h2, .countdown-hero-number { color: var(--ink-1) !important; }
+.countdown-hero-copy p, .countdown-hero-meta { color: var(--ink-3) !important; }
+.countdown-hero-meta svg { color: var(--primary) !important; }
+.countdown-ring { background: #ffffff !important; border-color: #d5dfef !important; box-shadow: inset 0 0 0 18px #eef3ff, 0 0 0 10px #eef3ff !important; }
+.countdown-ring strong { color: var(--primary) !important; }
+.countdown-ring span { color: var(--ink-3) !important; }
+.countdown-ring.building { box-shadow: inset 0 0 0 18px #dff6f1, 0 0 0 10px #effbf9 !important; }
+.countdown-ring.tight { box-shadow: inset 0 0 0 18px #fff1cf, 0 0 0 10px #fff8e9 !important; }
+.countdown-ring.critical { box-shadow: inset 0 0 0 18px #ffe3eb, 0 0 0 10px #fff1f4 !important; }
+.countdown-stats article { background: var(--surface-1) !important; border: 1px solid var(--stroke) !important; }
+.countdown-stats article small, .countdown-stats article strong, .countdown-stats article span { color: var(--ink-1) !important; }
+.countdown-stats article span, .countdown-stats article small { color: var(--ink-3) !important; }
+.countdown-event-row { border-top-color: var(--stroke) !important; }
+.countdown-event-row:hover, .countdown-event-row.selected { background: var(--primary-soft) !important; }
+.countdown-event-row strong, .countdown-event-row > b { color: var(--ink-1) !important; }
+.countdown-event-row p, .countdown-event-row small { color: var(--ink-3) !important; }
+.detail-status, .detail-dates span { background: var(--surface-2) !important; color: var(--ink-2) !important; }
+.detail-status span, .detail-dates strong { color: var(--ink-1) !important; }
+.detail-note { background: var(--primary-soft) !important; color: var(--ink-2) !important; }
+
+/* Settings, resources, evidence, and focus mode all follow the same light language. */
+.auth-card { background: var(--surface-1) !important; border: 1px solid var(--stroke) !important; color: var(--ink-1) !important; }
+.auth-card p strong, .auth-card p small { color: var(--ink-1) !important; }
+.auth-card p small { color: var(--ink-3) !important; }
+.settings-editor .inline-fields input { background: var(--surface-1) !important; color: var(--ink-1) !important; }
+.settings-message { background: var(--primary-soft) !important; border-color: #d6e2ff !important; color: var(--ink-2) !important; }
+.evidence-table article { border-top-color: var(--stroke) !important; }
+.evidence-table article p strong, .evidence-numbers b { color: var(--ink-1) !important; }
+.evidence-table article p small, .evidence-numbers small { color: var(--ink-3) !important; }
+.resource-card { background: var(--surface-1) !important; }
+.resource-card h3 { color: var(--ink-1) !important; }
+.resource-card p, .resource-card em { color: var(--ink-3) !important; }
+.focus-page { background: linear-gradient(135deg, #f8fafc 0%, #edf3ff 100%) !important; color: var(--ink-1); }
+.focus-topbar span, .focus-topbar small, .focus-topbar button { color: var(--ink-2) !important; }
+.focus-kicker h2 { color: var(--ink-1) !important; }
+.focus-kicker small, .focus-task-select, .focus-clock > p, .focus-evidence p { color: var(--ink-3) !important; }
+.focus-clock { background: var(--surface-1) !important; border-color: var(--stroke) !important; box-shadow: 0 12px 32px rgba(15,23,42,.08) !important; }
+.focus-clock > small, .focus-clock > strong { color: var(--primary) !important; }
+.focus-evidence article { background: var(--surface-1) !important; border-color: var(--stroke) !important; }
+.focus-evidence small, .focus-evidence input, .focus-evidence strong { color: var(--ink-1) !important; }
+
+@media(max-width:900px) { .empty-dashboard-grid { grid-template-columns: 1fr; } }
+@media(max-width:600px) { .empty-dashboard-card { grid-template-columns: 1fr; padding: 26px; } }
+
+
+/* Accent utilities must not override semantic card surfaces. */
+.analytics-stat-card.blue,
+.analytics-stat-card.violet,
+.analytics-stat-card.amber,
+.analytics-stat-card.emerald,
+.metrics article,
+.metrics article.lilac,
+.metrics article.mint,
+.metrics article.yellow,
+.metrics article.pink {
+  background: var(--surface-1) !important;
+  color: var(--ink-1) !important;
+}
+.analytics-stat-card.blue .card-title,
+.analytics-stat-card.violet .card-title,
+.analytics-stat-card.amber .card-title,
+.analytics-stat-card.emerald .card-title,
+.metrics article strong,
+.metrics article span,
+.metrics article small { color: var(--ink-1) !important; }
+.analytics-stat-card.blue .card-content p,
+.analytics-stat-card.violet .card-content p,
+.analytics-stat-card.amber .card-content p,
+.analytics-stat-card.emerald .card-content p,
+.metrics article span { color: var(--ink-3) !important; }
+
+
+body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, "Noto Sans Bengali", sans-serif; }
+.empty-day { background: var(--surface-1) !important; border: 1px dashed var(--stroke-strong) !important; color: var(--ink-1); }
+.empty-day h3 { color: var(--ink-1) !important; }
+.empty-day p { color: var(--ink-3) !important; }
+.empty-day > svg { color: var(--primary) !important; }
+.page-transition { animation: page-enter 160ms var(--ease-out) both; }
