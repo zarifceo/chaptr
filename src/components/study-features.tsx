@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, BookOpen, Books, CheckCircle, Clock, Exam, LinkSimple, Pause, Play, Plus, Timer, Trash, X } from "@phosphor-icons/react";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, BookOpen, Books, CheckCircle, Exam, LinkSimple, Pause, Play, Plus, Timer, Trash, X } from "@phosphor-icons/react";
 import { chapters as seedChapters, subjects } from "@/lib/academic-data";
 import type { Chapter, ChapterEvidence, JournalEntry, Mistake, ResourceKind, StudyResource, StudySession, StudyTask } from "@/lib/types";
 
@@ -62,16 +65,22 @@ export function StudyAnalytics({ sessions, entries, tasks }: { sessions: StudySe
     const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (6 - index));
     const key = date.toISOString().slice(0, 10);
     const seconds = completedSessions.filter((session) => session.startedAt.slice(0, 10) === key).reduce((sum, session) => sum + session.focusedSeconds, 0);
-    return { key, label: date.toLocaleDateString("en-GB", { weekday: "short" }), seconds };
+    return { key, label: date.toLocaleDateString("en-GB", { weekday: "short" }), minutes: Math.round(seconds / 60) };
   });
-  const maxDay = Math.max(1, ...lastSeven.map((day) => day.seconds));
   const subjectRows = subjects.map((subject) => {
     const mine = completedSessions.filter((session) => session.subjectId === subject.id);
     return { subject, seconds: mine.reduce((sum, session) => sum + session.focusedSeconds, 0), sessions: mine.length };
   }).filter((row) => row.seconds || row.sessions).sort((a, b) => b.seconds - a.seconds);
+  const chartConfig = { minutes: { label: "Focused minutes", color: "#315efb" } } satisfies ChartConfig;
+  const statCards = [
+    { label: "Focused time", value: formatDuration(focusedSeconds), detail: `${completedSessions.length} saved sessions`, tone: "blue" },
+    { label: "Average session", value: completedSessions.length ? formatDuration(Math.round(focusedSeconds / completedSessions.length)) : "0m", detail: pauseSeconds ? `${Math.round(pauseSeconds / 60)}m paused` : "No pause data yet", tone: "violet" },
+    { label: "Answer accuracy", value: attempted ? `${Math.round(correct / attempted * 100)}%` : "—", detail: attempted ? `${correct}/${attempted} correct` : "Log evidence in a session", tone: "amber" },
+    { label: "Task completion", value: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : "0%", detail: `${completedTasks} of ${tasks.length} tasks closed`, tone: "emerald" },
+  ];
   return <section className="analytics-panel">
-    <div className="analytics-stat-grid"><article className="lilac"><small>Focused time</small><strong>{formatDuration(focusedSeconds)}</strong><span>{completedSessions.length} saved sessions</span></article><article className="mint"><small>Average session</small><strong>{completedSessions.length ? formatDuration(Math.round(focusedSeconds / completedSessions.length)) : "0m"}</strong><span>{pauseSeconds ? `${Math.round(pauseSeconds / 60)}m paused` : "No pause data yet"}</span></article><article className="yellow"><small>Answer accuracy</small><strong>{attempted ? `${Math.round(correct / attempted * 100)}%` : "—"}</strong><span>{attempted ? `${correct}/${attempted} correct` : "Log evidence in a session"}</span></article><article className="pink"><small>Task completion</small><strong>{tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : "0%"}</strong><span>{completedTasks} of {tasks.length} tasks closed</span></article></div>
-    <div className="analytics-grid"><article className="panel analytics-chart"><div className="feature-heading"><div><small>LAST 7 DAYS</small><h3>Focused minutes</h3></div><ChartIcon /></div><div className="session-bars">{lastSeven.map((day) => <div key={day.key}><span>{day.label}</span><i><b style={{ height: `${Math.max(8, day.seconds / maxDay * 100)}%` }} /></i><strong>{Math.round(day.seconds / 60)}m</strong></div>)}</div></article><article className="panel analytics-subjects"><div className="feature-heading"><div><small>WHERE TIME GOES</small><h3>Subject balance</h3></div><Clock /></div>{subjectRows.length ? subjectRows.slice(0, 6).map(({ subject, seconds, sessions: count }) => <div className="subject-analytics-row" key={subject.id}><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><p><strong>{subject.shortName}</strong><small>{count} session{count === 1 ? "" : "s"}</small></p><b>{Math.round(seconds / 60)}m</b></div>) : <div className="feature-empty"><Timer /><p>Start a focused session to see your real time balance.</p></div>}</article></div>
+    <div className="analytics-stat-grid">{statCards.map((stat) => <Card className={`analytics-stat-card ${stat.tone}`} key={stat.label}><CardHeader><CardDescription>{stat.label}</CardDescription><CardTitle>{stat.value}</CardTitle></CardHeader><CardContent><p>{stat.detail}</p></CardContent></Card>)}</div>
+    <div className="analytics-grid"><Card className="analytics-chart-card"><CardHeader><CardDescription>LAST 7 DAYS</CardDescription><CardTitle>Focused minutes</CardTitle></CardHeader><CardContent><ChartContainer config={chartConfig} className="h-[260px] w-full"><BarChart accessibilityLayer data={lastSeven} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}><CartesianGrid vertical={false} strokeDasharray="4 4" /><XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} /><YAxis tickLine={false} axisLine={false} width={34} allowDecimals={false} /><ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} /><Bar dataKey="minutes" fill="var(--color-minutes)" radius={[8, 8, 3, 3]} /></BarChart></ChartContainer></CardContent></Card><Card className="analytics-subjects-card"><CardHeader><CardDescription>WHERE TIME GOES</CardDescription><CardTitle>Subject balance</CardTitle></CardHeader><CardContent>{subjectRows.length ? <div className="subject-analytics-list">{subjectRows.slice(0, 6).map(({ subject, seconds, sessions: count }) => <div className="subject-analytics-row" key={subject.id}><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><p><strong>{subject.shortName}</strong><small>{count} session{count === 1 ? "" : "s"}</small></p><b>{Math.round(seconds / 60)}m</b></div>)}</div> : <div className="feature-empty"><Timer /><p>Start a focused session to see your real time balance.</p></div>}</CardContent></Card></div>
   </section>;
 }
 
@@ -82,7 +91,6 @@ export function SyllabusEvidenceMap({ chapters, sessions, entries, mistakes, res
   return <section className="panel evidence-map"><div className="feature-heading"><div><small>SYLLABUS EVIDENCE MAP</small><h3>Can you prove this chapter is ready?</h3></div><label className="compact-select">Subject<select value={subjectId} onChange={(event) => setSubjectId(event.target.value)}><option value="all">All subjects</option>{subjects.map((subject) => <option value={subject.id} key={subject.id}>{subject.shortName}</option>)}</select></label></div><div className="evidence-legend"><span><i className="none" />No evidence</span><span><i className="light" />Light</span><span><i className="working" />Working</span><span><i className="exam-ready" />Exam-ready</span></div><div className="evidence-table">{evidence.map((item) => { const chapter = byChapter(item.chapterId, chapters); const subject = bySubject(chapter.subjectId); return <article key={item.chapterId}><span className={`evidence-dot ${item.evidenceLevel}`} /><p><strong>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</strong><small>{subject.shortName} · {statusLabel[item.evidenceLevel]}</small></p><div className="evidence-numbers"><b>{item.focusedMinutes}m<small>focus</small></b><b>{item.attempted ? `${item.accuracy}%` : "—"}<small>accuracy</small></b><b>{item.openMistakes}<small>open gaps</small></b><b>{item.resources}<small>resources</small></b></div><button onClick={() => onOpenResources?.(chapter.id)} aria-label={`Open resources for ${chapter.title}`}><ArrowRight /></button></article>; })}</div></section>;
 }
 
-function ChartIcon() { return <BookOpen size={22} />; }
 
 export function ExamModeFocus({ tasks, activeTaskId, onClose, onSaveSession, onUpdateTask }: { tasks: StudyTask[]; activeTaskId?: string | null; onClose: () => void; onSaveSession: (session: StudySession) => void; onUpdateTask: (task: StudyTask) => void }) {
   const candidates = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped");

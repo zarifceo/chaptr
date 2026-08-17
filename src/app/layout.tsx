@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -6,7 +7,7 @@ export const metadata: Metadata = {
   description: "Zarif's private, weakness-first SSC 2027 study system.",
 };
 
-export const viewport: Viewport = { themeColor: "#050a14" };
+export const viewport: Viewport = { themeColor: "#f7f9fc", colorScheme: "light" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -15,7 +16,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className="h-full antialiased"
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col"><TooltipProvider>{children}</TooltipProvider></body>
     </html>
   );
 }
