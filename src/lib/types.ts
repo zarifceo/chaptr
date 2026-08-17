@@ -146,6 +146,7 @@ export interface ExamEvent {
   scope: string[];
   note?: string;
   locked?: boolean;
+  archived?: boolean;
 }
 
 export interface ChapterEvidence {

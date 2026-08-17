@@ -152,6 +152,24 @@ export type Database = {
           },
         ]
       }
+      workflow_steps: {
+        Row: {
+          steps: string[]
+          updated_at: string
+          workflow_kind: string
+        }
+        Insert: {
+          steps?: string[]
+          updated_at?: string
+          workflow_kind: string
+        }
+        Update: {
+          steps?: string[]
+          updated_at?: string
+          workflow_kind?: string
+        }
+        Relationships: []
+      }
       chapters: {
         Row: {
           chapter_number: number | null
@@ -564,6 +582,120 @@ export type Database = {
             referencedColumns: ["user_id", "id"]
           },
         ]
+      }
+      adaptive_plan_summaries: {
+        Row: {
+          available_minutes: number
+          deferred_count: number
+          generated_revision_count: number
+          planned_at: string
+          rationale: string[]
+          updated_at: string
+          used_minutes: number
+          user_id: string
+        }
+        Insert: {
+          available_minutes?: number
+          deferred_count?: number
+          generated_revision_count?: number
+          planned_at?: string
+          rationale?: string[]
+          updated_at?: string
+          used_minutes?: number
+          user_id: string
+        }
+        Update: {
+          available_minutes?: number
+          deferred_count?: number
+          generated_revision_count?: number
+          planned_at?: string
+          rationale?: string[]
+          updated_at?: string
+          used_minutes?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      exam_events: {
+        Row: {
+          archived: boolean
+          ends_on: string
+          id: string
+          kind: string
+          locked: boolean
+          name: string
+          note: string | null
+          scope: string[]
+          starts_on: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          ends_on: string
+          id: string
+          kind: string
+          locked?: boolean
+          name: string
+          note?: string | null
+          scope?: string[]
+          starts_on: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          ends_on?: string
+          id?: string
+          kind?: string
+          locked?: boolean
+          name?: string
+          note?: string | null
+          scope?: string[]
+          starts_on?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      planning_settings: {
+        Row: {
+          agriculture_days_per_week: number
+          daily_target: number
+          math_days_per_week: number
+          math_end: string
+          math_start: string
+          main_end: string
+          main_start: string
+          reminders_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agriculture_days_per_week?: number
+          daily_target?: number
+          math_days_per_week?: number
+          math_end?: string
+          math_start?: string
+          main_end?: string
+          main_start?: string
+          reminders_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agriculture_days_per_week?: number
+          daily_target?: number
+          math_days_per_week?: number
+          math_end?: string
+          math_start?: string
+          main_end?: string
+          main_start?: string
+          reminders_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       study_tasks: {
         Row: {

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 
-const payload = z.object({ table: z.enum(["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources"]), rows: z.array(z.record(z.string(), z.unknown())).max(500) });
+const payload = z.object({ table: z.enum(["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources", "exam_events", "planning_settings", "adaptive_plan_summaries"]), rows: z.array(z.record(z.string(), z.unknown())).max(500) });
 
 type SyncTable = z.infer<typeof payload>["table"];
 type InsertRow<T extends SyncTable> = Database["public"]["Tables"][T]["Insert"];
@@ -48,6 +48,15 @@ export async function POST(request: Request) {
       break;
     case "study_resources":
       ({ error } = await supabase.from("study_resources").upsert(rows as InsertRow<"study_resources">[]));
+      break;
+    case "exam_events":
+      ({ error } = await supabase.from("exam_events").upsert(rows as InsertRow<"exam_events">[]));
+      break;
+    case "planning_settings":
+      ({ error } = await supabase.from("planning_settings").upsert(rows as InsertRow<"planning_settings">[]));
+      break;
+    case "adaptive_plan_summaries":
+      ({ error } = await supabase.from("adaptive_plan_summaries").upsert(rows as InsertRow<"adaptive_plan_summaries">[]));
       break;
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
