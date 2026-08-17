@@ -346,6 +346,9 @@ export type Database = {
           reattempt_date: string | null
           resolved: boolean
           resolved_at: string | null
+          revision_count: number
+          last_attempted_at: string | null
+          last_attempt_note: string | null
           subject_id: string
           updated_at: string
           user_id: string
@@ -359,6 +362,9 @@ export type Database = {
           reattempt_date?: string | null
           resolved?: boolean
           resolved_at?: string | null
+          revision_count?: number
+          last_attempted_at?: string | null
+          last_attempt_note?: string | null
           subject_id: string
           updated_at?: string
           user_id: string
@@ -372,6 +378,9 @@ export type Database = {
           reattempt_date?: string | null
           resolved?: boolean
           resolved_at?: string | null
+          revision_count?: number
+          last_attempted_at?: string | null
+          last_attempt_note?: string | null
           subject_id?: string
           updated_at?: string
           user_id?: string
@@ -440,33 +449,108 @@ export type Database = {
           },
         ]
       }
+      study_resources: {
+        Row: {
+          archived: boolean
+          chapter_id: string
+          created_at: string
+          id: string
+          kind: string
+          note: string | null
+          subject_id: string
+          title: string
+          updated_at: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          chapter_id: string
+          created_at?: string
+          id: string
+          kind?: string
+          note?: string | null
+          subject_id: string
+          title: string
+          updated_at?: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          chapter_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          note?: string | null
+          subject_id?: string
+          title?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_resources_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_resources_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       study_sessions: {
         Row: {
+          chapter_id: string | null
+          completed: boolean
           ended_at: string | null
           focused_seconds: number
           id: string
+          mode: string
           pause_seconds: number
+          questions_attempted: number | null
+          questions_correct: number | null
           started_at: string
+          subject_id: string | null
           task_id: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          chapter_id?: string | null
+          completed?: boolean
           ended_at?: string | null
           focused_seconds?: number
           id?: string
+          mode?: string
           pause_seconds?: number
+          questions_attempted?: number | null
+          questions_correct?: number | null
           started_at: string
+          subject_id?: string | null
           task_id: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          chapter_id?: string | null
+          completed?: boolean
           ended_at?: string | null
           focused_seconds?: number
           id?: string
+          mode?: string
           pause_seconds?: number
+          questions_attempted?: number | null
+          questions_correct?: number | null
           started_at?: string
+          subject_id?: string | null
           task_id?: string
           updated_at?: string
           user_id?: string
@@ -485,6 +569,7 @@ export type Database = {
         Row: {
           chapter_id: string
           current_step: number
+          deferred_until: string | null
           duration_minutes: number
           focused_seconds: number
           id: string
@@ -503,6 +588,7 @@ export type Database = {
         Insert: {
           chapter_id: string
           current_step?: number
+          deferred_until?: string | null
           duration_minutes?: number
           focused_seconds?: number
           id: string
@@ -521,6 +607,7 @@ export type Database = {
         Update: {
           chapter_id?: string
           current_step?: number
+          deferred_until?: string | null
           duration_minutes?: number
           focused_seconds?: number
           id?: string

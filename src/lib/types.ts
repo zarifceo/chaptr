@@ -90,6 +90,9 @@ export interface Mistake {
   errorType: string;
   reattemptDate: string;
   resolved: boolean;
+  revisionCount?: number;
+  lastAttemptedAt?: string;
+  lastAttemptNote?: string;
 }
 
 export interface MockResult {
@@ -102,6 +105,51 @@ export interface MockResult {
   takenAt: string;
 }
 
+export interface StudySession {
+  id: string;
+  taskId: string;
+  subjectId: string;
+  chapterId: string;
+  mode: "focus" | "exam";
+  startedAt: string;
+  endedAt?: string;
+  focusedSeconds: number;
+  pauseSeconds: number;
+  completed: boolean;
+  questionsAttempted?: number;
+  questionsCorrect?: number;
+}
+
+export type ResourceKind = "textbook" | "question-bank" | "video" | "notes" | "website" | "other";
+
+export interface StudyResource {
+  id: string;
+  subjectId: string;
+  chapterId: string;
+  title: string;
+  url: string;
+  kind: ResourceKind;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+  archived?: boolean;
+}
+
+export interface ChapterEvidence {
+  chapterId: string;
+  sessions: number;
+  focusedMinutes: number;
+  journalEntries: number;
+  attempted: number;
+  correct: number;
+  accuracy: number;
+  openMistakes: number;
+  resolvedMistakes: number;
+  resources: number;
+  lastEvidenceAt?: string;
+  evidenceLevel: "none" | "light" | "working" | "exam-ready";
+}
+
 export interface PlanningSettings {
   mainStart: string;
   mainEnd: string;
@@ -111,4 +159,13 @@ export interface PlanningSettings {
   mathDaysPerWeek: number;
   agricultureDaysPerWeek: number;
   remindersEnabled: boolean;
+}
+
+export interface AdaptivePlanSummary {
+  usedMinutes: number;
+  availableMinutes: number;
+  deferredCount: number;
+  generatedRevisionCount: number;
+  rationale: string[];
+  plannedAt: string;
 }

@@ -3,6 +3,16 @@ import { NextResponse } from "next/server";
 import { authorizedGoogle, isOwnedEvent, ownedTask } from "@/lib/google-calendar";
 import { createClient } from "@/lib/supabase/server";
 
+function googleStatus(error: unknown) {
+  if (!error || typeof error !== "object") return undefined;
+  const value = error as { code?: number; status?: number; response?: { status?: number } };
+  return value.code ?? value.status ?? value.response?.status;
+}
+
+function isMissingGoogleEvent(error: unknown) {
+  return [404, 410].includes(googleStatus(error) ?? -1);
+}
+
 export async function POST() {
   const supabase = await createClient();
   const { data: auth } = await supabase?.auth.getUser() ?? { data: { user: null } };
@@ -46,14 +56,43 @@ export async function POST() {
     await supabase.from("calendar_links").upsert({ user_id: auth.user.id, task_id: taskId, event_id: event.id!, event_etag: event.etag, calendar_id: "primary", last_calendar_update: event.updated, updated_at: new Date().toISOString() }, { onConflict: "user_id,event_id" });
   }
   const { data: tasks } = await supabase.from("study_tasks").select("*").eq("user_id", auth.user.id).in("status", ["planned", "in-progress"]).not("planned_start", "is", null);
+  const activeTasks = tasks ?? [];
   const { data: links } = await supabase.from("calendar_links").select("task_id,event_id").eq("user_id", auth.user.id);
   const linked = new Map((links ?? []).map((link) => [link.task_id, link.event_id]));
-  for (const task of tasks ?? []) {
+  const activeTaskIds = new Set(activeTasks.map((task) => task.id));
+
+  // Completed/skipped/unscheduled tasks should no longer leave stale app-owned events behind.
+  for (const link of links ?? []) {
+    if (activeTaskIds.has(link.task_id)) continue;
+    try {
+      await calendar.events.delete({ calendarId: "primary", eventId: link.event_id });
+    } catch (error) {
+      if (!isMissingGoogleEvent(error)) return NextResponse.json({ error: "Calendar cleanup failed" }, { status: 502 });
+    }
+    await supabase.from("calendar_links").delete().eq("user_id", auth.user.id).eq("event_id", link.event_id);
+  }
+
+  for (const task of activeTasks) {
     const resource: calendar_v3.Schema$Event = { summary: `SSC · ${task.title}`, description: task.priority_explanation ?? undefined, start: { dateTime: task.planned_start, timeZone: "Asia/Dhaka" }, end: { dateTime: task.planned_end, timeZone: "Asia/Dhaka" }, extendedProperties: ownedTask(task.id), reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 10 }] } };
     const eventId = linked.get(task.id);
-    const saved = eventId ? await calendar.events.patch({ calendarId: "primary", eventId, requestBody: resource }) : await calendar.events.insert({ calendarId: "primary", requestBody: resource });
-    if (!eventId && saved.data.id) await supabase.from("calendar_links").insert({ user_id: auth.user.id, task_id: task.id, event_id: saved.data.id, event_etag: saved.data.etag, calendar_id: "primary", last_app_update: new Date().toISOString() });
+    let saved: calendar_v3.Schema$Event | null = null;
+    if (eventId) {
+      try {
+        const response = await calendar.events.patch({ calendarId: "primary", eventId, requestBody: resource });
+        saved = response.data;
+      } catch (error) {
+        if (!isMissingGoogleEvent(error)) return NextResponse.json({ error: "Calendar update failed" }, { status: 502 });
+        await supabase.from("calendar_links").delete().eq("user_id", auth.user.id).eq("event_id", eventId);
+      }
+    }
+    if (!saved) {
+      const response = await calendar.events.insert({ calendarId: "primary", requestBody: resource });
+      saved = response.data;
+    }
+    if (saved.id) {
+      await supabase.from("calendar_links").upsert({ user_id: auth.user.id, task_id: task.id, event_id: saved.id, event_etag: saved.etag, calendar_id: "primary", last_app_update: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "user_id,event_id" });
+    }
   }
   await supabase.from("sync_state").update({ calendar_sync_token: nextSyncToken, last_successful_sync: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("user_id", auth.user.id);
-  return NextResponse.json({ synced: events.filter(isOwnedEvent).length + (tasks?.length ?? 0), calendarEventsRead: events.filter(isOwnedEvent).length, tasksWritten: tasks?.length ?? 0 });
+  return NextResponse.json({ synced: events.filter(isOwnedEvent).length + activeTasks.length, calendarEventsRead: events.filter(isOwnedEvent).length, tasksWritten: activeTasks.length });
 }

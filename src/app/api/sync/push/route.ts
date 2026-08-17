@@ -3,13 +3,19 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 
-const payload = z.object({ table: z.enum(["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results"]), rows: z.array(z.record(z.string(), z.unknown())).max(500) });
+const payload = z.object({ table: z.enum(["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources"]), rows: z.array(z.record(z.string(), z.unknown())).max(500) });
 
 type SyncTable = z.infer<typeof payload>["table"];
 type InsertRow<T extends SyncTable> = Database["public"]["Tables"][T]["Insert"];
 
 export async function POST(request: Request) {
-  const parsed = payload.safeParse(await request.json());
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Request body must be valid JSON" }, { status: 400 });
+  }
+  const parsed = payload.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid sync payload" }, { status: 400 });
   const supabase = await createClient();
   if (!supabase) return NextResponse.json({ queued: true, mode: "local" }, { status: 202 });
@@ -36,6 +42,12 @@ export async function POST(request: Request) {
       break;
     case "mock_results":
       ({ error } = await supabase.from("mock_results").upsert(rows as InsertRow<"mock_results">[]));
+      break;
+    case "study_sessions":
+      ({ error } = await supabase.from("study_sessions").upsert(rows as InsertRow<"study_sessions">[]));
+      break;
+    case "study_resources":
+      ({ error } = await supabase.from("study_resources").upsert(rows as InsertRow<"study_resources">[]));
       break;
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
