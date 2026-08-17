@@ -13,6 +13,7 @@ import {
   chapters, marksDistributions, subjects, workflowSteps, replaceAcademicData,
 } from "@/lib/academic-data";
 import { queueCloudSync } from "@/lib/offline-sync";
+import { Button } from "@/components/ui/button";
 import { recommendTasks } from "@/lib/recommendations";
 import { buildAdaptivePlan, revisionDelayDays } from "@/lib/adaptive-planner";
 import { StudyAnalytics, SyllabusEvidenceMap, ExamModeFocus, ResourceLibrary } from "@/components/study-features";
@@ -152,7 +153,7 @@ function Sidebar({ active, setActive, open, close }: { active: string; setActive
       <Image src="/icon-512.png" width={44} height={44} alt="SSC Command Center" priority />
       <div><strong>SSC</strong><small>Command Center</small></div>
     </button>
-    <nav>{nav.map(([label, Icon]) => <button key={label} className={active === label ? "active" : ""} aria-current={active === label ? "page" : undefined} onClick={() => { setActive(label); close(); }}><Icon size={21} weight={active === label ? "fill" : "regular"} /><span>{label}</span></button>)}</nav>
+    <nav>{nav.map(([label, Icon]) => <Button key={label} variant={active === label ? "secondary" : "ghost"} size="sm" className={`sidebar-nav-button ${active === label ? "active" : ""}`} aria-current={active === label ? "page" : undefined} onClick={() => { setActive(label); close(); }}><Icon size={21} weight={active === label ? "fill" : "regular"} /><span>{label}</span></Button>)}</nav>
     <div className="sync-pill"><CloudCheck size={20} weight="fill" /><span><strong>Database connected</strong><small>Supabase-only workspace</small></span></div>
   </aside>;
 }
@@ -196,7 +197,7 @@ function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents
         <h2>{subject.shortName}</h2>
         <p>{chapter.number ? `Chapter ${chapter.number} · ` : ""}{chapter.title}</p>
         <div className="chips"><span>{first.reason.split(" · ")[0]}</span><span>{first.priorityScore} priority</span><span>{first.duration} min</span></div>
-        <button className="solid-cta" onClick={() => go("Today")}><Play weight="fill" />Start study flow</button>
+        <Button size="lg" className="solid-cta" onClick={() => go("Today")}><Play weight="fill" />Start study flow</Button>
         <Brain className="hero-art" weight="duotone" />
       </article>
       <div className="countdown-stack">{examEvents.length ? examEvents.slice(0, 2).map((event, index) => <Countdown key={event.id} name={event.name} date={event.start} tone={index === 0 ? "lilac" : "mint"} />) : <article className="panel empty compact"><Timer /><p>No exam events yet. Add one in Countdown.</p></article>}</div>
@@ -523,7 +524,7 @@ function DatabaseGate({ status, error }: { status: "loading" | "auth-required" |
     if (!client) return;
     await client.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${location.origin}/auth/callback?next=/`, scopes: "openid email profile" } });
   };
-  return <main className="database-gate" aria-live="polite"><section className="panel"><CloudCheck size={42} weight="fill" /><small>SUPABASE WORKSPACE</small><h1>{status === "loading" ? "Loading your study workspace" : status === "auth-required" ? "Sign in to continue" : "Database connection required"}</h1><p>{status === "loading" ? "Fetching your syllabus, goals, tasks, evidence, and resources from the database…" : error}</p>{status === "auth-required" && <button className="solid-cta" onClick={signIn}><SignIn />Sign in with Google</button>}{status === "error" && <button className="solid-cta" onClick={() => location.reload()}><ArrowCounterClockwise />Retry database connection</button>}</section></main>;
+  return <main className="database-gate" aria-live="polite"><section className="panel"><CloudCheck size={42} weight="fill" /><small>SUPABASE WORKSPACE</small><h1>{status === "loading" ? "Loading your study workspace" : status === "auth-required" ? "Sign in to continue" : "Database connection required"}</h1><p>{status === "loading" ? "Fetching your syllabus, goals, tasks, evidence, and resources from the database…" : error}</p>{status === "auth-required" && <Button size="lg" className="solid-cta" onClick={signIn}><SignIn />Sign in with Google</Button>}{status === "error" && <Button size="lg" className="solid-cta" onClick={() => location.reload()}><ArrowCounterClockwise />Retry database connection</Button>}</section></main>;
 }
 
 export default function CommandCenter() {
