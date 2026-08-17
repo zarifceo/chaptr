@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ensureAcademicData } from "@/lib/seed-academics";
 
 const referenceTables = ["subjects", "chapters", "marks_distributions", "workflow_steps", "exams"] as const;
-const userTables = ["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources", "exam_events", "planning_settings", "adaptive_plan_summaries"] as const;
+const userTables = ["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources", "exam_events", "planning_settings", "adaptive_plan_summaries", "user_profiles"] as const;
 
 const defaultPlanning = { main_start: "15:00", main_end: "19:00", math_start: "20:00", math_end: "22:00", daily_target: 240, math_days_per_week: 6, agriculture_days_per_week: 4, reminders_enabled: false };
 
@@ -38,9 +38,12 @@ export async function GET() {
   }
   if (!existingPlanning) await supabase.from("planning_settings").upsert({ user_id: userId, ...defaultPlanning });
 
+  const { data: existingProfile } = await supabase.from("user_profiles").select("user_id").eq("user_id", userId).maybeSingle();
+  if (!existingProfile) await supabase.from("user_profiles").upsert({ user_id: userId, selected_subjects: [], onboarding_step: 0, onboarding_completed: false });
+
   const userResults = await Promise.all(userTables.map(async (table) => {
     const query = supabase.from(table).select("*");
-    const { data, error } = table === "planning_settings" || table === "adaptive_plan_summaries" ? await query.eq("user_id", userId).maybeSingle() : await query.eq("user_id", userId).order("updated_at", { ascending: false });
+    const { data, error } = table === "planning_settings" || table === "adaptive_plan_summaries" || table === "user_profiles" ? await query.eq("user_id", userId).maybeSingle() : await query.eq("user_id", userId).order("updated_at", { ascending: false });
     return [table, error ? [] : data == null ? [] : Array.isArray(data) ? data : [data]] as const;
   }));
   return NextResponse.json({ mode: "cloud", data: { ...reference, ...Object.fromEntries(userResults) } });

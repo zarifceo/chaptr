@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      user_profiles: {
+        Row: {
+          board: string
+          created_at: string
+          daily_target: number
+          display_name: string | null
+          exam_year: number
+          main_end: string
+          main_start: string
+          onboarding_completed: boolean
+          onboarding_step: number
+          selected_subjects: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          board?: string
+          created_at?: string
+          daily_target?: number
+          display_name?: string | null
+          exam_year?: number
+          main_end?: string
+          main_start?: string
+          onboarding_completed?: boolean
+          onboarding_step?: number
+          selected_subjects?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          board?: string
+          created_at?: string
+          daily_target?: number
+          display_name?: string | null
+          exam_year?: number
+          main_end?: string
+          main_start?: string
+          onboarding_completed?: boolean
+          onboarding_step?: number
+          selected_subjects?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       calendar_links: {
         Row: {
           calendar_id: string
