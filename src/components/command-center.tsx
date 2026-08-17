@@ -17,9 +17,11 @@ import { Button } from "@/components/ui/button";
 import { recommendTasks } from "@/lib/recommendations";
 import { buildAdaptivePlan, revisionDelayDays } from "@/lib/adaptive-planner";
 import { StudyAnalytics, SyllabusEvidenceMap, ExamModeFocus, ResourceLibrary } from "@/components/study-features";
+import { AuthScreen } from "@/components/auth-screen";
+import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { ExamCountdownCenter } from "@/components/exam-countdown";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import type { AdaptivePlanSummary, Chapter, ChapterPreference, ExamEvent, JournalEntry, MarksDistribution, Mistake, MockResult, PlanningSettings, StudyResource, StudySession, StudyTask, Subject } from "@/lib/types";
+import type { AdaptivePlanSummary, Chapter, ChapterPreference, ExamEvent, JournalEntry, MarksDistribution, Mistake, MockResult, PlanningSettings, StudyResource, StudySession, StudyTask, Subject, UserProfile } from "@/lib/types";
 
 const nav = [
   ["Dashboard", House], ["Today", CalendarBlank], ["Syllabus", Books],
@@ -158,11 +160,12 @@ function Sidebar({ active, setActive, open, close }: { active: string; setActive
   </aside>;
 }
 
-function Topbar({ active, open, expanded }: { active: string; open: () => void; expanded: boolean }) {
+function Topbar({ active, open, expanded, profile }: { active: string; open: () => void; expanded: boolean; profile: UserProfile }) {
+  const initials = (profile.displayName || "Student").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   return <header className="topbar">
     <button className="menu-button" onClick={open} aria-label="Open navigation" aria-controls="app-navigation" aria-expanded={expanded}><Rows size={23} weight="bold" /></button>
     <div><p>{dhakaDate()}</p><h1>{active === "Today" ? "Today's learning journey" : active}</h1></div>
-    <div className="profile"><span>ZI</span><div><strong>Zarif</strong><small>SSC 2027</small></div></div>
+    <div className="profile"><span>{initials}</span><div><strong>{profile.displayName || "Student"}</strong><small>SSC {profile.examYear}</small></div></div>
   </header>;
 }
 
@@ -423,10 +426,11 @@ function ExamPlan() {
   return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="TWO FULL-SYLLABUS DEADLINES" title="Exam campaign" /><section className="phases">{phases.map((phase, index) => <article className={index === current ? "current" : index < current ? "complete" : ""} key={phase.date}><span>{index < current ? <Check weight="bold" /> : index + 1}</span><p><small>{phase.date}</small><strong>{phase.title}</strong><em>{index === current ? (today < phase.start ? "Starts tomorrow: prepare the first diagnostic list." : "This is the active preparation stage.") : "Full-syllabus preparation stage."}</em></p>{index === current && <b>{today < phase.start ? "Starts next" : "Current phase"}</b>}</article>)}</section></main>;
 }
 
-function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPlanning: (value: PlanningSettings) => void }) {
+function Settings({ planning, setPlanning, profile, saveProfile }: { planning: PlanningSettings; setPlanning: (value: PlanningSettings) => void; profile: UserProfile; saveProfile: (patch: Partial<UserProfile>) => Promise<void> }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [health, setHealth] = useState<CalendarHealth | null>(null);
   const refreshHealth = () => void fetch("/api/calendar/status").then((response) => response.json()).then(setHealth).catch(() => setHealth(null));
   useEffect(() => {
@@ -445,12 +449,9 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
       return () => window.clearTimeout(timer);
     }
   }, []);
-  const signIn = async () => {
-    const client = createSupabaseClient();
-    if (!client) return setMessage("Add Supabase environment variables to enable cloud sign-in.");
-    await client.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${location.origin}/auth/callback?next=/`, scopes: "openid email profile" } });
-  };
   const signOut = async () => { const client = createSupabaseClient(); await client?.auth.signOut(); setEmail(null); };
+  const updateProfile = async () => { try { await saveProfile({ displayName: displayName.trim() || undefined }); setMessage("Profile updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Profile update failed."); } };
+  const restartOnboarding = async () => { try { await saveProfile({ onboardingStep: 0, onboardingCompleted: false }); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not restart setup."); } };
   const calendar = () => {
     if (!email) return setMessage("Sign in first, then connect Calendar.");
     if (!health?.configured) return setMessage(`Calendar setup is incomplete${health?.missing?.length ? `: ${health.missing.join(", ")}` : ""}. Add the missing server variables, then try again.`);
@@ -471,7 +472,7 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
     setMessage(permission === "granted" ? "Reminders enabled. Calendar reminders remain the reliable option when the app is closed." : "Notification permission was not granted.");
   };
   return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="PRIVATE BY DEFAULT" title="Planning settings" /><section className="settings">
-    <article className="auth-card"><span className="lilac"><CloudCheck /></span><p><strong>{email ? "Cloud account connected" : "Cloud account"}</strong><small>{email ?? "Sign in once to sync phone and desktop."}</small></p><button onClick={email ? signOut : signIn}>{email ? <><SignOut />Sign out</> : <><SignIn />Sign in with Google</>}</button></article>
+    <article className="auth-card account-card"><span className="lilac"><CloudCheck /></span><div><p><strong>{email ? "Cloud account connected" : "Cloud account"}</strong><small>{email ?? "Your account email"}</small></p><label>Display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name" /></label><div className="settings-actions"><button onClick={updateProfile}>Save profile</button><button onClick={restartOnboarding}>Restart setup</button><button onClick={signOut}><SignOut />Sign out</button></div></div></article>
     <article><span className="lilac"><CalendarBlank /></span><p><strong>{health?.connected ? "Google Calendar connected" : "Google Calendar"}</strong><small>{health?.connected ? `${health.linkedEvents ?? 0} linked study blocks. Unrelated events stay untouched.` : health?.configured ? "Ready to connect app-owned study blocks." : health?.missing?.length ? `Setup missing: ${health.missing.join(", ")}` : "Sync only app-owned study blocks. Unrelated events stay untouched."}</small></p><div className="settings-actions"><button className={health?.connected ? "connected" : ""} onClick={calendar}>{health?.connected ? "Reconnect" : "Connect"}</button><button onClick={syncNow}>Sync now</button></div></article>
     <article className="settings-editor"><span className="mint"><Clock /></span><p><strong>Study windows</strong><small>These guide planning without locking every day into a rigid routine.</small></p><div className="inline-fields"><label>Main starts<input type="time" value={planning.mainStart} onChange={(event) => setPlanning({ ...planning, mainStart: event.target.value })} /></label><label>Main ends<input type="time" value={planning.mainEnd} onChange={(event) => setPlanning({ ...planning, mainEnd: event.target.value })} /></label><label>Maths starts<input type="time" value={planning.mathStart} onChange={(event) => setPlanning({ ...planning, mathStart: event.target.value })} /></label><label>Maths ends<input type="time" value={planning.mathEnd} onChange={(event) => setPlanning({ ...planning, mathEnd: event.target.value })} /></label></div></article>
     <article className="settings-editor"><span className="yellow"><Brain /></span><p><strong>Recommendation control</strong><small>Weakness-first rules stay explainable; manual pins still override them.</small></p><div className="inline-fields"><label>Daily target<input type="number" min="60" max="600" value={planning.dailyTarget} onChange={(event) => setPlanning({ ...planning, dailyTarget: Number(event.target.value) })} /><em>min</em></label><label>Maths<input type="number" min="1" max="7" value={planning.mathDaysPerWeek} onChange={(event) => setPlanning({ ...planning, mathDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label><label>Agriculture<input type="number" min="1" max="7" value={planning.agricultureDaysPerWeek} onChange={(event) => setPlanning({ ...planning, agricultureDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label></div></article>
@@ -525,12 +526,8 @@ function MockResultModal({ close, save }: { close: () => void; save: (result: Mo
 }
 
 function DatabaseGate({ status, error }: { status: "loading" | "auth-required" | "error"; error: string }) {
-  const signIn = async () => {
-    const client = createSupabaseClient();
-    if (!client) return;
-    await client.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${location.origin}/auth/callback?next=/`, scopes: "openid email profile" } });
-  };
-  return <main className="database-gate" aria-live="polite"><section className="panel"><CloudCheck size={42} weight="fill" /><small>SUPABASE WORKSPACE</small><h1>{status === "loading" ? "Loading your study workspace" : status === "auth-required" ? "Sign in to continue" : "Database connection required"}</h1><p>{status === "loading" ? "Fetching your syllabus, goals, tasks, evidence, and resources from the database…" : error}</p>{status === "auth-required" && <Button size="lg" className="solid-cta" onClick={signIn}><SignIn />Sign in with Google</Button>}{status === "error" && <Button size="lg" className="solid-cta" onClick={() => location.reload()}><ArrowCounterClockwise />Retry database connection</Button>}</section></main>;
+  if (status === "auth-required") return <AuthScreen />;
+  return <main className="database-gate" aria-live="polite"><section className="panel"><CloudCheck size={42} weight="fill" /><small>SUPABASE WORKSPACE</small><h1>{status === "loading" ? "Loading your study workspace" : "Database connection required"}</h1><p>{status === "loading" ? "Fetching your syllabus, goals, tasks, evidence, and resources from the database…" : error}</p>{status === "error" && <Button size="lg" className="solid-cta" onClick={() => location.reload()}><ArrowCounterClockwise />Retry database connection</Button>}</section></main>;
 }
 
 export default function CommandCenter() {
@@ -562,6 +559,7 @@ export default function CommandCenter() {
   const [planSummary, setPlanSummary] = useState<AdaptivePlanSummary | null>(null);
   const [databaseStatus, setDatabaseStatus] = useState<"loading" | "ready" | "auth-required" | "error">("loading");
   const [databaseError, setDatabaseError] = useState("");
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   useEffect(() => {
     let cancelled = false;
     const bootstrap = async () => {
@@ -592,6 +590,8 @@ export default function CommandCenter() {
       if (planningRow) setPlanning({ mainStart: String(planningRow.main_start), mainEnd: String(planningRow.main_end), mathStart: String(planningRow.math_start), mathEnd: String(planningRow.math_end), dailyTarget: Number(planningRow.daily_target), mathDaysPerWeek: Number(planningRow.math_days_per_week), agricultureDaysPerWeek: Number(planningRow.agriculture_days_per_week), remindersEnabled: Boolean(planningRow.reminders_enabled) });
       const summaryRow = data.adaptive_plan_summaries?.[0];
       if (summaryRow) setPlanSummary({ usedMinutes: Number(summaryRow.used_minutes), availableMinutes: Number(summaryRow.available_minutes), deferredCount: Number(summaryRow.deferred_count), generatedRevisionCount: Number(summaryRow.generated_revision_count), rationale: Array.isArray(summaryRow.rationale) ? summaryRow.rationale.map(String) : [], plannedAt: String(summaryRow.planned_at) });
+      const profileRow = data.user_profiles?.[0];
+      if (profileRow) setProfile({ userId: String(profileRow.user_id), displayName: profileRow.display_name ? String(profileRow.display_name) : undefined, board: String(profileRow.board), examYear: Number(profileRow.exam_year), selectedSubjects: Array.isArray(profileRow.selected_subjects) ? profileRow.selected_subjects.map(String) : [], dailyTarget: Number(profileRow.daily_target), mainStart: String(profileRow.main_start), mainEnd: String(profileRow.main_end), onboardingStep: Number(profileRow.onboarding_step), onboardingCompleted: Boolean(profileRow.onboarding_completed), createdAt: String(profileRow.created_at), updatedAt: String(profileRow.updated_at) });
       if (!cancelled) setDatabaseStatus("ready");
     };
     void bootstrap();
@@ -599,6 +599,26 @@ export default function CommandCenter() {
   }, []);
 
   const persist = (table: string, rows: Record<string, unknown>[]) => { void queueCloudSync(table, rows).catch((error: unknown) => { setDatabaseStatus("error"); setDatabaseError(error instanceof Error ? error.message : "Database write failed"); }); };
+
+  const saveProfile = async (patch: Partial<UserProfile>) => {
+    if (!profile) return;
+    const body = {
+      display_name: patch.displayName,
+      board: patch.board,
+      exam_year: patch.examYear,
+      selected_subjects: patch.selectedSubjects,
+      daily_target: patch.dailyTarget,
+      main_start: patch.mainStart,
+      main_end: patch.mainEnd,
+      onboarding_step: patch.onboardingStep,
+      onboarding_completed: patch.onboardingCompleted,
+    };
+    const response = await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const payload = await response.json().catch(() => null) as { profile?: Record<string, unknown>; error?: string } | null;
+    if (!response.ok || !payload?.profile) throw new Error(payload?.error ?? "Could not save your profile");
+    const row = payload.profile;
+    setProfile({ userId: String(row.user_id), displayName: row.display_name ? String(row.display_name) : undefined, board: String(row.board), examYear: Number(row.exam_year), selectedSubjects: Array.isArray(row.selected_subjects) ? row.selected_subjects.map(String) : [], dailyTarget: Number(row.daily_target), mainStart: String(row.main_start), mainEnd: String(row.main_end), onboardingStep: Number(row.onboarding_step), onboardingCompleted: Boolean(row.onboarding_completed), createdAt: String(row.created_at), updatedAt: String(row.updated_at) });
+  };
 
   const saveSession = (session: StudySession) => {
     setSessions([session, ...sessions]);
@@ -771,6 +791,8 @@ export default function CommandCenter() {
     setJournalTask({ id: "", subjectId: chapter.subjectId, chapterId: chapter.id, title: chapter.title, plannedTime: "Unscheduled", duration: 45, origin: "manual", pinned: false, status: "planned", currentStep: 0, reason: "Manual journal evidence", priorityScore: 0, focusedSeconds: 0 });
   };
   if (databaseStatus !== "ready") return <DatabaseGate status={databaseStatus} error={databaseError} />;
+  if (!profile) return <DatabaseGate status="loading" error="Preparing your private workspace…" />;
+  if (!profile.onboardingCompleted) return <OnboardingWizard profile={profile} subjects={subjects} save={saveProfile} />;
   const content = (() => {
     switch (active) {
       case "Dashboard": return <Dashboard tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} go={setActive} />;
@@ -785,7 +807,7 @@ export default function CommandCenter() {
       case "Resources": return <ResourceLibrary resources={resources.filter((resource) => !resource.archived)} chapters={chapterList} initialChapterId={resourceChapterId} save={saveResource} remove={removeResource} />;
       case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => setActive("Today")} />;
       case "Exam Plan": return <ExamPlan />;
-      default: return <Settings planning={planning} setPlanning={updatePlanning} />;
+      default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} />;
     }
   })();
 
@@ -793,7 +815,7 @@ export default function CommandCenter() {
     <button className="skip-link" onClick={() => document.querySelector("main")?.focus()}>Skip to main content</button>
     <Sidebar active={active} setActive={setActive} open={menu} close={() => setMenu(false)} />
     {menu && <button className="mobile-scrim" onClick={() => setMenu(false)} aria-label="Close navigation" />}
-    <div className="workspace"><Topbar active={active} open={() => setMenu(true)} expanded={menu} /><div className="page-transition" key={active}>{content}</div></div>
+    <div className="workspace"><Topbar active={active} open={() => setMenu(true)} expanded={menu} profile={profile} /><div className="page-transition" key={active}>{content}</div></div>
     <nav className="bottom-nav">{[["Dashboard", House], ["Today", CalendarBlank], ["Goals", Target], ["Countdown", Timer], ["Settings", SlidersHorizontal]].map(([label, Icon]) => <button key={String(label)} aria-label={String(label)} aria-current={active === label ? "page" : undefined} className={active === label ? "active" : ""} onClick={() => setActive(String(label))}><Icon size={22} weight={active === label ? "fill" : "regular"} /></button>)}</nav>
     {manualOpen && <ManualTaskModal close={() => { setManualOpen(false); setManualDate(undefined); }} save={addTask} defaultDate={manualDate} preferences={preferences} />}
     {journalTask && <JournalModal task={journalTask} close={() => setJournalTask(null)} save={save} />}

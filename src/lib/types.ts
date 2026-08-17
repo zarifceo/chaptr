@@ -164,6 +164,21 @@ export interface ChapterEvidence {
   evidenceLevel: "none" | "light" | "working" | "exam-ready";
 }
 
+export interface UserProfile {
+  userId: string;
+  displayName?: string;
+  board: string;
+  examYear: number;
+  selectedSubjects: string[];
+  dailyTarget: number;
+  mainStart: string;
+  mainEnd: string;
+  onboardingStep: number;
+  onboardingCompleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PlanningSettings {
   mainStart: string;
   mainEnd: string;
