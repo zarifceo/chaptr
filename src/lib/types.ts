@@ -135,6 +135,19 @@ export interface StudyResource {
   archived?: boolean;
 }
 
+export type ExamEventKind = "official" | "school" | "mock" | "custom";
+
+export interface ExamEvent {
+  id: string;
+  name: string;
+  start: string;
+  end: string;
+  kind: ExamEventKind;
+  scope: string[];
+  note?: string;
+  locked?: boolean;
+}
+
 export interface ChapterEvidence {
   chapterId: string;
   sessions: number;
