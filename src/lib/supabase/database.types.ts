@@ -25,7 +25,11 @@ export type Database = {
           main_start: string
           onboarding_completed: boolean
           onboarding_step: number
+          privacy_accepted_at: string | null
+          privacy_version: string | null
           selected_subjects: string[]
+          terms_accepted_at: string | null
+          terms_version: string | null
           updated_at: string
           user_id: string
         }
@@ -39,7 +43,11 @@ export type Database = {
           main_start?: string
           onboarding_completed?: boolean
           onboarding_step?: number
+          privacy_accepted_at?: string | null
+          privacy_version?: string | null
           selected_subjects?: string[]
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           updated_at?: string
           user_id: string
         }
@@ -53,7 +61,11 @@ export type Database = {
           main_start?: string
           onboarding_completed?: boolean
           onboarding_step?: number
+          privacy_accepted_at?: string | null
+          privacy_version?: string | null
           selected_subjects?: string[]
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           updated_at?: string
           user_id?: string
         }

@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
+const POLICY_VERSION = "2026-08-17";
+
 const profilePatch = z.object({
   display_name: z.string().trim().max(80).nullable().optional(),
+  accept_policies: z.literal(true).optional(),
   board: z.string().trim().min(1).max(40).optional(),
   exam_year: z.number().int().min(2025).max(2035).optional(),
   selected_subjects: z.array(z.string().min(1).max(80)).max(30).optional(),
@@ -57,9 +60,16 @@ export async function POST(request: Request) {
   const parsed = profilePatch.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid onboarding profile" }, { status: 400 });
 
+  const { accept_policies: acceptPolicies, ...profileData } = parsed.data;
+  const consent = acceptPolicies ? {
+    terms_accepted_at: new Date().toISOString(),
+    privacy_accepted_at: new Date().toISOString(),
+    terms_version: POLICY_VERSION,
+    privacy_version: POLICY_VERSION,
+  } : {};
   const { data, error } = await supabase
     .from("user_profiles")
-    .upsert({ user_id: userId, ...parsed.data, updated_at: new Date().toISOString() })
+    .upsert({ user_id: userId, ...profileData, ...consent, updated_at: new Date().toISOString() })
     .select("*")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
