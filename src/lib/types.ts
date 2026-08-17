@@ -53,6 +53,8 @@ export interface StudyTask {
   priorityScore: number;
   focusedSeconds?: number;
   deferredUntil?: string;
+  studyMethod?: LearningMethod;
+  recommendationFactors?: Record<string, number>;
 }
 
 export interface ChapterPreference {
@@ -162,6 +164,56 @@ export interface ChapterEvidence {
   resources: number;
   lastEvidenceAt?: string;
   evidenceLevel: "none" | "light" | "working" | "exam-ready";
+}
+
+export type LearningMethod = "online-class" | "textbook" | "guidebook" | "question-bank" | "video" | "notes" | "tutor" | "group-study" | "flashcards";
+export type GuidanceMode = "guided" | "balanced" | "quiet";
+export type PlanStrictness = "flexible" | "balanced" | "strict";
+export type StartingPoint = "comfortable" | "mixed" | "difficult" | "uncertain";
+export type RecommendationFeedbackType = "useful" | "too-easy" | "too-hard" | "not-useful" | "not-today";
+
+export interface LearningPreferences {
+  userId: string;
+  preferredMethods: LearningMethod[];
+  preferredResourceKinds: ResourceKind[];
+  sessionLengthMinutes: number;
+  sessionsPerDay: number;
+  availableDays: string[];
+  weekdayMinutes: number;
+  weekendMinutes: number;
+  targetGrade: string;
+  guidanceMode: GuidanceMode;
+  planStrictness: PlanStrictness;
+  instructionRatio: number;
+  practiceRatio: number;
+  reviewRatio: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubjectAssessment {
+  id?: string;
+  userId: string;
+  subjectId: string;
+  difficulty: 1 | 2 | 3 | 4 | 5;
+  confidence: 1 | 2 | 3 | 4 | 5;
+  priority: 1 | 2 | 3 | 4 | 5;
+  startingPoint: StartingPoint;
+  preferredMethods: LearningMethod[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RecommendationFeedback {
+  id?: string;
+  userId: string;
+  taskId?: string;
+  subjectId?: string;
+  chapterId?: string;
+  feedbackType: RecommendationFeedbackType;
+  method?: LearningMethod;
+  note?: string;
+  createdAt?: string;
 }
 
 export interface UserProfile {

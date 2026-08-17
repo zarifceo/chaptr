@@ -376,6 +376,138 @@ export type Database = {
           },
         ]
       }
+      learning_preferences: {
+        Row: {
+          available_days: string[]
+          created_at: string
+          guidance_mode: string
+          instruction_ratio: number
+          plan_strictness: string
+          practice_ratio: number
+          preferred_methods: string[]
+          preferred_resource_kinds: string[]
+          review_ratio: number
+          session_length_minutes: number
+          sessions_per_day: number
+          target_grade: string
+          updated_at: string
+          user_id: string
+          weekday_minutes: number
+          weekend_minutes: number
+        }
+        Insert: {
+          available_days?: string[]
+          created_at?: string
+          guidance_mode?: string
+          instruction_ratio?: number
+          plan_strictness?: string
+          practice_ratio?: number
+          preferred_methods?: string[]
+          preferred_resource_kinds?: string[]
+          review_ratio?: number
+          session_length_minutes?: number
+          sessions_per_day?: number
+          target_grade?: string
+          updated_at?: string
+          user_id: string
+          weekday_minutes?: number
+          weekend_minutes?: number
+        }
+        Update: {
+          available_days?: string[]
+          created_at?: string
+          guidance_mode?: string
+          instruction_ratio?: number
+          plan_strictness?: string
+          practice_ratio?: number
+          preferred_methods?: string[]
+          preferred_resource_kinds?: string[]
+          review_ratio?: number
+          session_length_minutes?: number
+          sessions_per_day?: number
+          target_grade?: string
+          updated_at?: string
+          user_id?: string
+          weekday_minutes?: number
+          weekend_minutes?: number
+        }
+        Relationships: []
+      }
+      recommendation_feedback: {
+        Row: {
+          chapter_id: string | null
+          created_at: string
+          feedback_type: string
+          id: string
+          method: string | null
+          note: string | null
+          subject_id: string | null
+          task_id: string | null
+          user_id: string
+        }
+        Insert: {
+          chapter_id?: string | null
+          created_at?: string
+          feedback_type: string
+          id?: string
+          method?: string | null
+          note?: string | null
+          subject_id?: string | null
+          task_id?: string | null
+          user_id: string
+        }
+        Update: {
+          chapter_id?: string | null
+          created_at?: string
+          feedback_type?: string
+          id?: string
+          method?: string | null
+          note?: string | null
+          subject_id?: string | null
+          task_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subject_assessments: {
+        Row: {
+          confidence: number
+          created_at: string
+          difficulty: number
+          id: string
+          preferred_methods: string[]
+          priority: number
+          starting_point: string
+          subject_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          difficulty?: number
+          id?: string
+          preferred_methods?: string[]
+          priority?: number
+          starting_point?: string
+          subject_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          difficulty?: number
+          id?: string
+          preferred_methods?: string[]
+          priority?: number
+          starting_point?: string
+          subject_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       marks_distributions: {
         Row: {
           choice_rule: string
@@ -768,8 +900,10 @@ export type Database = {
           planned_start: string | null
           priority_explanation: string | null
           priority_score: number
+          recommendation_factors: Json
           status: Database["public"]["Enums"]["task_status"]
           subject_id: string
+          study_method: string | null
           title: string
           updated_at: string
           user_id: string
@@ -787,8 +921,10 @@ export type Database = {
           planned_start?: string | null
           priority_explanation?: string | null
           priority_score?: number
+          recommendation_factors?: Json
           status?: Database["public"]["Enums"]["task_status"]
           subject_id: string
+          study_method?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -806,8 +942,10 @@ export type Database = {
           planned_start?: string | null
           priority_explanation?: string | null
           priority_score?: number
+          recommendation_factors?: Json
           status?: Database["public"]["Enums"]["task_status"]
           subject_id?: string
+          study_method?: string | null
           title?: string
           updated_at?: string
           user_id?: string

@@ -1,28 +1,95 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
-import type { Chapter, Mistake, MockResult, StudyTask, Subject } from "./types";
+import type { Chapter, Mistake, MockResult, RecommendationFeedback, StudyTask, Subject, SubjectAssessment, LearningMethod } from "./types";
 
 const masteryGap = { "not-started": 100, learning: 72, practising: 42, "needs-revision": 78, "exam-ready": 8 } as const;
 
-type RecommendationEvidence = { mistakes?: Mistake[]; mocks?: MockResult[] };
+type RecommendationEvidence = {
+  mistakes?: Mistake[];
+  mocks?: MockResult[];
+  assessments?: SubjectAssessment[];
+  feedback?: RecommendationFeedback[];
+  examDate?: string;
+  targetGrade?: string;
+};
+
+const methodLabels: Record<LearningMethod, string> = {
+  "online-class": "online class",
+  textbook: "textbook reading",
+  guidebook: "guidebook practice",
+  "question-bank": "question-bank practice",
+  video: "video lesson",
+  notes: "notes and recall",
+  tutor: "tutor-led study",
+  "group-study": "group study",
+  flashcards: "flashcard recall",
+};
+
+function assessmentFor(subjectId: string, assessments: SubjectAssessment[] = []) {
+  return assessments.find((assessment) => assessment.subjectId === subjectId);
+}
+
+function feedbackAdjustment(subjectId: string, feedback: RecommendationFeedback[] = []) {
+  const recent = feedback.filter((item) => item.subjectId === subjectId).slice(0, 8);
+  return recent.reduce((total, item) => total + (item.feedbackType === "too-hard" ? 7 : item.feedbackType === "useful" ? 3 : item.feedbackType === "too-easy" ? -5 : item.feedbackType === "not-useful" ? -3 : -1), 0);
+}
+
+function preferredMethod(assessment?: SubjectAssessment) {
+  return assessment?.preferredMethods?.[0] ?? "textbook";
+}
 
 export function scoreChapter(subject: Subject, chapter: Chapter, now = new Date(), evidence: RecommendationEvidence = {}) {
-  const daysToTest = Math.max(1, differenceInCalendarDays(parseISO("2026-10-28"), now));
+  const examDate = evidence.examDate ?? `${now.getFullYear()}-10-28`;
+  const daysToTest = Math.max(1, differenceInCalendarDays(parseISO(examDate), now));
   const urgency = Math.min(100, 7000 / daysToTest);
   const review = chapter.nextReview && parseISO(chapter.nextReview) <= now ? 100 : chapter.lastStudied ? 45 : 80;
   const accuracyGap = chapter.questionsAttempted ? (1 - chapter.questionsCorrect / chapter.questionsAttempted) * 100 : 55;
   const latestMock = evidence.mocks?.filter((mock) => mock.subjectId === subject.id).sort((a, b) => b.takenAt.localeCompare(a.takenAt))[0];
   const mockGap = latestMock?.total ? (1 - latestMock.score / latestMock.total) * 100 : 0;
   const hasOpenMistake = evidence.mistakes?.some((mistake) => mistake.chapterId === chapter.id && !mistake.resolved);
+  const assessment = assessmentFor(subject.id, evidence.assessments);
+  const personalDifficulty = (assessment?.difficulty ?? 3) * 20;
+  const priority = (assessment?.priority ?? 3) * 20;
   const recentEvidence = Math.max(accuracyGap, mockGap, hasOpenMistake ? 100 : 0);
-  const score = urgency * .30 + subject.weaknessScore * .25 + masteryGap[chapter.status] * .20 + review * .15 + recentEvidence * .10;
-  const reasons = [subject.strength === "toughest" ? "priority weakness" : "result protection", chapter.status === "not-started" ? "first coverage" : "mastery gap", hasOpenMistake ? "open mistake" : review >= 80 ? "review due" : latestMock ? "mock evidence" : "recent evidence"];
-  return { score: Math.round(score), explanation: reasons.join(" · ") };
+  const adjustment = feedbackAdjustment(subject.id, evidence.feedback);
+  const score = urgency * .18 + personalDifficulty * .22 + priority * .14 + masteryGap[chapter.status] * .20 + review * .14 + recentEvidence * .12 + adjustment;
+  const method = preferredMethod(assessment);
+  const reasons = [
+    assessment?.startingPoint === "difficult" || (assessment?.difficulty ?? 3) >= 4 ? "your difficulty profile" : "balanced coverage",
+    chapter.status === "not-started" ? "first coverage" : "mastery gap",
+    hasOpenMistake ? "open mistake" : review >= 80 ? "review due" : latestMock ? "mock evidence" : "recent evidence",
+    `fits ${methodLabels[method]}`,
+  ];
+  return {
+    score: Math.max(0, Math.round(score)),
+    explanation: reasons.join(" · "),
+    factors: { urgency: Math.round(urgency), difficulty: Math.round(personalDifficulty), priority: Math.round(priority), mastery: masteryGap[chapter.status], review: Math.round(review), evidence: Math.round(recentEvidence), feedback: adjustment },
+    studyMethod: method,
+  };
 }
 
 export function recommendTasks(subjects: Subject[], chapters: Chapter[], evidence: RecommendationEvidence = {}): StudyTask[] {
   return chapters.map<StudyTask>((chapter) => {
     const subject = subjects.find((item) => item.id === chapter.subjectId)!;
     const scored = scoreChapter(subject, chapter, new Date(), evidence);
-    return { id: `task-${chapter.id}`, subjectId: subject.id, chapterId: chapter.id, title: chapter.title, plannedTime: subject.id === "mathematics" ? "8:00 PM" : "3:00 PM", duration: subject.id === "mathematics" ? 105 : 55, origin: "recommended" as const, status: "planned" as const, currentStep: 0, reason: scored.explanation, priorityScore: scored.score };
-  }).sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.priorityScore - a.priorityScore);
+    const assessment = assessmentFor(subject.id, evidence.assessments);
+    const method = scored.studyMethod;
+    const duration = assessment?.difficulty && assessment.difficulty >= 4 ? 45 : 35;
+    return {
+      id: `task-${chapter.id}`,
+      subjectId: subject.id,
+      chapterId: chapter.id,
+      title: chapter.title,
+      plannedTime: "Unscheduled",
+      duration,
+      origin: "recommended" as const,
+      status: "planned" as const,
+      currentStep: 0,
+      reason: scored.explanation,
+      priorityScore: scored.score,
+      studyMethod: method,
+      recommendationFactors: scored.factors,
+    };
+  }).sort((a, b) => b.priorityScore - a.priorityScore);
 }
+
+export type RecommendationEvidenceInput = RecommendationEvidence;

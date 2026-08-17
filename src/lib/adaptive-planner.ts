@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
-import type { Chapter, ChapterPreference, Mistake, MockResult, PlanningSettings, StudyTask, Subject } from "./types";
+import type { Chapter, ChapterPreference, Mistake, MockResult, PlanningSettings, StudyTask, Subject, LearningPreferences, SubjectAssessment, RecommendationFeedback } from "./types";
 import { recommendTasks } from "./recommendations";
 
 type AdaptivePlanInput = {
@@ -11,6 +11,9 @@ type AdaptivePlanInput = {
   subjects: Subject[];
   settings: PlanningSettings;
   availableMinutes: number;
+  learningPreferences?: LearningPreferences;
+  assessments?: SubjectAssessment[];
+  feedback?: RecommendationFeedback[];
   now?: Date;
 };
 
@@ -93,7 +96,8 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
   const now = input.now ?? new Date();
   const dateKey = dhakaDateKey(now);
   const tomorrowKey = format(addDays(new Date(`${dateKey}T00:00:00+06:00`), 1), "yyyy-MM-dd");
-  const budget = Math.max(15, Math.min(600, Math.round(input.availableMinutes)));
+  const profileBudget = input.learningPreferences ? (now.getDay() === 0 || now.getDay() === 6 ? input.learningPreferences.weekendMinutes : input.learningPreferences.weekdayMinutes) : input.availableMinutes;
+  const budget = Math.max(15, Math.min(600, Math.round(input.availableMinutes || profileBudget)));
   const chapters = chapterMap(input.chapters);
   const preferences = preferenceMap(input.preferences);
   const excluded = new Set(input.preferences.filter((preference) => preference.excluded).map((preference) => preference.chapterId));
@@ -138,14 +142,16 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     candidates.push({ task: revisionTask, score: revisionTask.priorityScore, rationale: `Repair ${subject.shortName}: ${mistake.errorType}`, source: "revision" });
   }
 
-  const recommendations = recommendTasks(input.subjects, input.chapters.filter((chapter) => !excluded.has(chapter.id)), { mistakes: input.mistakes, mocks: input.mocks });
+  const recommendations = recommendTasks(input.subjects, input.chapters.filter((chapter) => !excluded.has(chapter.id)), { mistakes: input.mistakes, mocks: input.mocks, assessments: input.assessments, feedback: input.feedback });
   for (const task of recommendations) {
     const chapter = chapters.get(task.chapterId);
     const subject = input.subjects.find((item) => item.id === task.subjectId);
     if (!chapter || !subject || openChapterIds.has(task.chapterId) || chapter.status === "exam-ready") continue;
     const preference = preferences.get(chapter.id);
-    const score = task.priorityScore + protectedSubjectBonus(task.subjectId, now.getDay(), input.settings) + (preference?.priority ?? 3) * 3;
-    candidates.push({ task: { ...task, id: `adaptive-${task.chapterId}-${dateKey}` }, score, rationale: `Adaptive recommendation · ${task.reason}`, source: "recommendation" });
+    const assessment = input.assessments?.find((item) => item.subjectId === task.subjectId);
+    const methodBonus = input.learningPreferences?.preferredMethods.includes(task.studyMethod ?? "textbook") ? 8 : 0;
+    const score = task.priorityScore + protectedSubjectBonus(task.subjectId, now.getDay(), input.settings) + (preference?.priority ?? 3) * 3 + (assessment?.priority ?? 3) * 2 + methodBonus;
+    candidates.push({       task: { ...task, id: `adaptive-${task.chapterId}-${dateKey}` }, score, rationale: `Adaptive recommendation · ${task.reason}`, source: "recommendation" });
   }
 
   const deduped = [...new Map(candidates.map((candidate) => [candidate.task.chapterId + ":" + candidate.source, candidate])).values()]

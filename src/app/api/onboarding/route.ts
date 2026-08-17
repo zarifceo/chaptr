@@ -4,6 +4,31 @@ import { createClient } from "@/lib/supabase/server";
 
 const POLICY_VERSION = "2026-08-17";
 
+const learningPreferencesPatch = z.object({
+  preferred_methods: z.array(z.string().min(1).max(40)).max(12).optional(),
+  preferred_resource_kinds: z.array(z.string().min(1).max(40)).max(12).optional(),
+  session_length_minutes: z.number().int().min(15).max(180).optional(),
+  sessions_per_day: z.number().int().min(1).max(8).optional(),
+  available_days: z.array(z.string().min(2).max(3)).max(7).optional(),
+  weekday_minutes: z.number().int().min(30).max(600).optional(),
+  weekend_minutes: z.number().int().min(30).max(720).optional(),
+  target_grade: z.string().trim().min(1).max(12).optional(),
+  guidance_mode: z.enum(["guided", "balanced", "quiet"]).optional(),
+  plan_strictness: z.enum(["flexible", "balanced", "strict"]).optional(),
+  instruction_ratio: z.number().int().min(0).max(100).optional(),
+  practice_ratio: z.number().int().min(0).max(100).optional(),
+  review_ratio: z.number().int().min(0).max(100).optional(),
+}).partial();
+
+const subjectAssessment = z.object({
+  subject_id: z.string().min(1).max(80),
+  difficulty: z.number().int().min(1).max(5).optional(),
+  confidence: z.number().int().min(1).max(5).optional(),
+  priority: z.number().int().min(1).max(5).optional(),
+  starting_point: z.enum(["comfortable", "mixed", "difficult", "uncertain"]).optional(),
+  preferred_methods: z.array(z.string().min(1).max(40)).max(12).optional(),
+});
+
 const profilePatch = z.object({
   display_name: z.string().trim().max(80).nullable().optional(),
   accept_policies: z.literal(true).optional(),
@@ -15,6 +40,8 @@ const profilePatch = z.object({
   main_end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   onboarding_step: z.number().int().min(0).max(7).optional(),
   onboarding_completed: z.boolean().optional(),
+  learning_preferences: learningPreferencesPatch.optional(),
+  subject_assessments: z.array(subjectAssessment).max(30).optional(),
 });
 
 async function currentUserId() {
@@ -60,7 +87,7 @@ export async function POST(request: Request) {
   const parsed = profilePatch.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid onboarding profile" }, { status: 400 });
 
-  const { accept_policies: acceptPolicies, ...profileData } = parsed.data;
+  const { accept_policies: acceptPolicies, learning_preferences: learningPreferences, subject_assessments: subjectAssessments, ...profileData } = parsed.data;
   const consent = acceptPolicies ? {
     terms_accepted_at: new Date().toISOString(),
     privacy_accepted_at: new Date().toISOString(),
@@ -73,5 +100,18 @@ export async function POST(request: Request) {
     .select("*")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ profile: data });
+
+  if (learningPreferences) {
+    const { error: preferencesError } = await supabase.from("learning_preferences").upsert({ user_id: userId, ...learningPreferences, updated_at: new Date().toISOString() });
+    if (preferencesError) return NextResponse.json({ error: preferencesError.message }, { status: 400 });
+  }
+  if (subjectAssessments) {
+    const { error: assessmentError } = await supabase.from("subject_assessments").upsert(subjectAssessments.map((assessment) => ({ user_id: userId, ...assessment, updated_at: new Date().toISOString() })), { onConflict: "user_id,subject_id" });
+    if (assessmentError) return NextResponse.json({ error: assessmentError.message }, { status: 400 });
+  }
+  const [{ data: savedPreferences }, { data: savedAssessments }] = await Promise.all([
+    supabase.from("learning_preferences").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("subject_assessments").select("*").eq("user_id", userId).order("subject_id"),
+  ]);
+  return NextResponse.json({ profile: data, learning_preferences: savedPreferences, subject_assessments: savedAssessments ?? [] });
 }
