@@ -36,4 +36,4 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 ## Deployment note
 
-The SSC Command Center production branch is connected to Vercel and uses a Supabase-only authenticated workspace. This note preserves the deployment tree for the verified production build.
+The SSC Command Center production branch is connected to Vercel and uses a Supabase-only authenticated workspace. This note preserves the deployment tree for the verified production build. 
