@@ -7,7 +7,7 @@ import {
   ArrowCounterClockwise, ArrowRight, BookOpen, Books, Brain, CalendarBlank, CalendarPlus, CaretDown, CaretLeft, CaretRight,
   ChartBar, Check, CheckCircle, Clock, CloudCheck, Exam, Headphones, House,
   EyeSlash, ListChecks, MagnifyingGlass, NotePencil, Pause, Play, Plus, PushPin, Rows,
-  Sigma, SignIn, SignOut, SlidersHorizontal, Sparkle, Target, Timer, Warning, X,
+  Sigma, SignOut, SlidersHorizontal, Sparkle, Target, Timer, Warning, X,
 } from "@phosphor-icons/react";
 import {
   chapters, marksDistributions, subjects, workflowSteps, replaceAcademicData,

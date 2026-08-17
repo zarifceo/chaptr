@@ -175,6 +175,10 @@ export interface UserProfile {
   mainEnd: string;
   onboardingStep: number;
   onboardingCompleted: boolean;
+  termsAcceptedAt?: string;
+  privacyAcceptedAt?: string;
+  termsVersion?: string;
+  privacyVersion?: string;
   createdAt: string;
   updatedAt: string;
 }
