@@ -1,6 +1,6 @@
 import type { Chapter, MarksDistribution, Subject } from "./types";
 
-export const subjects: Subject[] = [
+export let subjects: Subject[] = [
   { id: "bangla-1", name: "Bangla 1st Paper", shortName: "Bangla 1", strength: "moderate", weaknessScore: 58, workflow: "bangla-1", accent: "pink" },
   { id: "bangla-2", name: "Bangla 2nd Paper", shortName: "Bangla 2", strength: "moderate", weaknessScore: 55, workflow: "bangla-2", accent: "yellow" },
   { id: "english-1", name: "English 1st Paper", shortName: "English 1", strength: "strongest", weaknessScore: 20, workflow: "english", accent: "blue" },
@@ -15,7 +15,7 @@ export const subjects: Subject[] = [
   { id: "agriculture", name: "Agriculture", shortName: "Agriculture", strength: "toughest", weaknessScore: 94, workflow: "notebooklm", accent: "mint" },
 ];
 
-export const workflowSteps = {
+export let workflowSteps = {
   notebooklm: ["Video overview", "Audio overview", "Flashcards", "Reports", "Guidebook MCQ / CQ / SQ", "Independent recall & practice"],
   accounting: ["NotebookLM concept overview", "Audio overview", "Flashcards & reports", "Worked example review", "Independent numerical practice", "Guidebook MCQ / CQ / SQ", "Error check"],
   "bangla-1": ["YouTube class", "Guidebook MCQ", "Guidebook CQ", "Guidebook SQ", "Timed written answer"],
@@ -63,12 +63,12 @@ const infer = (note?: string) => {
   return { status: "learning" as const, confidence: 3 as const };
 };
 
-export const chapters: Chapter[] = seed.map(([subjectId, title, number, division, note], index) => ({
+export let chapters: Chapter[] = seed.map(([subjectId, title, number, division, note], index) => ({
   id: `${subjectId}-${index + 1}`, subjectId, title, number, division, note, ...infer(note),
   formats: defaultFormats[subjectId] ?? ["MCQ", "Short", "Creative"], questionsAttempted: 0, questionsCorrect: 0,
 }));
 
-export const marksDistributions: MarksDistribution[] = [
+export let marksDistributions: MarksDistribution[] = [
   { subjectId: "bangla-1", questionType: "Creative — prose and poetry", rule: "Answer 5 of 8; at least 2 from each section", marks: 50 },
   { subjectId: "bangla-1", questionType: "Supplementary short questions", rule: "Answer 2 of 4; 1 novel and 1 drama", marks: 20 },
   { subjectId: "bangla-1", questionType: "MCQ", rule: "Answer all 30", marks: 30 },
@@ -83,7 +83,17 @@ export const marksDistributions: MarksDistribution[] = [
   { subjectId: "accounting", questionType: "Financial statement", rule: "Compulsory", marks: 20 }, { subjectId: "accounting", questionType: "Creative", rule: "Answer 4 of 7", marks: 40 }, { subjectId: "accounting", questionType: "Short", rule: "Answer 5 of 7", marks: 10 }, { subjectId: "accounting", questionType: "MCQ", rule: "Answer all 30", marks: 30 },
 ];
 
-export const exams = [
+export type AcademicExam = { id: string; name: string; start: string; end: string };
+
+export let exams: AcademicExam[] = [
   { id: "test", name: "Full-Syllabus Test", start: "2026-10-28", end: "2026-11-12" },
   { id: "ssc", name: "SSC 2027", start: "2027-01-07", end: "2027-02-06" },
 ];
+
+export function replaceAcademicData(next: { subjects: Subject[]; chapters: Chapter[]; marksDistributions: MarksDistribution[]; exams: AcademicExam[]; workflowSteps?: typeof workflowSteps }) {
+  subjects = next.subjects;
+  chapters = next.chapters;
+  marksDistributions = next.marksDistributions;
+  exams = next.exams;
+  if (next.workflowSteps) workflowSteps = next.workflowSteps;
+}

@@ -10,15 +10,15 @@ import {
   Sigma, SignIn, SignOut, SlidersHorizontal, Sparkle, Target, Timer, Warning, X,
 } from "@phosphor-icons/react";
 import {
-  chapters as seedChapters, exams, marksDistributions, subjects, workflowSteps,
+  chapters, marksDistributions, subjects, workflowSteps, replaceAcademicData,
 } from "@/lib/academic-data";
-import { flushCloudSync, getPendingSyncCount, installOnlineSync, queueCloudSync } from "@/lib/offline-sync";
+import { queueCloudSync } from "@/lib/offline-sync";
 import { recommendTasks } from "@/lib/recommendations";
 import { buildAdaptivePlan, revisionDelayDays } from "@/lib/adaptive-planner";
 import { StudyAnalytics, SyllabusEvidenceMap, ExamModeFocus, ResourceLibrary } from "@/components/study-features";
 import { ExamCountdownCenter } from "@/components/exam-countdown";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import type { AdaptivePlanSummary, Chapter, ChapterPreference, ExamEvent, JournalEntry, Mistake, MockResult, PlanningSettings, StudyResource, StudySession, StudyTask } from "@/lib/types";
+import type { AdaptivePlanSummary, Chapter, ChapterPreference, ExamEvent, JournalEntry, MarksDistribution, Mistake, MockResult, PlanningSettings, StudyResource, StudySession, StudyTask, Subject } from "@/lib/types";
 
 const nav = [
   ["Dashboard", House], ["Today", CalendarBlank], ["Syllabus", Books],
@@ -27,25 +27,11 @@ const nav = [
 ] as const;
 
 const bySubject = (id: string) => subjects.find((subject) => subject.id === id)!;
-const byChapter = (id: string, list = seedChapters) => list.find((chapter) => chapter.id === id)!;
+const byChapter = (id: string, list = chapters) => list.find((chapter) => chapter.id === id)!;
 const taskById = (tasks: StudyTask[], id: string) => tasks.find((task) => task.id === id);
-const times = ["3:00 PM", "4:15 PM", "5:30 PM", "8:00 PM", "9:45 PM"];
-const rankedTasks = recommendTasks(subjects, seedChapters);
-const dailyMix = [rankedTasks.find((task) => task.subjectId === "mathematics")!, rankedTasks.find((task) => task.subjectId === "agriculture")!, rankedTasks.find((task) => task.subjectId === "accounting")!, rankedTasks.filter((task) => task.subjectId === "mathematics")[1], rankedTasks.find((task) => ["bangla-1", "bangla-2", "science", "business", "finance", "ict", "islam"].includes(task.subjectId))!];
-const seededTasks = dailyMix.map((task, index) => ({ ...task, plannedTime: times[index] }));
-const seededMistakes: Mistake[] = [
-  { id: "m1", chapterId: seedChapters.find((c) => c.subjectId === "mathematics" && c.number === 3)!.id, prompt: "Factorise without checking the guide.", errorType: "Sign error", reattemptDate: "2026-08-14", resolved: false },
-  { id: "m2", chapterId: seedChapters.find((c) => c.subjectId === "mathematics" && c.number === 9)!.id, prompt: "Choose the correct ratio from the diagram.", errorType: "Concept selection", reattemptDate: "2026-08-14", resolved: false },
-  { id: "m3", chapterId: seedChapters.find((c) => c.subjectId === "mathematics" && c.number === 8)!.id, prompt: "Prove the theorem with complete reasoning.", errorType: "Missing step", reattemptDate: "2026-08-15", resolved: false },
-];
-const officialExamTotals: Record<string, number> = { "bangla-1": 100, "bangla-2": 100, "english-1": 100, "english-2": 100, mathematics: 100, science: 100, islam: 100, ict: 50, accounting: 100, finance: 100, business: 100 };
-const defaultPlanning: PlanningSettings = { mainStart: "15:00", mainEnd: "19:00", mathStart: "20:00", mathEnd: "22:00", dailyTarget: 240, mathDaysPerWeek: 6, agricultureDaysPerWeek: 4, remindersEnabled: false };
-const emptyEntries: JournalEntry[] = [];
-const emptyMocks: MockResult[] = [];
-const emptySessions: StudySession[] = [];
-const emptyResources: StudyResource[] = [];
-  const defaultPreferences: ChapterPreference[] = seedChapters.map((chapter) => ({ chapterId: chapter.id, includedForSsc: true, excluded: false, priority: 3 }));
-const defaultExamEvents: ExamEvent[] = exams.map((exam) => ({ id: exam.id, name: exam.name, start: exam.start, end: exam.end, kind: exam.id === "ssc" ? "official" : "mock", scope: exam.id === "ssc" ? ["All SSC 2027 syllabus", "Board exam conditions"] : ["Full syllabus diagnostic", "Written + MCQ practice"], locked: true }));
+const subjectAccent: Record<string, Subject["accent"]> = { "bangla-1": "pink", "bangla-2": "yellow", "english-1": "blue", "english-2": "blue", mathematics: "lilac", science: "mint", islam: "yellow", ict: "blue", business: "pink", finance: "mint", accounting: "yellow", agriculture: "mint" };
+const officialTotalFor = (subjectId: string) => marksDistributions.filter((mark) => mark.subjectId === subjectId).reduce((sum, mark) => sum + mark.marks, 0);
+
 const currentMonthKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit" }).format(new Date()) + "-01";
 const preferenceFor = (chapterId: string, list: ChapterPreference[]) => list.find((item) => item.chapterId === chapterId) ?? { chapterId, includedForSsc: false, excluded: false, priority: 3 as const };
 const monthLabel = (month: string) => new Date(`${month}T00:00:00+06:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "Asia/Dhaka" });
@@ -62,22 +48,6 @@ const scheduleOn = (task: StudyTask, date: string) => {
   const start = new Date(`${date}T${String(hour).padStart(2, "0")}:${minute}:00+06:00`);
   return { ...task, plannedStart: start.toISOString(), plannedEnd: new Date(start.getTime() + task.duration * 60000).toISOString() };
 };
-
-function useStored<T>(key: string, seed: T) {
-  const [value, setValue] = useState<T>(seed);
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const raw = window.localStorage.getItem(key);
-      if (raw) { try { setValue(JSON.parse(raw) as T); } catch { window.localStorage.setItem(key, JSON.stringify(seed)); } }
-      else window.localStorage.setItem(key, JSON.stringify(seed));
-      setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [key, seed]);
-  useEffect(() => { if (hydrated) localStorage.setItem(key, JSON.stringify(value)); }, [hydrated, key, value]);
-  return [value, setValue] as const;
-}
 
 function dhakaDate() {
   return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date()).toUpperCase();
@@ -163,21 +133,33 @@ function resourceRow(resource: StudyResource) {
   return { id: resource.id, subject_id: resource.subjectId, chapter_id: resource.chapterId, title: resource.title, url: resource.url, kind: resource.kind, note: resource.note ?? null, archived: resource.archived ?? false, created_at: resource.createdAt, updated_at: resource.updatedAt };
 }
 
+function examEventRow(event: ExamEvent) {
+  return { id: event.id, name: event.name, starts_on: event.start, ends_on: event.end, kind: event.kind, scope: event.scope, note: event.note ?? null, locked: event.locked ?? false, archived: event.archived ?? false };
+}
+
+function planningRow(settings: PlanningSettings) {
+  return { main_start: settings.mainStart, main_end: settings.mainEnd, math_start: settings.mathStart, math_end: settings.mathEnd, daily_target: settings.dailyTarget, math_days_per_week: settings.mathDaysPerWeek, agriculture_days_per_week: settings.agricultureDaysPerWeek, reminders_enabled: settings.remindersEnabled };
+}
+
+function adaptivePlanRow(summary: AdaptivePlanSummary) {
+  return { used_minutes: summary.usedMinutes, available_minutes: summary.availableMinutes, deferred_count: summary.deferredCount, generated_revision_count: summary.generatedRevisionCount, rationale: summary.rationale, planned_at: summary.plannedAt };
+}
+
 function Sidebar({ active, setActive, open, close }: { active: string; setActive: (value: string) => void; open: boolean; close: () => void }) {
-  return <aside className={`sidebar ${open ? "is-open" : ""}`}>
+  return <aside id="app-navigation" className={`sidebar ${open ? "is-open" : ""}`} aria-label="Primary navigation">
     <button className="close-menu" onClick={close} aria-label="Close navigation"><X /></button>
-    <button className="brand" onClick={() => setActive("Dashboard")}>
+    <button className="brand" onClick={() => { setActive("Dashboard"); close(); }}>
       <Image src="/icon-512.png" width={44} height={44} alt="SSC Command Center" priority />
       <div><strong>SSC</strong><small>Command Center</small></div>
     </button>
     <nav>{nav.map(([label, Icon]) => <button key={label} className={active === label ? "active" : ""} aria-current={active === label ? "page" : undefined} onClick={() => { setActive(label); close(); }}><Icon size={21} weight={active === label ? "fill" : "regular"} /><span>{label}</span></button>)}</nav>
-    <div className="sync-pill"><CloudCheck size={20} weight="fill" /><span><strong>Offline-ready</strong><small>Syncs when signed in</small></span></div>
+    <div className="sync-pill"><CloudCheck size={20} weight="fill" /><span><strong>Database connected</strong><small>Supabase-only workspace</small></span></div>
   </aside>;
 }
 
-function Topbar({ active, open }: { active: string; open: () => void }) {
+function Topbar({ active, open, expanded }: { active: string; open: () => void; expanded: boolean }) {
   return <header className="topbar">
-    <button className="menu-button" onClick={open} aria-label="Open navigation"><Image src="/icon-192.png" width={28} height={28} alt="" /></button>
+    <button className="menu-button" onClick={open} aria-label="Open navigation" aria-controls="app-navigation" aria-expanded={expanded}><Rows size={23} weight="bold" /></button>
     <div><p>{dhakaDate()}</p><h1>{active === "Today" ? "Today's learning journey" : active}</h1></div>
     <div className="profile"><span>ZI</span><div><strong>Zarif</strong><small>SSC 2027</small></div></div>
   </header>;
@@ -197,7 +179,8 @@ function SectionTitle({ kicker, title, children }: { kicker: string; title: stri
 function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents, go }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; go: (value: string) => void }) {
   const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
   const visible = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped" && isTaskAvailable(task) && !excluded.has(task.chapterId));
-  const first = visible[0] ?? seededTasks[0];
+  const first = visible[0];
+  if (!first) return <main id="main-content" tabIndex={-1} className="page dashboard-page"><section className="panel empty"><CalendarBlank /><h3>Your database workspace is ready.</h3><p>Add a study task or open Today to build your first plan.</p><button className="solid-cta" onClick={() => go("Today")}>Open Today</button></section></main>;
   const subject = bySubject(first.subjectId);
   const chapter = byChapter(first.chapterId);
   const readiness = (subjectId: string) => { const mine = chapters.filter((item) => item.subjectId === subjectId); return mine.length ? Math.round(mine.reduce((sum, item) => sum + item.confidence, 0) / (mine.length * 5) * 100) : 0; };
@@ -216,7 +199,7 @@ function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents
         <button className="solid-cta" onClick={() => go("Today")}><Play weight="fill" />Start study flow</button>
         <Brain className="hero-art" weight="duotone" />
       </article>
-      <div className="countdown-stack"><Countdown name="Full-Syllabus Test" date={exams[0].start} tone="lilac" /><Countdown name="SSC 2027" date={exams[1].start} tone="mint" /></div>
+      <div className="countdown-stack">{examEvents.length ? examEvents.slice(0, 2).map((event, index) => <Countdown key={event.id} name={event.name} date={event.start} tone={index === 0 ? "lilac" : "mint"} />) : <article className="panel empty compact"><Timer /><p>No exam events yet. Add one in Countdown.</p></article>}</div>
     </section>
     <section className="strategy-ribbon"><button onClick={() => go("Goals")}><Target weight="fill" /><span><small>SSC STRATEGY</small><strong>{preferences.filter((item) => item.includedForSsc && !item.excluded).length} selected</strong></span><CaretRight /></button><button onClick={() => go("Goals")}><CalendarPlus weight="fill" /><span><small>{monthLabel(currentMonthKey()).toUpperCase()}</small><strong>{preferences.filter((item) => item.targetMonth === currentMonthKey() && !item.excluded).length} chapter goals</strong></span><CaretRight /></button><button onClick={() => go("Syllabus")}><EyeSlash weight="fill" /><span><small>STRATEGICALLY SKIPPED</small><strong>{preferences.filter((item) => item.excluded).length} excluded</strong></span><CaretRight /></button><button onClick={() => go("Countdown")}><Timer weight="fill" /><span><small>NEXT DEADLINE</small><strong>{examEvents.find((event) => event.id === "ssc")?.name ?? "Exam countdown"}</strong></span><CaretRight /></button></section>
     <section className="dashboard-grid">
@@ -254,9 +237,10 @@ function AdaptivePlannerControls({ summary, run }: { summary: AdaptivePlanSummar
   return <article className="panel adaptive-planner"><div><small className="eyebrow">ADAPTIVE DAILY PLANNER</small><h3>Rebuild today around the real gaps.</h3><p>Due mistakes go first, protected subjects keep their cadence, and unfinished work moves forward without punishment.</p>{summary?.rationale.map((line) => <small className="planner-note" key={line}>{line}</small>)}</div><div className="adaptive-planner-actions"><label>Available minutes<input type="number" min="15" max="600" step="15" value={minutes} onChange={(event) => setMinutes(Math.max(15, Math.min(600, Number(event.target.value))))} /></label><button className="accent" onClick={() => run(minutes)}><Sparkle weight="fill" />Adapt my day</button>{summary && <span className="planner-result" role="status">{summary.usedMinutes}/{summary.availableMinutes} min placed · {summary.deferredCount} deferred</span>}</div></article>;
 }
 
-function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, planSummary, planToday }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void }) {
+function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, planSummary, planToday, examEvents }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void; examEvents: ExamEvent[] }) {
   const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
   const visible = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped" && isTaskAvailable(task) && !excluded.has(task.chapterId));
+  const nextExam = [...examEvents].sort((a, b) => a.start.localeCompare(b.start))[0];
   const [expanded, setExpanded] = useState(focusTaskId ?? visible[0]?.id ?? "");
   const advance = (task: StudyTask, total: number) => {
     if (task.currentStep + 1 >= total) return journal(task);
@@ -284,11 +268,11 @@ function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, 
         </article>;
       }) : <article className="empty-day"><CheckCircle weight="fill" /><h3>Today&apos;s open queue is clear.</h3><p>Add a manual task or let tomorrow&apos;s recommendations refill it.</p><button className="solid-cta" onClick={add}><Plus />Add a task</button></article>}</div>
     </section>
-    <aside className="today-aside"><Countdown name="Test exam" date={exams[0].start} tone="lilac" /><article className="mini-card"><small>TODAY&apos;S TARGET</small><h3>{visible.reduce((sum, task) => sum + task.duration, 0)}<em> min</em><b>{tasks.length ? Math.round(tasks.filter((task) => task.status === "completed").length / tasks.length * 100) : 0}%</b></h3><i className="meter" /></article><article className="mini-card risk"><small>RISK INSIGHT</small><h3>Maths stays near-daily.</h3><p>Only correct-without-help closes a mistake.</p></article><article className="mini-card"><small>WHY THESE TASKS?</small><p>30% urgency · 25% weakness · 20% mastery · 15% review · 10% evidence</p></article></aside>
+    <aside className="today-aside">{nextExam ? <Countdown name={nextExam.name} date={nextExam.start} tone="lilac" /> : <article className="mini-card"><small>NEXT EXAM</small><p>No exam event has been configured yet.</p></article>}<article className="mini-card"><small>TODAY&apos;S TARGET</small><h3>{visible.reduce((sum, task) => sum + task.duration, 0)}<em> min</em><b>{tasks.length ? Math.round(tasks.filter((task) => task.status === "completed").length / tasks.length * 100) : 0}%</b></h3><i className="meter" /></article><article className="mini-card risk"><small>RISK INSIGHT</small><h3>Maths stays near-daily.</h3><p>Only correct-without-help closes a mistake.</p></article><article className="mini-card"><small>WHY THESE TASKS?</small><p>30% urgency · 25% weakness · 20% mastery · 15% review · 10% evidence</p></article></aside>
   </main>;
 }
 
-function Syllabus({ list, setList, preferences, updatePreference, completeChapter, goGoals, sessions, entries, mistakes, resources, goResources }: { list: Chapter[]; setList: (value: Chapter[]) => void; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; completeChapter: (chapter: Chapter) => void; goGoals: () => void; sessions: StudySession[]; entries: JournalEntry[]; mistakes: Mistake[]; resources: StudyResource[]; goResources: (chapterId: string) => void }) {
+function Syllabus({ list, setList, preferences, updatePreference, completeChapter, persistProgress, goGoals, sessions, entries, mistakes, resources, goResources }: { list: Chapter[]; setList: (value: Chapter[]) => void; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; completeChapter: (chapter: Chapter) => void; persistProgress: (chapter: Chapter) => void; goGoals: () => void; sessions: StudySession[]; entries: JournalEntry[]; mistakes: Mistake[]; resources: StudyResource[]; goResources: (chapterId: string) => void }) {
   const [selected, setSelected] = useState("mathematics");
   const [query, setQuery] = useState("");
   const [showExcluded, setShowExcluded] = useState(false);
@@ -299,15 +283,15 @@ function Syllabus({ list, setList, preferences, updatePreference, completeChapte
     const states: Chapter["status"][] = ["not-started", "learning", "practising", "exam-ready", "needs-revision"];
     const updated = { ...chapter, status: states[(states.indexOf(chapter.status) + 1) % states.length] };
     setList(list.map((item) => item.id === chapter.id ? updated : item));
-    void queueCloudSync("chapter_progress", [chapterRow(updated)]);
+    persistProgress(updated);
   };
   const setConfidence = (chapter: Chapter, confidence: Chapter["confidence"]) => {
     const updated = { ...chapter, confidence };
     setList(list.map((item) => item.id === chapter.id ? updated : item));
-    void queueCloudSync("chapter_progress", [chapterRow(updated)]);
+    persistProgress(updated);
   };
   const listedTotal = marks.reduce((sum, item) => sum + item.marks, 0);
-  const officialTotal = officialExamTotals[selected];
+  const officialTotal = officialTotalFor(selected) || undefined;
   const hasConflict = Boolean(officialTotal && listedTotal && listedTotal !== officialTotal);
   return <main id="main-content" tabIndex={-1} className="page syllabus-page">
     <section className="subject-strip" aria-label="Subjects">{subjects.map((item) => <button key={item.id} className={selected === item.id ? `active ${item.accent}` : ""} onClick={() => setSelected(item.id)}><span>{item.shortName.slice(0, 2)}</span><strong>{item.shortName}</strong><small>{list.filter((chapter) => chapter.subjectId === item.id).length} topics</small></button>)}</section>
@@ -427,8 +411,8 @@ function RevisionModal({ mistake, close, save }: { mistake: Mistake; close: () =
   return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="revision-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form onSubmit={(event) => { event.preventDefault(); save(outcome, note); }}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>DELIBERATE RETRIEVAL</small><h2 id="revision-title">Reattempt this mistake</h2><p className="revision-prompt">{mistake.prompt}</p><small>{byChapter(mistake.chapterId).title} · {mistake.errorType} · {mistake.revisionCount ?? 0} previous attempt{(mistake.revisionCount ?? 0) === 1 ? "" : "s"}</small><label>What happened?<select autoFocus value={outcome} onChange={(event) => setOutcome(event.target.value as "solved" | "needs-work")}><option value="solved">Solved without help</option><option value="needs-work">Still needs work</option></select></label><label>Revision note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="What made the answer work, or where did you get stuck?" /></label><p className="revision-next">{outcome === "solved" ? "Closes this item and schedules a light 7-day check." : `Keeps it open and schedules another focused attempt in ${delay} day${delay === 1 ? "" : "s"}.`}</p><button className="solid-cta"><CheckCircle weight="fill" />Save revision attempt</button></form></div>;
 }
 
-function MathsLab({ mistakes, review }: { mistakes: Mistake[]; review: (mistake: Mistake) => void }) {
-  return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="CORRECT WITHOUT HELP TO CLOSE AN ITEM" title="Maths reattempt lab"><span className="open-count">{mistakes.filter((mistake) => !mistake.resolved).length} open</span></SectionTitle><section className="math-layout"><div className="mistakes">{mistakes.map((mistake, index) => <article className={mistake.resolved ? "resolved" : ""} key={mistake.id}><span>{index + 1}</span><p><small>{byChapter(mistake.chapterId).division} · {mistake.errorType}</small><strong>{mistake.prompt}</strong><em>{byChapter(mistake.chapterId).title} · {mistake.revisionCount ?? 0} attempt{(mistake.revisionCount ?? 0) === 1 ? "" : "s"}{mistake.reattemptDate ? ` · next ${new Date(`${mistake.reattemptDate}T00:00:00+06:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</em></p><button onClick={() => review(mistake)}>{mistake.resolved ? <><ArrowCounterClockwise />Review again</> : <><Timer />Start revision attempt</>}</button></article>)}</div><aside className="division"><small>DIVISION COVERAGE</small>{["Algebra", "Geometry", "Trigonometry & Mensuration", "Statistics"].map((division) => <div key={division}><span>{division}</span><b>{seedChapters.filter((chapter) => chapter.subjectId === "mathematics" && chapter.division === division).length} chapters</b></div>)}</aside></section></main>;
+function MathsLab({ mistakes, chapters, review }: { mistakes: Mistake[]; chapters: Chapter[]; review: (mistake: Mistake) => void }) {
+  return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="CORRECT WITHOUT HELP TO CLOSE AN ITEM" title="Maths reattempt lab"><span className="open-count">{mistakes.filter((mistake) => !mistake.resolved).length} open</span></SectionTitle><section className="math-layout"><div className="mistakes">{mistakes.map((mistake, index) => <article className={mistake.resolved ? "resolved" : ""} key={mistake.id}><span>{index + 1}</span><p><small>{byChapter(mistake.chapterId).division} · {mistake.errorType}</small><strong>{mistake.prompt}</strong><em>{byChapter(mistake.chapterId).title} · {mistake.revisionCount ?? 0} attempt{(mistake.revisionCount ?? 0) === 1 ? "" : "s"}{mistake.reattemptDate ? ` · next ${new Date(`${mistake.reattemptDate}T00:00:00+06:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</em></p><button onClick={() => review(mistake)}>{mistake.resolved ? <><ArrowCounterClockwise />Review again</> : <><Timer />Start revision attempt</>}</button></article>)}</div><aside className="division"><small>DIVISION COVERAGE</small>{["Algebra", "Geometry", "Trigonometry & Mensuration", "Statistics"].map((division) => <div key={division}><span>{division}</span><b>{chapters.filter((chapter) => chapter.subjectId === "mathematics" && chapter.division === division).length} chapters</b></div>)}</aside></section></main>;
 }
 
 function ExamPlan() {
@@ -442,7 +426,6 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [pending, setPending] = useState(0);
   const [health, setHealth] = useState<CalendarHealth | null>(null);
   const refreshHealth = () => void fetch("/api/calendar/status").then((response) => response.json()).then(setHealth).catch(() => setHealth(null));
   useEffect(() => {
@@ -451,12 +434,6 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
     void client.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
     const { data } = client.auth.onAuthStateChange((_event, session) => setEmail(session?.user.email ?? null));
     return () => data.subscription.unsubscribe();
-  }, []);
-  useEffect(() => {
-    const refresh = () => void getPendingSyncCount().then(setPending);
-    refresh();
-    window.addEventListener("ssc-sync-queue-change", refresh);
-    return () => window.removeEventListener("ssc-sync-queue-change", refresh);
   }, []);
   useEffect(() => {
     refreshHealth();
@@ -479,12 +456,11 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
     router.push("/api/calendar/connect");
   };
   const syncNow = async () => {
-    setMessage("Syncing saved study changes…");
-    const local = await flushCloudSync();
-    if (!email) return setMessage(`${local.pending} change${local.pending === 1 ? "" : "s"} safely queued. Sign in to send them to the cloud.`);
+    if (!email) return setMessage("Sign in first to synchronize calendar events.");
+    setMessage("Checking connected Google Calendar…");
     const response = await fetch("/api/calendar/sync", { method: "POST" }).catch(() => null);
     const body = response ? await response.json().catch(() => null) as { synced?: number; error?: string } | null : null;
-    setMessage(response?.ok ? `Cloud queue synced. Calendar checked ${body?.synced ?? 0} app-owned event${body?.synced === 1 ? "" : "s"}.` : body?.error ?? "Calendar is not connected yet. Your study data remains queued safely.");
+    setMessage(response?.ok ? `Calendar checked ${body?.synced ?? 0} app-owned event${body?.synced === 1 ? "" : "s"}.` : body?.error ?? "Calendar is not connected yet.");
     refreshHealth();
   };
   const enableReminders = async () => {
@@ -498,19 +474,19 @@ function Settings({ planning, setPlanning }: { planning: PlanningSettings; setPl
     <article><span className="lilac"><CalendarBlank /></span><p><strong>{health?.connected ? "Google Calendar connected" : "Google Calendar"}</strong><small>{health?.connected ? `${health.linkedEvents ?? 0} linked study blocks. Unrelated events stay untouched.` : health?.configured ? "Ready to connect app-owned study blocks." : health?.missing?.length ? `Setup missing: ${health.missing.join(", ")}` : "Sync only app-owned study blocks. Unrelated events stay untouched."}</small></p><div className="settings-actions"><button className={health?.connected ? "connected" : ""} onClick={calendar}>{health?.connected ? "Reconnect" : "Connect"}</button><button onClick={syncNow}>Sync now</button></div></article>
     <article className="settings-editor"><span className="mint"><Clock /></span><p><strong>Study windows</strong><small>These guide planning without locking every day into a rigid routine.</small></p><div className="inline-fields"><label>Main starts<input type="time" value={planning.mainStart} onChange={(event) => setPlanning({ ...planning, mainStart: event.target.value })} /></label><label>Main ends<input type="time" value={planning.mainEnd} onChange={(event) => setPlanning({ ...planning, mainEnd: event.target.value })} /></label><label>Maths starts<input type="time" value={planning.mathStart} onChange={(event) => setPlanning({ ...planning, mathStart: event.target.value })} /></label><label>Maths ends<input type="time" value={planning.mathEnd} onChange={(event) => setPlanning({ ...planning, mathEnd: event.target.value })} /></label></div></article>
     <article className="settings-editor"><span className="yellow"><Brain /></span><p><strong>Recommendation control</strong><small>Weakness-first rules stay explainable; manual pins still override them.</small></p><div className="inline-fields"><label>Daily target<input type="number" min="60" max="600" value={planning.dailyTarget} onChange={(event) => setPlanning({ ...planning, dailyTarget: Number(event.target.value) })} /><em>min</em></label><label>Maths<input type="number" min="1" max="7" value={planning.mathDaysPerWeek} onChange={(event) => setPlanning({ ...planning, mathDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label><label>Agriculture<input type="number" min="1" max="7" value={planning.agricultureDaysPerWeek} onChange={(event) => setPlanning({ ...planning, agricultureDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label></div></article>
-    <article><span className="pink"><CloudCheck /></span><p><strong>Offline journal queue</strong><small>{pending} pending change{pending === 1 ? "" : "s"}. Repeated edits are merged before upload.</small></p><button onClick={syncNow}>Retry now</button></article>
+    <article><span className="pink"><CloudCheck /></span><p><strong>Database storage</strong><small>Study data is stored directly in Supabase. Offline queues and local fallbacks are disabled.</small></p><button onClick={syncNow}>Check connection</button></article>
     <article><span className="blue"><Warning /></span><p><strong>Study reminders</strong><small>{planning.remindersEnabled ? "Browser permission granted." : "Optional browser and install reminders."}</small></p><button onClick={enableReminders}>{planning.remindersEnabled ? "Enabled" : "Enable"}</button></article>
     {message && <p className="settings-message">{message}</p>}
   </section></main>;
 }
 
 function ManualTaskModal({ close, save, defaultDate, preferences }: { close: () => void; save: (task: StudyTask) => void; defaultDate?: string; preferences: ChapterPreference[] }) {
-  const selectable = seedChapters.filter((chapter) => !preferenceFor(chapter.id, preferences).excluded);
+  const selectable = chapters.filter((chapter) => !preferenceFor(chapter.id, preferences).excluded);
   const selectableSubjects = subjects.filter((subject) => selectable.some((chapter) => chapter.subjectId === subject.id));
   const initialSubject = selectable.some((chapter) => chapter.subjectId === "mathematics") ? "mathematics" : selectable[0]?.subjectId ?? "mathematics";
   const [subjectId, setSubjectId] = useState(initialSubject);
   const available = selectable.filter((chapter) => chapter.subjectId === subjectId);
-  const [chapterId, setChapterId] = useState(available[0]?.id ?? selectable[0]?.id ?? seedChapters[0].id);
+  const [chapterId, setChapterId] = useState(available[0]?.id ?? selectable[0]?.id ?? chapters[0]?.id ?? "");
   const [time, setTime] = useState("3:00 PM");
   const [duration, setDuration] = useState(45);
   const [date, setDate] = useState(defaultDate ?? "");
@@ -538,22 +514,37 @@ function MockResultModal({ close, save }: { close: () => void; save: (result: Mo
   const [score, setScore] = useState(0);
   const [total, setTotal] = useState(100);
   const [duration, setDuration] = useState(180);
-  return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="mock-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form onSubmit={(event) => { event.preventDefault(); save({ id: crypto.randomUUID(), subjectId, paperType, score, total, durationMinutes: duration, takenAt: new Date().toISOString() }); }}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>EXAM EVIDENCE</small><h2 id="mock-title">Record a mock result</h2><label>Subject<select autoFocus value={subjectId} onChange={(event) => { setSubjectId(event.target.value); setTotal(officialExamTotals[event.target.value] ?? 100); }}>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label><label>Paper or section<input value={paperType} onChange={(event) => setPaperType(event.target.value)} /></label><div className="form-row"><label>Score<input type="number" min="0" max={total} value={score} onChange={(event) => setScore(Math.max(0, Math.min(total, Number(event.target.value))))} /></label><label>Out of<input type="number" min="1" value={total} onChange={(event) => { const next = Math.max(1, Number(event.target.value)); setTotal(next); setScore((current) => Math.min(current, next)); }} /></label><label>Minutes<input type="number" min="1" value={duration} onChange={(event) => setDuration(Number(event.target.value))} /></label></div><button className="solid-cta"><Exam />Save mock evidence</button></form></div>;
+  return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="mock-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form onSubmit={(event) => { event.preventDefault(); save({ id: crypto.randomUUID(), subjectId, paperType, score, total, durationMinutes: duration, takenAt: new Date().toISOString() }); }}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>EXAM EVIDENCE</small><h2 id="mock-title">Record a mock result</h2><label>Subject<select autoFocus value={subjectId} onChange={(event) => { setSubjectId(event.target.value); setTotal(officialTotalFor(event.target.value) || 100); }}>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label><label>Paper or section<input value={paperType} onChange={(event) => setPaperType(event.target.value)} /></label><div className="form-row"><label>Score<input type="number" min="0" max={total} value={score} onChange={(event) => setScore(Math.max(0, Math.min(total, Number(event.target.value))))} /></label><label>Out of<input type="number" min="1" value={total} onChange={(event) => { const next = Math.max(1, Number(event.target.value)); setTotal(next); setScore((current) => Math.min(current, next)); }} /></label><label>Minutes<input type="number" min="1" value={duration} onChange={(event) => setDuration(Number(event.target.value))} /></label></div><button className="solid-cta"><Exam />Save mock evidence</button></form></div>;
+}
+
+function DatabaseGate({ status, error }: { status: "loading" | "auth-required" | "error"; error: string }) {
+  const signIn = async () => {
+    const client = createSupabaseClient();
+    if (!client) return;
+    await client.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${location.origin}/auth/callback?next=/`, scopes: "openid email profile" } });
+  };
+  return <main className="database-gate" aria-live="polite"><section className="panel"><CloudCheck size={42} weight="fill" /><small>SUPABASE WORKSPACE</small><h1>{status === "loading" ? "Loading your study workspace" : status === "auth-required" ? "Sign in to continue" : "Database connection required"}</h1><p>{status === "loading" ? "Fetching your syllabus, goals, tasks, evidence, and resources from the database…" : error}</p>{status === "auth-required" && <button className="solid-cta" onClick={signIn}><SignIn />Sign in with Google</button>}{status === "error" && <button className="solid-cta" onClick={() => location.reload()}><ArrowCounterClockwise />Retry database connection</button>}</section></main>;
 }
 
 export default function CommandCenter() {
   const [active, setActive] = useState("Dashboard");
   const [menu, setMenu] = useState(false);
-  const [tasks, setTasks] = useStored<StudyTask[]>("ssc-tasks-v3", seededTasks);
-  const [chapterList, setChapterList] = useStored<Chapter[]>("ssc-chapters", seedChapters);
-  const [entries, setEntries] = useStored<JournalEntry[]>("ssc-journal", emptyEntries);
-  const [mistakes, setMistakes] = useStored<Mistake[]>("ssc-mistakes", seededMistakes);
-  const [mocks, setMocks] = useStored<MockResult[]>("ssc-mocks", emptyMocks);
-  const [sessions, setSessions] = useStored<StudySession[]>("ssc-sessions", emptySessions);
-  const [resources, setResources] = useStored<StudyResource[]>("ssc-resources", emptyResources);
-  const [examEvents, setExamEvents] = useStored<ExamEvent[]>("ssc-exam-events", defaultExamEvents);
-  const [planning, setPlanning] = useStored<PlanningSettings>("ssc-planning", defaultPlanning);
-  const [preferences, setPreferences] = useStored<ChapterPreference[]>("ssc-chapter-preferences-v2", defaultPreferences);
+  useEffect(() => {
+    if (!menu) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setMenu(false); };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [menu]);
+  const [tasks, setTasks] = useState<StudyTask[]>([]);
+  const [chapterList, setChapterList] = useState<Chapter[]>([]);
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [mistakes, setMistakes] = useState<Mistake[]>([]);
+  const [mocks, setMocks] = useState<MockResult[]>([]);
+  const [sessions, setSessions] = useState<StudySession[]>([]);
+  const [resources, setResources] = useState<StudyResource[]>([]);
+  const [examEvents, setExamEvents] = useState<ExamEvent[]>([]);
+  const [planning, setPlanning] = useState<PlanningSettings>({ mainStart: "15:00", mainEnd: "19:00", mathStart: "20:00", mathEnd: "22:00", dailyTarget: 240, mathDaysPerWeek: 6, agricultureDaysPerWeek: 4, remindersEnabled: false });
+  const [preferences, setPreferences] = useState<ChapterPreference[]>([]);
   const [journalTask, setJournalTask] = useState<StudyTask | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualDate, setManualDate] = useState<string | undefined>();
@@ -561,54 +552,80 @@ export default function CommandCenter() {
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
   const [resourceChapterId, setResourceChapterId] = useState<string | undefined>();
   const [revisionMistake, setRevisionMistake] = useState<Mistake | null>(null);
-  const [planSummary, setPlanSummary] = useStored<AdaptivePlanSummary | null>("ssc-adaptive-plan", null);
-
-  useEffect(() => installOnlineSync(), []);
+  const [planSummary, setPlanSummary] = useState<AdaptivePlanSummary | null>(null);
+  const [databaseStatus, setDatabaseStatus] = useState<"loading" | "ready" | "auth-required" | "error">("loading");
+  const [databaseError, setDatabaseError] = useState("");
   useEffect(() => {
     let cancelled = false;
     const bootstrap = async () => {
-      await flushCloudSync();
       const response = await fetch("/api/sync/bootstrap").catch(() => null);
-      const payload = response?.ok ? await response.json().catch(() => null) as { mode?: string; data?: Record<string, Record<string, unknown>[]> } | null : null;
-      if (cancelled || payload?.mode !== "cloud" || !payload.data) return;
+      if (!response) { setDatabaseStatus("error"); setDatabaseError("The database could not be reached. Check your connection and try again."); return; }
+      if (response.status === 401) { setDatabaseStatus("auth-required"); setDatabaseError("Sign in to load your study workspace."); return; }
+      if (!response.ok) { const body = await response.json().catch(() => null) as { error?: string } | null; setDatabaseStatus("error"); setDatabaseError(body?.error ?? "The database is unavailable."); return; }
+      const payload = await response.json().catch(() => null) as { mode?: string; data?: Record<string, Record<string, unknown>[]> } | null;
+      if (cancelled || payload?.mode !== "cloud" || !payload.data) { setDatabaseStatus("error"); setDatabaseError("The database returned an invalid workspace response."); return; }
       const data = payload.data;
-      if (data.study_tasks?.length) setTasks(data.study_tasks.map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), plannedTime: row.planned_start ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "numeric", minute: "2-digit" }).format(new Date(String(row.planned_start))) : "Unscheduled", plannedStart: row.planned_start ? String(row.planned_start) : undefined, plannedEnd: row.planned_end ? String(row.planned_end) : undefined, deferredUntil: row.deferred_until ? String(row.deferred_until) : undefined, duration: Number(row.duration_minutes), origin: row.origin as StudyTask["origin"], pinned: Boolean(row.pinned), status: row.status as StudyTask["status"], currentStep: Number(row.current_step), reason: String(row.priority_explanation ?? "Cloud task"), priorityScore: Number(row.priority_score), focusedSeconds: Number(row.focused_seconds ?? 0) })));
-      if (data.chapter_preferences?.length) setPreferences(data.chapter_preferences.map((row) => ({ chapterId: String(row.chapter_id), includedForSsc: Boolean(row.included_for_ssc), targetMonth: row.target_month ? String(row.target_month) : undefined, excluded: Boolean(row.excluded), exclusionReason: row.exclusion_reason ? String(row.exclusion_reason) : undefined, priority: Number(row.priority) as ChapterPreference["priority"] })));
-      if (data.chapter_progress?.length) {
-        const progress = new Map(data.chapter_progress.map((row) => [String(row.chapter_id), row]));
-        setChapterList(seedChapters.map((chapter) => { const row = progress.get(chapter.id); return row ? { ...chapter, status: row.status as Chapter["status"], confidence: Number(row.confidence) as Chapter["confidence"], lastStudied: row.last_studied ? String(row.last_studied) : undefined, nextReview: row.next_review ? String(row.next_review) : undefined, questionsAttempted: Number(row.questions_attempted), questionsCorrect: Number(row.questions_correct) } : chapter; }));
-      }
-      if (data.journal_entries?.length) setEntries(data.journal_entries.map((row) => ({ id: String(row.id), taskId: String(row.task_id ?? ""), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), minutes: Number(row.minutes), attempted: Number(row.attempted), correct: Number(row.correct), confidenceBefore: Number(row.confidence_before), confidenceAfter: Number(row.confidence_after), learningGoal: String(row.learning_goal ?? ""), resources: Array.isArray(row.resources) ? row.resources.map(String) : [], mistakesText: row.mistakes_text ? String(row.mistakes_text) : undefined, writtenScore: row.written_score == null ? undefined : Number(row.written_score), reflection: String(row.reflection ?? ""), nextAction: String(row.next_action ?? ""), createdAt: String(row.created_at) })));
-      if (data.mistakes?.length) setMistakes(data.mistakes.map((row) => ({ id: String(row.id), chapterId: String(row.chapter_id), prompt: String(row.prompt), errorType: String(row.error_type), reattemptDate: String(row.reattempt_date ?? ""), resolved: Boolean(row.resolved), revisionCount: Number(row.revision_count ?? 0), lastAttemptedAt: row.last_attempted_at ? String(row.last_attempted_at) : undefined, lastAttemptNote: row.last_attempt_note ? String(row.last_attempt_note) : undefined })));
-      if (data.mock_results?.length) setMocks(data.mock_results.map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), paperType: String(row.paper_type ?? "Full paper"), score: Number(row.score), total: Number(row.total), durationMinutes: row.duration_minutes == null ? undefined : Number(row.duration_minutes), takenAt: String(row.taken_at) })));
-      if (data.study_sessions?.length) setSessions(data.study_sessions.map((row) => ({ id: String(row.id), taskId: String(row.task_id), subjectId: String(row.subject_id ?? ""), chapterId: String(row.chapter_id ?? ""), mode: row.mode === "exam" ? "exam" : "focus", startedAt: String(row.started_at), endedAt: row.ended_at ? String(row.ended_at) : undefined, focusedSeconds: Number(row.focused_seconds ?? 0), pauseSeconds: Number(row.pause_seconds ?? 0), completed: Boolean(row.completed), questionsAttempted: row.questions_attempted == null ? undefined : Number(row.questions_attempted), questionsCorrect: row.questions_correct == null ? undefined : Number(row.questions_correct) })));
-      if (data.study_resources?.length) setResources(data.study_resources.map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), url: String(row.url), kind: row.kind as StudyResource["kind"], note: row.note ? String(row.note) : undefined, archived: Boolean(row.archived), createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
+      const loadedSubjects: Subject[] = (data.subjects ?? []).map((row) => ({ id: String(row.id), name: String(row.name), shortName: String(row.short_name), strength: String(row.strength_level) as Subject["strength"], weaknessScore: Number(row.priority), workflow: String(row.workflow_kind) as Subject["workflow"], accent: subjectAccent[String(row.id)] ?? "blue" }));
+      const loadedChapters: Chapter[] = (data.chapters ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), number: row.chapter_number == null ? undefined : Number(row.chapter_number), title: String(row.title), division: row.division ? String(row.division) : undefined, note: row.note ? String(row.note) : undefined, status: "not-started", confidence: 1, formats: Array.isArray(row.question_formats) ? row.question_formats.map(String) : [], questionsAttempted: 0, questionsCorrect: 0 }));
+      const loadedMarks: MarksDistribution[] = (data.marks_distributions ?? []).map((row) => ({ subjectId: String(row.subject_id), part: row.part ? String(row.part) : undefined, questionType: String(row.question_type), rule: String(row.choice_rule), marks: Number(row.marks) }));
+      const loadedExams = (data.exams ?? []).map((row) => ({ id: String(row.id), name: String(row.name), start: String(row.starts_on), end: String(row.ends_on) }));
+      const loadedWorkflows = Object.fromEntries((data.workflow_steps ?? []).map((row) => [String(row.workflow_kind), Array.isArray(row.steps) ? row.steps.map(String) : []])) as unknown as typeof workflowSteps;
+      replaceAcademicData({ subjects: loadedSubjects, chapters: loadedChapters, marksDistributions: loadedMarks, exams: loadedExams, workflowSteps: loadedWorkflows });
+      const progress = new Map((data.chapter_progress ?? []).map((row) => [String(row.chapter_id), row]));
+      setChapterList(loadedChapters.map((chapter) => { const row = progress.get(chapter.id); return row ? { ...chapter, status: row.status as Chapter["status"], confidence: Number(row.confidence) as Chapter["confidence"], lastStudied: row.last_studied ? String(row.last_studied) : undefined, nextReview: row.next_review ? String(row.next_review) : undefined, questionsAttempted: Number(row.questions_attempted), questionsCorrect: Number(row.questions_correct) } : chapter; }));
+      setTasks((data.study_tasks ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), plannedTime: row.planned_start ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "numeric", minute: "2-digit" }).format(new Date(String(row.planned_start))) : "Unscheduled", plannedStart: row.planned_start ? String(row.planned_start) : undefined, plannedEnd: row.planned_end ? String(row.planned_end) : undefined, deferredUntil: row.deferred_until ? String(row.deferred_until) : undefined, duration: Number(row.duration_minutes), origin: row.origin as StudyTask["origin"], pinned: Boolean(row.pinned), status: row.status as StudyTask["status"], currentStep: Number(row.current_step), reason: String(row.priority_explanation ?? "Database task"), priorityScore: Number(row.priority_score), focusedSeconds: Number(row.focused_seconds ?? 0) })));
+      setPreferences((data.chapter_preferences ?? []).map((row) => ({ chapterId: String(row.chapter_id), includedForSsc: Boolean(row.included_for_ssc), targetMonth: row.target_month ? String(row.target_month) : undefined, excluded: Boolean(row.excluded), exclusionReason: row.exclusion_reason ? String(row.exclusion_reason) : undefined, priority: Number(row.priority) as ChapterPreference["priority"] })));
+      setEntries((data.journal_entries ?? []).map((row) => ({ id: String(row.id), taskId: String(row.task_id ?? ""), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), minutes: Number(row.minutes), attempted: Number(row.attempted), correct: Number(row.correct), confidenceBefore: Number(row.confidence_before), confidenceAfter: Number(row.confidence_after), learningGoal: String(row.learning_goal ?? ""), resources: Array.isArray(row.resources) ? row.resources.map(String) : [], mistakesText: row.mistakes_text ? String(row.mistakes_text) : undefined, writtenScore: row.written_score == null ? undefined : Number(row.written_score), reflection: String(row.reflection ?? ""), nextAction: String(row.next_action ?? ""), createdAt: String(row.created_at) })));
+      setMistakes((data.mistakes ?? []).map((row) => ({ id: String(row.id), chapterId: String(row.chapter_id), prompt: String(row.prompt), errorType: String(row.error_type), reattemptDate: String(row.reattempt_date ?? ""), resolved: Boolean(row.resolved), revisionCount: Number(row.revision_count ?? 0), lastAttemptedAt: row.last_attempted_at ? String(row.last_attempted_at) : undefined, lastAttemptNote: row.last_attempt_note ? String(row.last_attempt_note) : undefined })));
+      setMocks((data.mock_results ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), paperType: String(row.paper_type ?? "Full paper"), score: Number(row.score), total: Number(row.total), durationMinutes: row.duration_minutes == null ? undefined : Number(row.duration_minutes), takenAt: String(row.taken_at) })));
+      setSessions((data.study_sessions ?? []).map((row) => ({ id: String(row.id), taskId: String(row.task_id), subjectId: String(row.subject_id ?? ""), chapterId: String(row.chapter_id ?? ""), mode: row.mode === "exam" ? "exam" : "focus", startedAt: String(row.started_at), endedAt: row.ended_at ? String(row.ended_at) : undefined, focusedSeconds: Number(row.focused_seconds ?? 0), pauseSeconds: Number(row.pause_seconds ?? 0), completed: Boolean(row.completed), questionsAttempted: row.questions_attempted == null ? undefined : Number(row.questions_attempted), questionsCorrect: row.questions_correct == null ? undefined : Number(row.questions_correct) })));
+      setResources((data.study_resources ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), url: String(row.url), kind: row.kind as StudyResource["kind"], note: row.note ? String(row.note) : undefined, archived: Boolean(row.archived), createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
+      setExamEvents((data.exam_events ?? []).map((row) => ({ id: String(row.id), name: String(row.name), start: String(row.starts_on), end: String(row.ends_on), kind: row.kind as ExamEvent["kind"], scope: Array.isArray(row.scope) ? row.scope.map(String) : [], note: row.note ? String(row.note) : undefined, locked: Boolean(row.locked), archived: Boolean(row.archived) })).filter((event) => !event.archived));
+      const planningRow = data.planning_settings?.[0];
+      if (planningRow) setPlanning({ mainStart: String(planningRow.main_start), mainEnd: String(planningRow.main_end), mathStart: String(planningRow.math_start), mathEnd: String(planningRow.math_end), dailyTarget: Number(planningRow.daily_target), mathDaysPerWeek: Number(planningRow.math_days_per_week), agricultureDaysPerWeek: Number(planningRow.agriculture_days_per_week), remindersEnabled: Boolean(planningRow.reminders_enabled) });
+      const summaryRow = data.adaptive_plan_summaries?.[0];
+      if (summaryRow) setPlanSummary({ usedMinutes: Number(summaryRow.used_minutes), availableMinutes: Number(summaryRow.available_minutes), deferredCount: Number(summaryRow.deferred_count), generatedRevisionCount: Number(summaryRow.generated_revision_count), rationale: Array.isArray(summaryRow.rationale) ? summaryRow.rationale.map(String) : [], plannedAt: String(summaryRow.planned_at) });
+      if (!cancelled) setDatabaseStatus("ready");
     };
     void bootstrap();
     return () => { cancelled = true; };
-  }, [setChapterList, setEntries, setMistakes, setMocks, setPreferences, setResources, setSessions, setTasks]);
+  }, []);
+
+  const persist = (table: string, rows: Record<string, unknown>[]) => { void queueCloudSync(table, rows).catch((error: unknown) => { setDatabaseStatus("error"); setDatabaseError(error instanceof Error ? error.message : "Database write failed"); }); };
 
   const saveSession = (session: StudySession) => {
     setSessions([session, ...sessions]);
-    void queueCloudSync("study_sessions", [sessionRow(session)]);
+    persist("study_sessions", [sessionRow(session)]);
+  };
+
+  const updatePlanning = (value: PlanningSettings) => {
+    setPlanning(value);
+    persist("planning_settings", [planningRow(value)]);
+  };
+
+  const saveExamEvents = (next: ExamEvent[]) => {
+    const nextIds = new Set(next.map((event) => event.id));
+    const archived = examEvents.filter((event) => !nextIds.has(event.id)).map((event) => ({ ...event, archived: true }));
+    setExamEvents(next);
+    persist("exam_events", [...next, ...archived].map(examEventRow));
   };
 
   const saveResource = (resource: StudyResource) => {
     setResources([resource, ...resources.filter((item) => item.id !== resource.id)]);
-    void queueCloudSync("study_resources", [resourceRow(resource)]);
+    persist("study_resources", [resourceRow(resource)]);
   };
 
   const removeResource = (resource: StudyResource) => {
     const archived = { ...resource, archived: true, updatedAt: new Date().toISOString() };
     setResources(resources.map((item) => item.id === resource.id ? archived : item));
-    void queueCloudSync("study_resources", [resourceRow(archived)]);
+    persist("study_resources", [resourceRow(archived)]);
   };
 
   const updateTask = (updated: StudyTask) => {
     const next = tasks.map((task) => task.id === updated.id ? updated : task);
     if (updated.pinned) next.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.priorityScore - a.priorityScore);
     setTasks(next);
-    void queueCloudSync("study_tasks", [taskRow(updated)]);
+    persist("study_tasks", [taskRow(updated)]);
   };
 
   const removeTaskFromToday = (task: StudyTask) => {
@@ -626,7 +643,7 @@ export default function CommandCenter() {
   const addTask = (task: StudyTask) => {
     if (preferenceFor(task.chapterId, preferences).excluded) return;
     setTasks([task, ...tasks]);
-    void queueCloudSync("study_tasks", [taskRow(task)]);
+    persist("study_tasks", [taskRow(task)]);
     setManualOpen(false);
     setManualDate(undefined);
     setActive("Today");
@@ -637,7 +654,7 @@ export default function CommandCenter() {
   const updatePreferences = (updates: ChapterPreference[]) => {
     const updatedIds = new Set(updates.map((item) => item.chapterId));
     setPreferences([...preferences.filter((item) => !updatedIds.has(item.chapterId)), ...updates]);
-    void queueCloudSync("chapter_preferences", updates.map(preferenceRow));
+    persist("chapter_preferences", updates.map(preferenceRow));
   };
 
   const updatePreference = (updated: ChapterPreference) => {
@@ -656,7 +673,7 @@ export default function CommandCenter() {
     const completedAt = chapter.lastStudied ?? new Date().toISOString();
     const updated: Chapter = { ...chapter, status: "exam-ready", confidence: Math.max(4, chapter.confidence) as Chapter["confidence"], lastStudied: completedAt, nextReview: new Date(Date.now() + 7 * 86400000).toISOString() };
     setChapterList(chapterList.map((item) => item.id === chapter.id ? updated : item));
-    void queueCloudSync("chapter_progress", [chapterRow(updated)]);
+    persist("chapter_progress", [chapterRow(updated)]);
   };
 
   const buildGoalQueue = (selected: Chapter[], label: string) => {
@@ -681,7 +698,7 @@ export default function CommandCenter() {
     if (!generated.length) return;
     const next = [...generated, ...tasks];
     setTasks(next);
-    void queueCloudSync("study_tasks", generated.map(taskRow));
+    persist("study_tasks", generated.map(taskRow));
     setActive("Calendar");
   };
 
@@ -698,13 +715,13 @@ export default function CommandCenter() {
     setEntries([entry, ...entries]);
     setTasks(updatedTasks);
     setChapterList(updatedChapters);
-    void queueCloudSync("journal_entries", [journalRow(entry)]);
-    void queueCloudSync("chapter_progress", [chapterRow(updatedChapter)]);
-    void queueCloudSync("study_tasks", updatedTasks.filter((task) => task.id === entry.taskId || task.id === recommended?.id).map(taskRow));
+    persist("journal_entries", [journalRow(entry)]);
+    persist("chapter_progress", [chapterRow(updatedChapter)]);
+    persist("study_tasks", updatedTasks.filter((task) => task.id === entry.taskId || task.id === recommended?.id).map(taskRow));
     if (nextMistakes !== mistakes) {
       const mistake = nextMistakes[0];
       setMistakes(nextMistakes);
-      void queueCloudSync("mistakes", [mistakeRow(mistake)]);
+      persist("mistakes", [mistakeRow(mistake)]);
     }
     if ((taskById(updatedTasks, entry.taskId)?.focusedSeconds ?? 0) > 0) {
       const focusedSeconds = taskById(updatedTasks, entry.taskId)?.focusedSeconds ?? 0;
@@ -716,43 +733,46 @@ export default function CommandCenter() {
 
   const saveMock = (result: MockResult) => {
     setMocks([result, ...mocks]);
-    void queueCloudSync("mock_results", [{ id: result.id, subject_id: result.subjectId, paper_type: result.paperType, score: result.score, total: result.total, duration_minutes: result.durationMinutes ?? null, taken_at: result.takenAt }]);
+    persist("mock_results", [{ id: result.id, subject_id: result.subjectId, paper_type: result.paperType, score: result.score, total: result.total, duration_minutes: result.durationMinutes ?? null, taken_at: result.takenAt }]);
     setMockOpen(false);
   };
 
   const recordRevision = (mistake: Mistake, outcome: "solved" | "needs-work", note: string) => {
-    const attempts = (mistake.revisionCount ?? 0) + 1;
+    const nextCount = (mistake.revisionCount ?? 0) + 1;
     const solved = outcome === "solved";
-    const updated: Mistake = { ...mistake, resolved: solved, revisionCount: attempts, lastAttemptedAt: new Date().toISOString(), lastAttemptNote: note || undefined, reattemptDate: dhakaDateAfter(solved ? 7 : revisionDelayDays(mistake.revisionCount ?? 0)) };
+    const updated = { ...mistake, resolved: solved, revisionCount: nextCount, lastReattemptedAt: new Date().toISOString(), reattemptDate: solved ? "" : new Date(Date.now() + revisionDelayDays(nextCount) * 86400000).toISOString().slice(0, 10), lastAttemptNote: note || mistake.lastAttemptNote };
     setMistakes(mistakes.map((item) => item.id === mistake.id ? updated : item));
-    void queueCloudSync("mistakes", [mistakeRow(updated, byChapter(mistake.chapterId).subjectId)]);
+    persist("mistakes", [mistakeRow(updated)]);
     setRevisionMistake(null);
   };
 
   const planToday = (availableMinutes: number) => {
     const result = buildAdaptivePlan({ tasks, chapters: chapterList, preferences, mistakes, mocks, subjects, settings: planning, availableMinutes });
+    const summary: AdaptivePlanSummary = { usedMinutes: result.usedMinutes, availableMinutes: result.availableMinutes, deferredCount: result.deferredCount, generatedRevisionCount: result.generatedRevisionCount, rationale: result.rationale, plannedAt: new Date().toISOString() };
     setTasks(result.tasks);
-    setPlanSummary({ usedMinutes: result.usedMinutes, availableMinutes: result.availableMinutes, deferredCount: result.deferredCount, generatedRevisionCount: result.generatedRevisionCount, rationale: result.rationale, plannedAt: new Date().toISOString() });
-    void queueCloudSync("study_tasks", result.tasks.map(taskRow));
+    setPlanSummary(summary);
+    persist("study_tasks", result.tasks.map(taskRow));
+    persist("adaptive_plan_summaries", [adaptivePlanRow(summary)]);
     setActive("Today");
   };
 
   const firstOpenTask = () => setJournalTask(tasks.find((task) => task.status !== "completed" && task.status !== "skipped" && !preferenceFor(task.chapterId, preferences).excluded && isTaskAvailable(task)) ?? null);
+  if (databaseStatus !== "ready") return <DatabaseGate status={databaseStatus} error={databaseError} />;
   const content = (() => {
     switch (active) {
       case "Dashboard": return <Dashboard tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} go={setActive} />;
-      case "Today": return <Today tasks={tasks} preferences={preferences} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} />;
-      case "Syllabus": return <Syllabus list={chapterList} setList={setChapterList} preferences={preferences} updatePreference={updatePreference} completeChapter={completeChapter} goGoals={() => setActive("Goals")} sessions={sessions} entries={entries} mistakes={mistakes} resources={resources} goResources={(chapterId) => { setResourceChapterId(chapterId); setActive("Resources"); }} />;
+      case "Today": return <Today tasks={tasks} preferences={preferences} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} examEvents={examEvents} />;
+      case "Syllabus": return <Syllabus list={chapterList} setList={setChapterList} preferences={preferences} updatePreference={updatePreference} completeChapter={completeChapter} persistProgress={(chapter) => persist("chapter_progress", [chapterRow(chapter)])} goGoals={() => setActive("Goals")} sessions={sessions} entries={entries} mistakes={mistakes} resources={resources} goResources={(chapterId) => { setResourceChapterId(chapterId); setActive("Resources"); }} />;
       case "Goals": return <Goals list={chapterList} preferences={preferences} updatePreference={updatePreference} updatePreferences={updatePreferences} completeChapter={completeChapter} buildQueue={buildGoalQueue} />;
       case "Calendar": return <StudyCalendar tasks={tasks} preferences={preferences} update={updateTask} add={openManual} openTask={(task) => { setFocusTaskId(task.id); setActive("Today"); }} />;
       case "Journal": return <Journal entries={entries} add={firstOpenTask} />;
       case "Progress": return <Progress entries={entries} list={chapterList} mocks={mocks} addMock={() => setMockOpen(true)} sessions={sessions} tasks={tasks} />;
-      case "Maths Lab": return <MathsLab mistakes={mistakes} review={setRevisionMistake} />;
+      case "Maths Lab": return <MathsLab mistakes={mistakes} chapters={chapterList} review={setRevisionMistake} />;
       case "Exam Mode": return <ExamModeFocus tasks={tasks} activeTaskId={focusTaskId} onClose={() => setActive("Today")} onSaveSession={saveSession} onUpdateTask={updateTask} />;
       case "Resources": return <ResourceLibrary resources={resources.filter((resource) => !resource.archived)} chapters={chapterList} initialChapterId={resourceChapterId} save={saveResource} remove={removeResource} />;
-      case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={setExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => setActive("Today")} />;
+      case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => setActive("Today")} />;
       case "Exam Plan": return <ExamPlan />;
-      default: return <Settings planning={planning} setPlanning={setPlanning} />;
+      default: return <Settings planning={planning} setPlanning={updatePlanning} />;
     }
   })();
 
@@ -760,7 +780,7 @@ export default function CommandCenter() {
     <button className="skip-link" onClick={() => document.querySelector("main")?.focus()}>Skip to main content</button>
     <Sidebar active={active} setActive={setActive} open={menu} close={() => setMenu(false)} />
     {menu && <button className="mobile-scrim" onClick={() => setMenu(false)} aria-label="Close navigation" />}
-    <div className="workspace"><Topbar active={active} open={() => setMenu(true)} /><div className="page-transition" key={active}>{content}</div></div>
+    <div className="workspace"><Topbar active={active} open={() => setMenu(true)} expanded={menu} /><div className="page-transition" key={active}>{content}</div></div>
     <nav className="bottom-nav">{[["Dashboard", House], ["Today", CalendarBlank], ["Goals", Target], ["Countdown", Timer], ["Settings", SlidersHorizontal]].map(([label, Icon]) => <button key={String(label)} aria-label={String(label)} aria-current={active === label ? "page" : undefined} className={active === label ? "active" : ""} onClick={() => setActive(String(label))}><Icon size={22} weight={active === label ? "fill" : "regular"} /></button>)}</nav>
     {manualOpen && <ManualTaskModal close={() => { setManualOpen(false); setManualDate(undefined); }} save={addTask} defaultDate={manualDate} preferences={preferences} />}
     {journalTask && <JournalModal task={journalTask} close={() => setJournalTask(null)} save={save} />}

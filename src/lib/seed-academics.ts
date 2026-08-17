@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chapters, exams, marksDistributions, subjects } from "@/lib/academic-data";
+import { chapters, exams, marksDistributions, subjects, workflowSteps } from "@/lib/academic-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 let seedPromise: Promise<void> | null = null;
@@ -43,6 +43,7 @@ async function runSeed() {
     choice_rule: mark.rule,
     marks: mark.marks,
   }));
+  const workflowRows = Object.entries(workflowSteps).map(([workflow_kind, steps]) => ({ workflow_kind, steps: [...steps] }));
   const examRows = exams.map((exam) => ({
     id: exam.id,
     name: exam.name,
@@ -56,10 +57,11 @@ async function runSeed() {
     admin.from("subjects").upsert(subjectRows),
     admin.from("chapters").upsert(chapterRows),
     admin.from("marks_distributions").upsert(markRows),
+    admin.from("workflow_steps").upsert(workflowRows),
     admin.from("exams").upsert(examRows),
   ]);
 
-  const tables = ["subjects", "chapters", "marks_distributions", "exams"] as const;
+  const tables = ["subjects", "chapters", "marks_distributions", "workflow_steps", "exams"] as const;
   results.forEach(({ error }, index) => {
     if (error) throw new Error(`Could not seed ${tables[index]}: ${error.message}`);
   });
