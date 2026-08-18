@@ -4,9 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 
 const payload = z.object({ table: z.enum(["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources", "exam_events", "planning_settings", "adaptive_plan_summaries"]), rows: z.array(z.record(z.string(), z.unknown())).max(500) });
+const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
 
 type SyncTable = z.infer<typeof payload>["table"];
 type InsertRow<T extends SyncTable> = Database["public"]["Tables"][T]["Insert"];
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -18,10 +23,10 @@ export async function POST(request: Request) {
   const parsed = payload.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid sync payload" }, { status: 400 });
   const supabase = await createClient();
-  if (!supabase) return NextResponse.json({ queued: true, mode: "local" }, { status: 202 });
+  if (!supabase) return NextResponse.json({ queued: true, mode: "local" }, { status: 202, headers: noStoreHeaders });
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims?.sub;
-  if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: noStoreHeaders });
   const rows = parsed.data.rows.map(row => ({ ...row, user_id: userId, updated_at: new Date().toISOString() }));
   let error: { message: string } | null;
   switch (parsed.data.table) {
@@ -59,6 +64,11 @@ export async function POST(request: Request) {
       ({ error } = await supabase.from("adaptive_plan_summaries").upsert(rows as InsertRow<"adaptive_plan_summaries">[]));
       break;
   }
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ synced: rows.length });
+  if (error) {
+    const message = /deferred_until.*schema cache|column .* does not exist/i.test(error.message)
+      ? "The study database is missing its latest migration. Please retry after the database schema is updated."
+      : error.message;
+    return NextResponse.json({ error: message }, { status: 400, headers: noStoreHeaders });
+  }
+  return NextResponse.json({ synced: rows.length }, { headers: noStoreHeaders });
 }

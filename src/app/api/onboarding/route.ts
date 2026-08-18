@@ -3,6 +3,11 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
 const POLICY_VERSION = "2026-08-17";
+const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
 
 const learningPreferencesPatch = z.object({
   preferred_methods: z.array(z.string().min(1).max(40)).max(12).optional(),
@@ -62,7 +67,7 @@ export async function GET() {
     .eq("user_id", userId)
     .maybeSingle();
   if (readError) return NextResponse.json({ error: readError.message }, { status: 400 });
-  if (existing) return NextResponse.json({ profile: existing });
+  if (existing)   return NextResponse.json({ profile: existing }, { headers: noStoreHeaders });
 
   const { data: created, error: createError } = await supabase
     .from("user_profiles")
@@ -70,7 +75,7 @@ export async function GET() {
     .select("*")
     .single();
   if (createError) return NextResponse.json({ error: createError.message }, { status: 400 });
-  return NextResponse.json({ profile: created });
+  return NextResponse.json({ profile: created }, { headers: noStoreHeaders });
 }
 
 export async function POST(request: Request) {
@@ -113,5 +118,5 @@ export async function POST(request: Request) {
     supabase.from("learning_preferences").select("*").eq("user_id", userId).maybeSingle(),
     supabase.from("subject_assessments").select("*").eq("user_id", userId).order("subject_id"),
   ]);
-  return NextResponse.json({ profile: data, learning_preferences: savedPreferences, subject_assessments: savedAssessments ?? [] });
+  return NextResponse.json({ profile: data, learning_preferences: savedPreferences, subject_assessments: savedAssessments ?? [] }, { headers: noStoreHeaders });
 }
