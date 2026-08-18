@@ -628,9 +628,14 @@ export default function CommandCenter() {
   useEffect(() => {
     let cancelled = false;
     const bootstrap = async () => {
-      const response = await fetch("/api/sync/bootstrap").catch(() => null);
+      let response: Response | null = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        response = await fetch("/api/sync/bootstrap", { cache: "no-store", headers: { "cache-control": "no-cache", "x-ssc-bootstrap-attempt": String(attempt + 1) } }).catch(() => null);
+        if (response?.status !== 401 || attempt === 2) break;
+        await new Promise((resolve) => window.setTimeout(resolve, 250 * (attempt + 1)));
+      }
       if (!response) { setDatabaseStatus("error"); setDatabaseError("The database could not be reached. Check your connection and try again."); return; }
-      if (response.status === 401) { setDatabaseStatus("auth-required"); setDatabaseError("Sign in to load your study workspace."); return; }
+      if (response.status === 401) { setDatabaseStatus("auth-required"); setDatabaseError("Your sign-in session is not ready yet. Please wait a moment and try again."); return; }
       if (!response.ok) { const body = await response.json().catch(() => null) as { error?: string } | null; setDatabaseStatus("error"); setDatabaseError(body?.error ?? "The database is unavailable."); return; }
       const payload = await response.json().catch(() => null) as { mode?: string; data?: Record<string, Record<string, unknown>[]> } | null;
       if (cancelled || payload?.mode !== "cloud" || !payload.data) { setDatabaseStatus("error"); setDatabaseError("The database returned an invalid workspace response."); return; }

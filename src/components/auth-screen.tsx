@@ -89,7 +89,7 @@ export function AuthScreen() {
     if (mode === "sign-in") {
       const result = await client.auth.signInWithPassword({ email: email.trim(), password });
       if (result.error) { setError(friendlyError(result.error.message)); setBusy(false); return; }
-      router.push("/");
+      window.location.replace("/");
       return;
     }
     if (mode === "sign-up") {
@@ -114,7 +114,7 @@ export function AuthScreen() {
         try {
           await persistSignupProfile();
           setMessage("Your account is ready. Loading your guided setup…");
-          router.push("/");
+          window.location.replace("/");
         } catch (profileError) {
           setError(profileError instanceof Error ? profileError.message : "Your account was created. Please sign in again to continue.");
         }
