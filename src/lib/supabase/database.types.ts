@@ -903,8 +903,9 @@ export type Database = {
           recommendation_factors: Json
           status: Database["public"]["Enums"]["task_status"]
           subject_id: string
-          study_method: string | null
-          title: string
+          study_method: string | null;
+          workflow_phase: string | null;
+          title: string;
           updated_at: string
           user_id: string
         }
@@ -924,8 +925,9 @@ export type Database = {
           recommendation_factors?: Json
           status?: Database["public"]["Enums"]["task_status"]
           subject_id: string
-          study_method?: string | null
-          title: string
+          study_method?: string | null;
+          workflow_phase?: string | null;
+          title: string;
           updated_at?: string
           user_id: string
         }
@@ -945,8 +947,9 @@ export type Database = {
           recommendation_factors?: Json
           status?: Database["public"]["Enums"]["task_status"]
           subject_id?: string
-          study_method?: string | null
-          title?: string
+          study_method?: string | null;
+          workflow_phase?: string | null;
+          title?: string;
           updated_at?: string
           user_id?: string
         }
@@ -966,6 +969,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      study_workflows: {
+        Row: {
+          phase: string
+          steps: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          phase: string
+          steps?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          phase?: string
+          steps?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       subjects: {
         Row: {

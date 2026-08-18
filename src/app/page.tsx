@@ -1,5 +1,5 @@
-import CommandCenterLoader from "@/components/command-center-loader";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <CommandCenterLoader />;
+  redirect("/home");
 }

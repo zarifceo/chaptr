@@ -37,6 +37,12 @@ function preferredMethod(assessment?: SubjectAssessment) {
   return assessment?.preferredMethods?.[0] ?? "textbook";
 }
 
+function workflowPhaseFor(chapter: Chapter): "learn" | "revise" | "practice" {
+  if (chapter.status === "needs-revision") return "revise";
+  if (chapter.status === "practising") return "practice";
+  return "learn";
+}
+
 export function scoreChapter(subject: Subject, chapter: Chapter, now = new Date(), evidence: RecommendationEvidence = {}) {
   const examDate = evidence.examDate ?? `${now.getFullYear()}-10-28`;
   const daysToTest = Math.max(1, differenceInCalendarDays(parseISO(examDate), now));
@@ -87,6 +93,7 @@ export function recommendTasks(subjects: Subject[], chapters: Chapter[], evidenc
       reason: scored.explanation,
       priorityScore: scored.score,
       studyMethod: method,
+      workflowPhase: workflowPhaseFor(chapter),
       recommendationFactors: scored.factors,
     };
   }).sort((a, b) => b.priorityScore - a.priorityScore);

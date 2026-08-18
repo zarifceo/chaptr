@@ -54,6 +54,7 @@ export interface StudyTask {
   focusedSeconds?: number;
   deferredUntil?: string;
   studyMethod?: LearningMethod;
+  workflowPhase?: StudyPhase;
   recommendationFactors?: Record<string, number>;
 }
 
@@ -171,6 +172,7 @@ export type GuidanceMode = "guided" | "balanced" | "quiet";
 export type PlanStrictness = "flexible" | "balanced" | "strict";
 export type StartingPoint = "comfortable" | "mixed" | "difficult" | "uncertain";
 export type RecommendationFeedbackType = "useful" | "too-easy" | "too-hard" | "not-useful" | "not-today";
+export type StudyPhase = "learn" | "revise" | "practice" | "exam";
 
 export interface LearningPreferences {
   userId: string;

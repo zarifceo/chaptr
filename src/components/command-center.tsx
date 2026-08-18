@@ -1,10 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  ArrowCounterClockwise, ArrowRight, BookOpen, Books, Brain, CalendarBlank, CalendarPlus, CaretDown, CaretLeft, CaretRight,
+  ArrowCounterClockwise, ArrowRight, BookOpen, Books, Brain, CalendarBlank, CalendarPlus, CaretDown, CaretLeft, CaretRight, CaretUp,
   ChartBar, Check, CheckCircle, Clock, CloudCheck, Exam, Headphones, House,
   EyeSlash, ListChecks, MagnifyingGlass, NotePencil, Pause, Play, Plus, PushPin, Rows,
   Sigma, SignOut, SlidersHorizontal, Sparkle, Target, Timer, Warning, X,
@@ -16,6 +16,7 @@ import { queueCloudSync } from "@/lib/offline-sync";
 import { Button } from "@/components/ui/button";
 import { recommendTasks } from "@/lib/recommendations";
 import { buildAdaptivePlan, revisionDelayDays } from "@/lib/adaptive-planner";
+import { workflowForTask, type CustomStudyWorkflow, type StudyPhase, recommendedWorkflow, studyPhases } from "@/lib/study-workflows";
 import { StudyAnalytics, SyllabusEvidenceMap, ExamModeFocus, ResourceLibrary } from "@/components/study-features";
 import { AuthScreen } from "@/components/auth-screen";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
@@ -29,12 +30,22 @@ const nav = [
   ["Exam Mode", Exam], ["Resources", BookOpen], ["Countdown", Timer], ["Exam Plan", Exam], ["Settings", SlidersHorizontal],
 ] as const;
 
+const sectionRoutes: Record<string, string> = {
+  Home: "/home", Syllabus: "/syllabus", Goals: "/goals", Calendar: "/calendar", Journal: "/journal", Progress: "/progress",
+  "Maths Lab": "/maths-lab", "Exam Mode": "/exam-mode", Resources: "/resources", Countdown: "/countdown", "Exam Plan": "/exam-plan", Settings: "/settings",
+};
+const routeSections: Record<string, string> = Object.fromEntries(Object.entries(sectionRoutes).map(([label, path]) => [path.slice(1), label]));
+const mobilePrimaryNav = [["Home", House], ["Syllabus", Books], ["Goals", Target], ["Calendar", CalendarPlus]] as const;
+
 const bySubject = (id: string) => subjects.find((subject) => subject.id === id)!;
 const byChapter = (id: string, list = chapters) => list.find((chapter) => chapter.id === id)!;
 const taskById = (tasks: StudyTask[], id: string) => tasks.find((task) => task.id === id);
 const subjectAccent: Record<string, Subject["accent"]> = { "bangla-1": "pink", "bangla-2": "yellow", "english-1": "blue", "english-2": "blue", mathematics: "lilac", science: "mint", islam: "yellow", ict: "blue", business: "pink", finance: "mint", accounting: "yellow", agriculture: "mint" };
 const officialTotalFor = (subjectId: string) => marksDistributions.filter((mark) => mark.subjectId === subjectId).reduce((sum, mark) => sum + mark.marks, 0);
-const workflowForMethod: Record<LearningMethod, string[]> = { "online-class": ["Watch the lesson", "Write a short recall summary", "Answer five questions", "Log the gap"], textbook: ["Read the selected section", "Close the book and recall", "Answer five questions", "Log the gap"], guidebook: ["Study the worked example", "Solve a similar problem", "Check without help", "Log the gap"], "question-bank": ["Attempt a timed set", "Mark every uncertain answer", "Review the solution", "Log the gap"], video: ["Watch the focused explanation", "Pause and retrieve the key idea", "Try a short practice set", "Log the gap"], notes: ["Review your notes", "Recall without looking", "Write the missing detail", "Log the gap"], tutor: ["Review the teacher target", "Attempt the guided example", "Try one independently", "Log the gap"], "group-study": ["Explain the idea aloud", "Compare with a friend", "Attempt a short set", "Log the gap"], flashcards: ["Run a recall round", "Separate uncertain cards", "Practise the weak cards", "Log the gap"] };
+
+type BootstrapRow = Record<string, unknown>;
+const studyTaskFromRow = (row: BootstrapRow): StudyTask => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), plannedTime: row.planned_start ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "numeric", minute: "2-digit" }).format(new Date(String(row.planned_start))) : "Unscheduled", plannedStart: row.planned_start ? String(row.planned_start) : undefined, plannedEnd: row.planned_end ? String(row.planned_end) : undefined, deferredUntil: row.deferred_until ? String(row.deferred_until) : undefined, duration: Number(row.duration_minutes), origin: row.origin as StudyTask["origin"], pinned: Boolean(row.pinned), status: row.status as StudyTask["status"], currentStep: Number(row.current_step), reason: String(row.priority_explanation ?? "Database task"), priorityScore: Number(row.priority_score), focusedSeconds: Number(row.focused_seconds ?? 0), studyMethod: row.study_method ? String(row.study_method) as StudyTask["studyMethod"] : undefined, workflowPhase: row.workflow_phase ? String(row.workflow_phase) as StudyTask["workflowPhase"] : undefined, recommendationFactors: row.recommendation_factors && typeof row.recommendation_factors === "object" ? row.recommendation_factors as Record<string, number> : undefined });
+
 const methodLabel = (method?: LearningMethod) => method ? method.replace("question-bank", "question bank").replace("online-class", "online class").replace("group-study", "group study") : "your preferred method";
 
 const currentMonthKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit" }).format(new Date()) + "-01";
@@ -85,6 +96,7 @@ function taskRow(task: StudyTask) {
   return {
     id: task.id, subject_id: task.subjectId, chapter_id: task.chapterId, title: task.title,
     origin: task.origin, pinned: task.pinned ?? false, duration_minutes: task.duration,
+    workflow_phase: task.workflowPhase ?? null,
     priority_score: task.priorityScore, priority_explanation: task.reason, status: task.status,
     current_step: task.currentStep, focused_seconds: task.focusedSeconds ?? 0, planned_start: plannedStart, planned_end: plannedEnd,
     deferred_until: task.deferredUntil ?? null,
@@ -178,6 +190,10 @@ function feedbackRow(value: RecommendationFeedback) {
   return { id: value.id, task_id: value.taskId ?? null, subject_id: value.subjectId ?? null, chapter_id: value.chapterId ?? null, feedback_type: value.feedbackType, method: value.method ?? null, note: value.note ?? null, created_at: value.createdAt ?? new Date().toISOString() };
 }
 
+function workflowRow(value: CustomStudyWorkflow) {
+  return { phase: value.phase, steps: value.steps, updated_at: value.updatedAt ?? new Date().toISOString() };
+}
+
 function Sidebar({ active, setActive, open, close }: { active: string; setActive: (value: string) => void; open: boolean; close: () => void }) {
   return <aside id="app-navigation" className={`sidebar ${open ? "is-open" : ""}`} aria-label="Primary navigation">
     <button className="close-menu" onClick={close} aria-label="Close navigation"><X /></button>
@@ -210,7 +226,7 @@ function SectionTitle({ kicker, title, children }: { kicker: string; title: stri
   return <div className="section-title"><div><small>{kicker}</small><h2>{title}</h2></div>{children}</div>;
 }
 
-function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents, go }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; go: (value: string) => void }) {
+function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents, go, startStudy }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; go: (value: string) => void; startStudy: (task: StudyTask) => void }) {
   const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
   const visible = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped" && isTaskAvailable(task) && !excluded.has(task.chapterId));
   const first = visible[0];
@@ -230,7 +246,7 @@ function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents
         <h2>{subject.shortName}</h2>
         <p>{chapter.number ? `Chapter ${chapter.number} · ` : ""}{chapter.title}</p>
         <div className="chips"><span>{first.reason.split(" · ")[0]}</span><span>{first.priorityScore} priority</span><span>{first.duration} min</span></div>
-        <Button size="lg" className="solid-cta" onClick={() => go("Home")}><Play weight="fill" />Start study flow</Button>
+        <Button size="lg" className="solid-cta" onClick={() => startStudy(first)}><Play weight="fill" />Start study flow</Button>
         <Brain className="hero-art" weight="duotone" />
       </article>
       <div className="countdown-stack">{examEvents.length ? examEvents.slice(0, 2).map((event, index) => <Countdown key={event.id} name={event.name} date={event.start} tone={index === 0 ? "lilac" : "mint"} />) : <article className="panel empty compact"><Timer /><p>No exam events yet. Add one in Countdown.</p></article>}</div>
@@ -271,18 +287,19 @@ function AdaptivePlannerControls({ summary, run }: { summary: AdaptivePlanSummar
   return <article className="panel adaptive-planner"><div><small className="eyebrow">ADAPTIVE DAILY PLANNER</small><h3>Plan today around the gaps.</h3><p>Review open mistakes first, then schedule the next useful chapter.</p>{summary?.rationale.map((line) => <small className="planner-note" key={line}>{line}</small>)}</div><div className="adaptive-planner-actions"><label>Available minutes<input type="number" min="15" max="600" step="15" value={minutes} onChange={(event) => setMinutes(Math.max(15, Math.min(600, Number(event.target.value))))} /></label><button className="accent" onClick={() => run(minutes)}><Sparkle weight="fill" />Adapt my day</button>{summary && <span className="planner-result" role="status">{summary.usedMinutes}/{summary.availableMinutes} min placed · {summary.deferredCount} deferred</span>}</div></article>;
 }
 
-function DailyTaskCard({ task, subject, index, featured, expanded, toggle, update, remove, journal, feedback }: { task: StudyTask; subject: Subject; index: number; featured?: boolean; expanded: boolean; toggle: () => void; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void }) {
-  const steps = [...(task.studyMethod ? workflowForMethod[task.studyMethod] : workflowSteps[subject.workflow] ?? workflowForMethod.textbook)];
+function DailyTaskCard({ task, subject, index, featured, expanded, toggle, update, remove, journal, feedback, workflows }: { task: StudyTask; subject: Subject; index: number; featured?: boolean; expanded: boolean; toggle: () => void; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; workflows: CustomStudyWorkflow[] }) {
+  const workflow = workflowForTask(task, workflows);
+  const steps = workflow.steps;
   const advance = () => {
     if (task.currentStep + 1 >= steps.length) return journal(task);
     update({ ...task, currentStep: task.currentStep + 1, status: "in-progress" });
   };
-  return <article className={`daily-task-card ${subject.accent} ${featured ? "featured" : ""} ${expanded ? "open" : ""}`}>
+  return <article id={`study-task-${task.id}`} className={`daily-task-card ${subject.accent} ${featured ? "featured" : ""} ${expanded ? "open" : ""}`}>
     <div className="daily-task-meta"><span>{featured ? "START HERE" : `OPTION ${index + 1}`}</span><small>{task.plannedTime} · {task.duration} min</small></div>
     <div className="task-card">
       <div className="task-heading"><button className="task-summary" onClick={toggle} aria-expanded={expanded}><span className="subject-token">{subject.shortName.slice(0, 2)}</span><p><small>{subject.shortName}{task.pinned ? " · PINNED" : ""}</small><strong>{task.title}</strong><em>{task.reason}</em></p><CaretDown /></button><button className="remove-today" onClick={() => remove(task)} aria-label={`Remove ${task.title} from today's plan`} title="Remove from today"><X /></button></div>
       {expanded && <div className="steps">
-        <p className="method-note"><span>STUDY WITH</span><strong>{methodLabel(task.studyMethod)}</strong></p>
+        <p className="method-note"><span>RECOMMENDED {studyPhases.find((phase) => phase.id === workflow.phase)?.label.toUpperCase()}</span><strong>{methodLabel(task.studyMethod)} · {workflows.some((item) => item.phase === workflow.phase) ? "your steps" : "recommended steps"}</strong></p>
         <FocusTimer seconds={task.focusedSeconds ?? 0} onChange={(focusedSeconds) => update({ ...task, focusedSeconds, status: focusedSeconds ? "in-progress" : task.status })} />
         <div className="task-actions"><button className={task.pinned ? "pinned" : ""} onClick={() => update({ ...task, pinned: !task.pinned, priorityScore: task.pinned ? task.priorityScore : 100 })}><PushPin weight={task.pinned ? "fill" : "regular"} />{task.pinned ? "Pinned" : "Pin first"}</button><button onClick={() => update({ ...task, status: "planned", plannedTime: "Tomorrow", deferredUntil: new Date(Date.now() + 86400000).toISOString() })}>Move to tomorrow</button></div>
         <div className="recommendation-feedback"><small>Was this a useful next step?</small><button onClick={() => feedback(task, "useful")}>Useful</button><button onClick={() => feedback(task, "too-hard")}>Too hard</button><button onClick={() => feedback(task, "too-easy")}>Too easy</button><button onClick={() => feedback(task, "not-today")}>Not today</button></div>
@@ -293,7 +310,7 @@ function DailyTaskCard({ task, subject, index, featured, expanded, toggle, updat
   </article>;
 }
 
-function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, planSummary, planToday, examEvents, feedback, adaptiveRiskSubject, entries, goJournal }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void; examEvents: ExamEvent[]; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; adaptiveRiskSubject: string; entries: JournalEntry[]; goJournal: () => void }) {
+function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, planSummary, planToday, examEvents, feedback, adaptiveRiskSubject, entries, goJournal, workflows }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void; examEvents: ExamEvent[]; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; adaptiveRiskSubject: string; entries: JournalEntry[]; goJournal: () => void; workflows: CustomStudyWorkflow[] }) {
   const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
   const visible = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped" && isTaskAvailable(task) && !excluded.has(task.chapterId));
   const doNow = visible[0];
@@ -303,6 +320,11 @@ function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, 
   const latestEntry = todayEntries[0];
   const nextExam = [...examEvents].sort((a, b) => a.start.localeCompare(b.start))[0];
   const [expanded, setExpanded] = useState(focusTaskId ?? doNow?.id ?? "");
+  useEffect(() => {
+    const target = focusTaskId ?? doNow?.id;
+    if (!target) return;
+    window.requestAnimationFrame(() => document.getElementById(`study-task-${target}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }, [doNow?.id, focusTaskId]);
   const completedMinutes = todayEntries.reduce((sum, entry) => sum + entry.minutes, 0);
   const plannedMinutes = visible.reduce((sum, task) => sum + task.duration, 0);
   return <section className="today-page home-section">
@@ -311,11 +333,11 @@ function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, 
     <div className="daily-loop-grid">
       <section className="daily-loop-section do-now-section">
         <div className="daily-loop-heading"><span className="daily-loop-index">1</span><div><small>DO NOW</small><h3>Start with one clear action.</h3><p>The strongest next step is first. You do not need to plan the whole day before beginning.</p></div></div>
-        {doNow ? <DailyTaskCard task={doNow} subject={bySubject(doNow.subjectId)} index={0} featured expanded={expanded === doNow.id} toggle={() => setExpanded(expanded === doNow.id ? "" : doNow.id)} update={update} remove={remove} journal={journal} feedback={feedback} /> : <div className="daily-loop-empty"><CheckCircle weight="fill" /><strong>Your open queue is clear.</strong><p>Use the journal to record what you completed, or add one manual task when you are ready.</p><button className="solid-cta" onClick={goJournal}><NotePencil />Close today&apos;s loop</button></div>}
+        {doNow ? <DailyTaskCard task={doNow} subject={bySubject(doNow.subjectId)} index={0} featured expanded={expanded === doNow.id} toggle={() => setExpanded(expanded === doNow.id ? "" : doNow.id)} update={update} remove={remove} journal={journal} feedback={feedback} workflows={workflows} /> : <div className="daily-loop-empty"><CheckCircle weight="fill" /><strong>Your open queue is clear.</strong><p>Use the journal to record what you completed, or add one manual task when you are ready.</p><button className="solid-cta" onClick={goJournal}><NotePencil />Close today&apos;s loop</button></div>}
       </section>
       <section className="daily-loop-section more-time-section">
         <div className="daily-loop-heading"><span className="daily-loop-index">2</span><div><small>IF YOU HAVE MORE TIME</small><h3>Keep going without guessing.</h3><p>These are useful follow-ups after Do Now. Stop when your planned time is used.</p></div></div>
-        <div className="daily-more-list">{moreTime.length ? moreTime.map((task, index) => <DailyTaskCard key={task.id} task={task} subject={bySubject(task.subjectId)} index={index + 1} expanded={expanded === task.id} toggle={() => setExpanded(expanded === task.id ? "" : task.id)} update={update} remove={remove} journal={journal} feedback={feedback} />) : <div className="daily-loop-empty compact"><Timer /><strong>No extra work is required.</strong><p>Protect your energy and return tomorrow. The planner will refill this section when needed.</p></div>}</div>
+        <div className="daily-more-list">{moreTime.length ? moreTime.map((task, index) => <DailyTaskCard key={task.id} task={task} subject={bySubject(task.subjectId)} index={index + 1} expanded={expanded === task.id} toggle={() => setExpanded(expanded === task.id ? "" : task.id)} update={update} remove={remove} journal={journal} feedback={feedback} workflows={workflows} />) : <div className="daily-loop-empty compact"><Timer /><strong>No extra work is required.</strong><p>Protect your energy and return tomorrow. The planner will refill this section when needed.</p></div>}</div>
       </section>
     </div>
     <section className="daily-loop-section close-loop-section">
@@ -327,8 +349,8 @@ function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, 
   </section>;
 }
 
-function Home({ tasks, chapters, preferences, mistakes, entries, examEvents, update, remove, journal, add, focusTaskId, planSummary, planToday, go, feedback, adaptiveRiskSubject, goJournal }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void; go: (value: string) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; adaptiveRiskSubject: string; goJournal: () => void }) {
-  return <main id="main-content" tabIndex={-1} className="page home-page"><Dashboard tasks={tasks} chapters={chapters} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} go={go} /><Today tasks={tasks} preferences={preferences} update={update} remove={remove} journal={journal} add={add} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} examEvents={examEvents} feedback={feedback} adaptiveRiskSubject={adaptiveRiskSubject} entries={entries} goJournal={goJournal} /></main>;
+function Home({ tasks, chapters, preferences, mistakes, entries, examEvents, update, remove, journal, add, focusTaskId, planSummary, planToday, go, startStudy, feedback, adaptiveRiskSubject, goJournal, workflows }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void; go: (value: string) => void; startStudy: (task: StudyTask) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; adaptiveRiskSubject: string; goJournal: () => void; workflows: CustomStudyWorkflow[] }) {
+  return <main id="main-content" tabIndex={-1} className="page home-page"><Dashboard tasks={tasks} chapters={chapters} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} go={go} startStudy={startStudy} /><Today tasks={tasks} preferences={preferences} update={update} remove={remove} journal={journal} add={add} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} examEvents={examEvents} feedback={feedback} adaptiveRiskSubject={adaptiveRiskSubject} entries={entries} goJournal={goJournal} workflows={workflows} /></main>;
 }
 
 function Syllabus({ list, setList, preferences, updatePreference, completeChapter, persistProgress, goGoals, sessions, entries, mistakes, resources, goResources }: { list: Chapter[]; setList: (value: Chapter[]) => void; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; completeChapter: (chapter: Chapter) => void; persistProgress: (chapter: Chapter) => void; goGoals: () => void; sessions: StudySession[]; entries: JournalEntry[]; mistakes: Mistake[]; resources: StudyResource[]; goResources: (chapterId: string) => void }) {
@@ -405,7 +427,7 @@ function Goals({ list, preferences, updatePreference, updatePreferences, complet
 
 type CalendarHealth = { authenticated: boolean; configured: boolean; connected: boolean; lastSuccessfulSync?: string | null; linkedEvents?: number; missing?: string[] };
 
-function StudyCalendar({ tasks, preferences, update, add, openTask }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; add: (date?: string) => void; openTask: (task: StudyTask) => void }) {
+function StudyCalendar({ tasks, preferences, update, add, openTask, onSynced }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; add: (date?: string) => void; openTask: (task: StudyTask) => void; onSynced?: () => Promise<void> }) {
   const router = useRouter();
   const [month, setMonth] = useState(currentMonthKey());
   const [health, setHealth] = useState<CalendarHealth | null>(null);
@@ -438,9 +460,10 @@ function StudyCalendar({ tasks, preferences, update, add, openTask }: { tasks: S
   const syncCalendar = async () => {
     setSyncing(true);
     setSyncMessage("");
-    const response = await fetch("/api/calendar/sync", { method: "POST" }).catch(() => null);
+    const response = await fetch("/api/calendar/sync", { method: "POST", cache: "no-store", headers: { "cache-control": "no-cache" } }).catch(() => null);
     const body = response ? await response.json().catch(() => null) as { synced?: number; error?: string } | null : null;
     await refreshHealth();
+    await onSynced?.();
     setSyncing(false);
     setSyncMessage(response?.ok ? `Synced ${body?.synced ?? 0} app-owned change${body?.synced === 1 ? "" : "s"}.` : body?.error ?? "Calendar sync failed. Your local plan is unchanged.");
   };
@@ -483,16 +506,36 @@ function ExamPlan() {
   return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="TWO FULL-SYLLABUS DEADLINES" title="Exam campaign" /><section className="phases">{phases.map((phase, index) => <article className={index === current ? "current" : index < current ? "complete" : ""} key={phase.date}><span>{index < current ? <Check weight="bold" /> : index + 1}</span><p><small>{phase.date}</small><strong>{phase.title}</strong><em>{index === current ? (today < phase.start ? "Starts tomorrow: prepare the first diagnostic list." : "This is the active preparation stage.") : "Full-syllabus preparation stage."}</em></p>{index === current && <b>{today < phase.start ? "Starts next" : "Current phase"}</b>}</article>)}</section></main>;
 }
 
-function Settings({ planning, setPlanning, profile, saveProfile, learningPreferences, saveAdaptive }: { planning: PlanningSettings; setPlanning: (value: PlanningSettings) => void; profile: UserProfile; saveProfile: (patch: Partial<UserProfile>) => Promise<void>; learningPreferences: LearningPreferences; saveAdaptive: (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => Promise<void> }) {
+function WorkflowEditor({ workflows, save }: { workflows: CustomStudyWorkflow[]; save: (workflows: CustomStudyWorkflow[]) => Promise<void> }) {
+  const [phase, setPhase] = useState<StudyPhase>("learn");
+  const saved = workflows.find((workflow) => workflow.phase === phase);
+  const [draft, setDraft] = useState<string[]>(saved?.steps ?? recommendedWorkflow(phase));
+  const [status, setStatus] = useState("");
+  const selectPhase = (nextPhase: StudyPhase) => { setPhase(nextPhase); setDraft(workflows.find((workflow) => workflow.phase === nextPhase)?.steps ?? recommendedWorkflow(nextPhase)); setStatus(""); };
+  const updateStep = (index: number, value: string) => setDraft((current) => current.map((step, stepIndex) => stepIndex === index ? value : step));
+  const removeStep = (index: number) => setDraft((current) => current.length <= 1 ? current : current.filter((_, stepIndex) => stepIndex !== index));
+  const moveStep = (index: number, direction: -1 | 1) => setDraft((current) => { const nextIndex = index + direction; if (nextIndex < 0 || nextIndex >= current.length) return current; const next = [...current]; [next[index], next[nextIndex]] = [next[nextIndex], next[index]]; return next; });
+  const saveDraft = async () => {
+    const clean = draft.map((step) => step.trim()).filter(Boolean).slice(0, 8);
+    if (!clean.length) return setStatus("Keep at least one step in this workflow.");
+    try { await save([...workflows.filter((workflow) => workflow.phase !== phase), { phase, steps: clean, updatedAt: new Date().toISOString() }]); setStatus("Workflow saved for this phase."); } catch (error) { setStatus(error instanceof Error ? error.message : "Could not save this workflow."); }
+  };
+  const reset = () => { setDraft(recommendedWorkflow(phase)); setStatus("Recommended steps restored locally. Save to keep them."); };
+  return <article className="settings-editor workflow-editor"><span className="blue"><ListChecks /></span><div className="workflow-editor-body"><p><strong>Choose your study steps</strong><small>SSC recommends a starting flow for each kind of work. You can edit, remove, reorder, or add steps without changing the recommendation logic.</small></p><div className="workflow-tabs" role="tablist" aria-label="Study phase"><span>{studyPhases.map((item) => <button type="button" key={item.id} className={phase === item.id ? "active" : ""} onClick={() => selectPhase(item.id)}>{item.label}</button>)}</span></div><div className="workflow-editor-heading"><div><strong>{studyPhases.find((item) => item.id === phase)?.label}</strong><small>{studyPhases.find((item) => item.id === phase)?.detail}</small></div><button type="button" onClick={reset}>Use recommended</button></div><div className="workflow-step-editor">{draft.map((step, index) => <div className="workflow-step-row" key={`${phase}-${index}`}><span>{index + 1}</span><input value={step} onChange={(event) => updateStep(index, event.target.value)} aria-label={`Step ${index + 1}`} /><button type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label="Move step up"><CaretUp /></button><button type="button" onClick={() => moveStep(index, 1)} disabled={index === draft.length - 1} aria-label="Move step down"><CaretDown /></button><button type="button" onClick={() => removeStep(index)} disabled={draft.length <= 1} aria-label="Remove step"><X /></button></div>)}</div><div className="workflow-editor-actions"><button type="button" onClick={() => draft.length < 8 && setDraft((current) => [...current, "New step"])} disabled={draft.length >= 8}><Plus />Add step</button><button type="button" className="accent" onClick={saveDraft}>Save workflow</button></div>{status && <small className="settings-message" role="status">{status}</small>}</div></article>;
+}
+
+function Settings({ planning, setPlanning, profile, saveProfile, learningPreferences, saveAdaptive, workflows, saveWorkflows, onCalendarSynced }: { planning: PlanningSettings; setPlanning: (value: PlanningSettings) => void; profile: UserProfile; saveProfile: (patch: Partial<UserProfile>) => Promise<void>; learningPreferences: LearningPreferences; saveAdaptive: (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => Promise<void>; workflows: CustomStudyWorkflow[]; saveWorkflows: (workflows: CustomStudyWorkflow[]) => Promise<void>; onCalendarSynced?: () => Promise<void> }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const onCalendarSyncedRef = useRef(onCalendarSynced);
+  useEffect(() => { onCalendarSyncedRef.current = onCalendarSynced; }, [onCalendarSynced]);
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [guidanceMode, setGuidanceMode] = useState(learningPreferences.guidanceMode);
   const [planStrictness, setPlanStrictness] = useState(learningPreferences.planStrictness);
   const [sessionLength, setSessionLength] = useState(learningPreferences.sessionLengthMinutes);
   const [health, setHealth] = useState<CalendarHealth | null>(null);
-  const refreshHealth = () => void fetch("/api/calendar/status").then((response) => response.json()).then(setHealth).catch(() => setHealth(null));
+  const refreshHealth = () => void fetch("/api/calendar/status", { cache: "no-store", headers: { "cache-control": "no-cache" } }).then((response) => response.json()).then(setHealth).catch(() => setHealth(null));
   useEffect(() => {
     const client = createSupabaseClient();
     if (!client) return;
@@ -503,11 +546,19 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
   useEffect(() => {
     refreshHealth();
     const status = new URLSearchParams(location.search).get("calendar");
-    if (status) {
-      const timer = window.setTimeout(() => setMessage(status === "connected" ? "Google Calendar connected. Run Sync now to create your study blocks." : "Google Calendar connection did not complete. Check the OAuth configuration and try again."), 0);
-      history.replaceState(null, "", location.pathname);
-      return () => window.clearTimeout(timer);
+    if (!status) return;
+    history.replaceState(null, "", location.pathname);
+    if (status !== "connected") {
+      window.setTimeout(() => setMessage("Google Calendar connection did not complete. Check the OAuth configuration and try again."), 0);
+      return;
     }
+    window.setTimeout(() => setMessage("Google Calendar connected. Checking your app-owned study blocks…"), 0);
+    void fetch("/api/calendar/sync", { method: "POST", cache: "no-store", headers: { "cache-control": "no-cache" } }).then(async (response) => {
+      const body = await response.json().catch(() => null) as { synced?: number; error?: string } | null;
+      setMessage(response.ok ? `Calendar connected and checked ${body?.synced ?? 0} app-owned event${body?.synced === 1 ? "" : "s"}.` : body?.error ?? "Calendar connected, but the first sync failed.");
+      refreshHealth();
+      await onCalendarSyncedRef.current?.();
+    }).catch(() => setMessage("Calendar connected, but the first sync could not be completed. Try Sync now."));
   }, []);
   const signOut = async () => { const client = createSupabaseClient(); await client?.auth.signOut(); setEmail(null); };
   const updateProfile = async () => { try { await saveProfile({ displayName: displayName.trim() || undefined }); setMessage("Profile updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Profile update failed."); } };
@@ -521,10 +572,11 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
   const syncNow = async () => {
     if (!email) return setMessage("Sign in first to synchronize calendar events.");
     setMessage("Checking connected Google Calendar…");
-    const response = await fetch("/api/calendar/sync", { method: "POST" }).catch(() => null);
+    const response = await fetch("/api/calendar/sync", { method: "POST", cache: "no-store", headers: { "cache-control": "no-cache" } }).catch(() => null);
     const body = response ? await response.json().catch(() => null) as { synced?: number; error?: string } | null : null;
     setMessage(response?.ok ? `Calendar checked ${body?.synced ?? 0} app-owned event${body?.synced === 1 ? "" : "s"}.` : body?.error ?? "Calendar is not connected yet.");
     refreshHealth();
+    await onCalendarSyncedRef.current?.();
   };
   const enableReminders = async () => {
     if (!("Notification" in window)) return setMessage("This browser does not support notifications.");
@@ -535,6 +587,7 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
   return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="PRIVATE BY DEFAULT" title="Planning settings" /><section className="settings">
     <article className="auth-card account-card"><span className="lilac"><CloudCheck /></span><div><p><strong>{email ? "Cloud account connected" : "Cloud account"}</strong><small>{email ?? "Your account email"}</small></p><label>Display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name" /></label><div className="settings-actions"><button onClick={updateProfile}>Save profile</button><button onClick={restartOnboarding}>Restart setup</button><button onClick={signOut}><SignOut />Sign out</button></div></div></article>
     <article className="settings-editor adaptive-settings"><span className="blue"><Brain /></span><p><strong>How SSC plans for you</strong><small>Current methods: {learningPreferences.preferredMethods.join(", ") || "Choose methods in setup"}. The planner learns from your feedback.</small></p><div className="inline-fields"><label>Guidance<select value={guidanceMode} onChange={(event) => setGuidanceMode(event.target.value as LearningPreferences["guidanceMode"])}><option value="guided">Guide me</option><option value="balanced">Balanced</option><option value="quiet">Quiet queue</option></select></label><label>Plan style<select value={planStrictness} onChange={(event) => setPlanStrictness(event.target.value as LearningPreferences["planStrictness"])}><option value="flexible">Flexible</option><option value="balanced">Balanced</option><option value="strict">Strict</option></select></label><label>Session length<select value={sessionLength} onChange={(event) => setSessionLength(Number(event.target.value))}><option value="25">25 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="90">90 min</option></select></label></div><div className="settings-actions"><button onClick={updateAdaptive}>Save planning preferences</button><button onClick={restartOnboarding}>Run calibration again</button></div></article>
+    <WorkflowEditor workflows={workflows} save={saveWorkflows} />
     <article><span className="lilac"><CalendarBlank /></span><p><strong>{health?.connected ? "Google Calendar connected" : "Google Calendar"}</strong><small>{health?.connected ? `${health.linkedEvents ?? 0} linked study blocks. Unrelated events stay untouched.` : health?.configured ? "Ready to connect app-owned study blocks." : health?.missing?.length ? `Setup missing: ${health.missing.join(", ")}` : "Sync only app-owned study blocks. Unrelated events stay untouched."}</small></p><div className="settings-actions"><button className={health?.connected ? "connected" : ""} onClick={calendar}>{health?.connected ? "Reconnect" : "Connect"}</button><button onClick={syncNow}>Sync now</button></div></article>
     <article className="settings-editor"><span className="mint"><Clock /></span><p><strong>Study windows</strong><small>These guide planning without locking every day into a rigid routine.</small></p><div className="inline-fields"><label>Main starts<input type="time" value={planning.mainStart} onChange={(event) => setPlanning({ ...planning, mainStart: event.target.value })} /></label><label>Main ends<input type="time" value={planning.mainEnd} onChange={(event) => setPlanning({ ...planning, mainEnd: event.target.value })} /></label><label>Maths starts<input type="time" value={planning.mathStart} onChange={(event) => setPlanning({ ...planning, mathStart: event.target.value })} /></label><label>Maths ends<input type="time" value={planning.mathEnd} onChange={(event) => setPlanning({ ...planning, mathEnd: event.target.value })} /></label></div></article>
     <article className="settings-editor"><span className="yellow"><Brain /></span><p><strong>Recommendation control</strong><small>Weakness-first rules stay explainable; manual pins still override them.</small></p><div className="inline-fields"><label>Daily target<input type="number" min="60" max="600" value={planning.dailyTarget} onChange={(event) => setPlanning({ ...planning, dailyTarget: Number(event.target.value) })} /><em>min</em></label><label>Maths<input type="number" min="1" max="7" value={planning.mathDaysPerWeek} onChange={(event) => setPlanning({ ...planning, mathDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label><label>Agriculture<input type="number" min="1" max="7" value={planning.agricultureDaysPerWeek} onChange={(event) => setPlanning({ ...planning, agricultureDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label></div></article>
@@ -593,8 +646,18 @@ function DatabaseGate({ status, error }: { status: "loading" | "auth-required" |
 }
 
 export default function CommandCenter() {
-  const [active, setActive] = useState("Dashboard");
+  const router = useRouter();
+  const pathname = usePathname();
+  const pathSection = routeSections[pathname?.split("/")[1] ?? "home"] ?? "Home";
+  const active = pathSection;
   const [menu, setMenu] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const navigate = (value: string) => {
+    const nextPath = sectionRoutes[value] ?? "/home";
+    setMenu(false);
+    setMobileMoreOpen(false);
+    if (pathname !== nextPath) router.push(nextPath);
+  };
   useEffect(() => {
     if (!menu) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setMenu(false); };
@@ -614,6 +677,7 @@ export default function CommandCenter() {
   const [learningPreferences, setLearningPreferences] = useState<LearningPreferences>({ userId: "", preferredMethods: ["textbook", "question-bank"], preferredResourceKinds: ["textbook", "question-bank"], sessionLengthMinutes: 45, sessionsPerDay: 2, availableDays: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], weekdayMinutes: 120, weekendMinutes: 180, targetGrade: "A", guidanceMode: "guided", planStrictness: "flexible", instructionRatio: 30, practiceRatio: 50, reviewRatio: 20, createdAt: "", updatedAt: "" });
   const [subjectAssessments, setSubjectAssessments] = useState<SubjectAssessment[]>([]);
   const [recommendationFeedback, setRecommendationFeedback] = useState<RecommendationFeedback[]>([]);
+  const [studyWorkflows, setStudyWorkflows] = useState<CustomStudyWorkflow[]>([]);
   const [journalTask, setJournalTask] = useState<StudyTask | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualDate, setManualDate] = useState<string | undefined>();
@@ -625,6 +689,13 @@ export default function CommandCenter() {
   const [databaseStatus, setDatabaseStatus] = useState<"loading" | "ready" | "auth-required" | "error">("loading");
   const [databaseError, setDatabaseError] = useState("");
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const reloadTasks = async () => {
+    const response = await fetch("/api/sync/bootstrap", { cache: "no-store", headers: { "cache-control": "no-cache", "x-ssc-bootstrap-reason": "calendar-sync" } }).catch(() => null);
+    if (!response?.ok) return;
+    const payload = await response.json().catch(() => null) as { mode?: string; data?: { study_tasks?: BootstrapRow[] } } | null;
+    if (payload?.mode !== "cloud" || !payload.data) return;
+    setTasks((payload.data.study_tasks ?? []).map(studyTaskFromRow));
+  };
   useEffect(() => {
     let cancelled = false;
     const bootstrap = async () => {
@@ -648,12 +719,13 @@ export default function CommandCenter() {
       replaceAcademicData({ subjects: loadedSubjects, chapters: loadedChapters, marksDistributions: loadedMarks, exams: loadedExams, workflowSteps: loadedWorkflows });
       const progress = new Map((data.chapter_progress ?? []).map((row) => [String(row.chapter_id), row]));
       setChapterList(loadedChapters.map((chapter) => { const row = progress.get(chapter.id); return row ? { ...chapter, status: row.status as Chapter["status"], confidence: Number(row.confidence) as Chapter["confidence"], lastStudied: row.last_studied ? String(row.last_studied) : undefined, nextReview: row.next_review ? String(row.next_review) : undefined, questionsAttempted: Number(row.questions_attempted), questionsCorrect: Number(row.questions_correct) } : chapter; }));
-      setTasks((data.study_tasks ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), plannedTime: row.planned_start ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "numeric", minute: "2-digit" }).format(new Date(String(row.planned_start))) : "Unscheduled", plannedStart: row.planned_start ? String(row.planned_start) : undefined, plannedEnd: row.planned_end ? String(row.planned_end) : undefined, deferredUntil: row.deferred_until ? String(row.deferred_until) : undefined, duration: Number(row.duration_minutes), origin: row.origin as StudyTask["origin"], pinned: Boolean(row.pinned), status: row.status as StudyTask["status"], currentStep: Number(row.current_step), reason: String(row.priority_explanation ?? "Database task"), priorityScore: Number(row.priority_score), focusedSeconds: Number(row.focused_seconds ?? 0), studyMethod: row.study_method ? String(row.study_method) as StudyTask["studyMethod"] : undefined, recommendationFactors: row.recommendation_factors && typeof row.recommendation_factors === "object" ? row.recommendation_factors as Record<string, number> : undefined })));
+      setTasks((data.study_tasks ?? []).map(studyTaskFromRow));
       setPreferences((data.chapter_preferences ?? []).map((row) => ({ chapterId: String(row.chapter_id), includedForSsc: Boolean(row.included_for_ssc), targetMonth: row.target_month ? String(row.target_month) : undefined, excluded: Boolean(row.excluded), exclusionReason: row.exclusion_reason ? String(row.exclusion_reason) : undefined, priority: Number(row.priority) as ChapterPreference["priority"] })));
       const learningRow = data.learning_preferences?.[0];
       if (learningRow) setLearningPreferences({ userId: String(learningRow.user_id), preferredMethods: Array.isArray(learningRow.preferred_methods) ? learningRow.preferred_methods.map(String) as LearningPreferences["preferredMethods"] : ["textbook", "question-bank"], preferredResourceKinds: Array.isArray(learningRow.preferred_resource_kinds) ? learningRow.preferred_resource_kinds.map(String) as LearningPreferences["preferredResourceKinds"] : ["textbook", "question-bank"], sessionLengthMinutes: Number(learningRow.session_length_minutes), sessionsPerDay: Number(learningRow.sessions_per_day), availableDays: Array.isArray(learningRow.available_days) ? learningRow.available_days.map(String) : [], weekdayMinutes: Number(learningRow.weekday_minutes), weekendMinutes: Number(learningRow.weekend_minutes), targetGrade: String(learningRow.target_grade), guidanceMode: String(learningRow.guidance_mode) as LearningPreferences["guidanceMode"], planStrictness: String(learningRow.plan_strictness) as LearningPreferences["planStrictness"], instructionRatio: Number(learningRow.instruction_ratio), practiceRatio: Number(learningRow.practice_ratio), reviewRatio: Number(learningRow.review_ratio), createdAt: String(learningRow.created_at), updatedAt: String(learningRow.updated_at) });
       setSubjectAssessments((data.subject_assessments ?? []).map((row) => ({ id: String(row.id), userId: String(row.user_id), subjectId: String(row.subject_id), difficulty: Number(row.difficulty) as SubjectAssessment["difficulty"], confidence: Number(row.confidence) as SubjectAssessment["confidence"], priority: Number(row.priority) as SubjectAssessment["priority"], startingPoint: String(row.starting_point) as SubjectAssessment["startingPoint"], preferredMethods: Array.isArray(row.preferred_methods) ? row.preferred_methods.map(String) as SubjectAssessment["preferredMethods"] : [], createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
       setRecommendationFeedback((data.recommendation_feedback ?? []).map((row) => ({ id: String(row.id), userId: String(row.user_id), taskId: row.task_id ? String(row.task_id) : undefined, subjectId: row.subject_id ? String(row.subject_id) : undefined, chapterId: row.chapter_id ? String(row.chapter_id) : undefined, feedbackType: String(row.feedback_type) as RecommendationFeedback["feedbackType"], method: row.method ? String(row.method) as RecommendationFeedback["method"] : undefined, note: row.note ? String(row.note) : undefined, createdAt: String(row.created_at) })));
+      setStudyWorkflows((data.study_workflows ?? []).map((row) => ({ phase: String(row.phase) as StudyPhase, steps: Array.isArray(row.steps) ? row.steps.map(String).filter(Boolean) : [], updatedAt: row.updated_at ? String(row.updated_at) : undefined })));
       setEntries((data.journal_entries ?? []).map((row) => ({ id: String(row.id), taskId: String(row.task_id ?? ""), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), minutes: Number(row.minutes), attempted: Number(row.attempted), correct: Number(row.correct), confidenceBefore: Number(row.confidence_before), confidenceAfter: Number(row.confidence_after), learningGoal: String(row.learning_goal ?? ""), resources: Array.isArray(row.resources) ? row.resources.map(String) : [], mistakesText: row.mistakes_text ? String(row.mistakes_text) : undefined, writtenScore: row.written_score == null ? undefined : Number(row.written_score), reflection: String(row.reflection ?? ""), nextAction: String(row.next_action ?? ""), createdAt: String(row.created_at) })));
       setMistakes((data.mistakes ?? []).map((row) => ({ id: String(row.id), chapterId: String(row.chapter_id), prompt: String(row.prompt), errorType: String(row.error_type), reattemptDate: String(row.reattempt_date ?? ""), resolved: Boolean(row.resolved), revisionCount: Number(row.revision_count ?? 0), lastAttemptedAt: row.last_attempted_at ? String(row.last_attempted_at) : undefined, lastAttemptNote: row.last_attempt_note ? String(row.last_attempt_note) : undefined })));
       setMocks((data.mock_results ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), paperType: String(row.paper_type ?? "Full paper"), score: Number(row.score), total: Number(row.total), durationMinutes: row.duration_minutes == null ? undefined : Number(row.duration_minutes), takenAt: String(row.taken_at) })));
@@ -694,6 +766,15 @@ export default function CommandCenter() {
     setProfile({ userId: String(row.user_id), displayName: row.display_name ? String(row.display_name) : undefined, board: String(row.board), examYear: Number(row.exam_year), selectedSubjects: Array.isArray(row.selected_subjects) ? row.selected_subjects.map(String) : [], dailyTarget: Number(row.daily_target), mainStart: String(row.main_start), mainEnd: String(row.main_end), onboardingStep: Number(row.onboarding_step), onboardingCompleted: Boolean(row.onboarding_completed), createdAt: String(row.created_at), updatedAt: String(row.updated_at) });
   };
 
+  const saveCompletedChapters = async (chapterIds: string[]) => {
+    const completed = new Set(chapterIds);
+    const now = new Date().toISOString();
+    const updated = chapterList.map((chapter) => completed.has(chapter.id) ? { ...chapter, status: "exam-ready" as const, confidence: Math.max(4, chapter.confidence) as Chapter["confidence"], lastStudied: chapter.lastStudied ?? now, nextReview: chapter.nextReview ?? new Date(Date.now() + 7 * 86400000).toISOString() } : chapter);
+    setChapterList(updated);
+    const changed = updated.filter((chapter) => completed.has(chapter.id));
+    if (changed.length) persist("chapter_progress", changed.map(chapterRow));
+  };
+
   const saveAdaptiveProfile = async (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => {
     if (!profile) return;
     const response = await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ learning_preferences: learningPreferencesRow(patch), subject_assessments: assessments?.map(subjectAssessmentRow) }) });
@@ -709,6 +790,14 @@ export default function CommandCenter() {
   const saveFeedback = (feedback: RecommendationFeedback) => {
     setRecommendationFeedback([feedback, ...recommendationFeedback]);
     persist("recommendation_feedback", [feedbackRow(feedback)]);
+  };
+
+  const saveWorkflows = async (workflows: CustomStudyWorkflow[]) => {
+    const response = await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ study_workflows: workflows.map(workflowRow) }) });
+    const payload = await response.json().catch(() => null) as { study_workflows?: Array<{ phase: string; steps: unknown; updated_at?: string }>; error?: string } | null;
+    if (!response.ok) throw new Error(payload?.error ?? "Could not save your study workflows");
+    const saved = payload?.study_workflows?.map((row) => ({ phase: row.phase, steps: row.steps, updated_at: row.updated_at })) ?? workflows.map((workflow) => ({ phase: workflow.phase, steps: workflow.steps, updated_at: workflow.updatedAt ?? new Date().toISOString() }));
+    setStudyWorkflows(saved.map((row) => ({ phase: String(row.phase) as StudyPhase, steps: Array.isArray(row.steps) ? row.steps.map(String).filter(Boolean) : [], updatedAt: row.updated_at ? String(row.updated_at) : undefined })));
   };
 
   const recordFeedback = (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => saveFeedback({ id: crypto.randomUUID(), userId: learningPreferences.userId, taskId: task.id, subjectId: task.subjectId, chapterId: task.chapterId, feedbackType, method: task.studyMethod, createdAt: new Date().toISOString() });
@@ -766,10 +855,15 @@ export default function CommandCenter() {
     persist("study_tasks", [taskRow(task)]);
     setManualOpen(false);
     setManualDate(undefined);
-    setActive("Home");
+    navigate("Home");
   };
 
   const openManual = (date?: string) => { setManualDate(date); setManualOpen(true); };
+  const openJournalEntry = () => {
+    const firstChapter = chapterList.find((chapter) => !preferenceFor(chapter.id, preferences).excluded) ?? chapterList[0];
+    if (!firstChapter) return;
+    setJournalTask({ id: "", subjectId: firstChapter.subjectId, chapterId: firstChapter.id, title: firstChapter.title, plannedTime: "", duration: 45, origin: "manual", pinned: true, status: "planned", currentStep: 0, reason: "Manual journal entry", priorityScore: 0, focusedSeconds: 0 });
+  };
 
   const updatePreferences = (updates: ChapterPreference[]) => {
     const updatedIds = new Set(updates.map((item) => item.chapterId));
@@ -819,7 +913,7 @@ export default function CommandCenter() {
     const next = [...generated, ...tasks];
     setTasks(next);
     persist("study_tasks", generated.map(taskRow));
-    setActive("Calendar");
+    navigate("Calendar");
   };
 
   const save = (entry: JournalEntry) => {
@@ -848,7 +942,7 @@ export default function CommandCenter() {
       saveSession({ id: crypto.randomUUID(), taskId: entry.taskId, subjectId: entry.subjectId, chapterId: entry.chapterId, mode: "focus", startedAt: new Date(new Date(entry.createdAt).getTime() - focusedSeconds * 1000).toISOString(), endedAt: entry.createdAt, focusedSeconds, pauseSeconds: 0, completed: true, questionsAttempted: entry.attempted, questionsCorrect: entry.correct });
     }
     setJournalTask(null);
-    setActive("Home");
+    navigate("Home");
   };
 
   const saveMock = (result: MockResult) => {
@@ -866,6 +960,11 @@ export default function CommandCenter() {
     setRevisionMistake(null);
   };
 
+  const startStudy = (task: StudyTask) => {
+    setFocusTaskId(task.id);
+    navigate("Home");
+  };
+
   const planToday = (availableMinutes: number) => {
     const dayMinutes = new Date().getDay() === 0 || new Date().getDay() === 6 ? learningPreferences.weekendMinutes : learningPreferences.weekdayMinutes;
     const result = buildAdaptivePlan({ tasks, chapters: chapterList, preferences, mistakes, mocks, subjects, settings: planning, availableMinutes: availableMinutes || dayMinutes, learningPreferences, assessments: subjectAssessments, feedback: recommendationFeedback });
@@ -874,46 +973,40 @@ export default function CommandCenter() {
     setPlanSummary(summary);
     persist("study_tasks", result.tasks.map(taskRow));
     persist("adaptive_plan_summaries", [adaptivePlanRow(summary)]);
-    setActive("Home");
+    navigate("Home");
   };
 
-  const openJournal = () => {
-    const openTask = tasks.find((task) => task.status !== "completed" && task.status !== "skipped" && !preferenceFor(task.chapterId, preferences).excluded && isTaskAvailable(task));
-    if (openTask) return setJournalTask(openTask);
-    const chapter = chapterList.find((item) => !preferenceFor(item.id, preferences).excluded) ?? chapterList[0];
-    if (!chapter) return;
-    setJournalTask({ id: "", subjectId: chapter.subjectId, chapterId: chapter.id, title: chapter.title, plannedTime: "Unscheduled", duration: 45, origin: "manual", pinned: false, status: "planned", currentStep: 0, reason: "Manual journal evidence", priorityScore: 0, focusedSeconds: 0 });
-  };
   if (databaseStatus !== "ready") return <DatabaseGate status={databaseStatus} error={databaseError} />;
   if (!profile) return <DatabaseGate status="loading" error="Preparing your private workspace…" />;
-  if (!profile.onboardingCompleted) return <OnboardingWizard profile={profile} subjects={subjects} save={saveProfile} saveAdaptive={saveAdaptiveProfile} startPlan={() => planToday(learningPreferences.weekdayMinutes)} />;
+  if (!profile.onboardingCompleted) return <OnboardingWizard profile={profile} subjects={subjects} chapters={chapterList} save={saveProfile} saveAdaptive={saveAdaptiveProfile} saveCompletedChapters={saveCompletedChapters} startPlan={() => planToday(learningPreferences.weekdayMinutes)} />;
   const adaptiveRiskSubject = subjects.filter((subject) => learningPreferences.userId ? subjectAssessments.some((assessment) => assessment.subjectId === subject.id) : false).map((subject) => ({ subject, assessment: subjectAssessments.find((assessment) => assessment.subjectId === subject.id)! })).sort((a, b) => (b.assessment.difficulty + b.assessment.priority) - (a.assessment.difficulty + a.assessment.priority))[0]?.subject.name ?? "Your next priority";
-  const home = <Home tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} go={setActive} feedback={recordFeedback} adaptiveRiskSubject={adaptiveRiskSubject} goJournal={() => setActive("Journal")} />;
+  const home = <Home tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} go={navigate} startStudy={startStudy} feedback={recordFeedback} adaptiveRiskSubject={adaptiveRiskSubject} goJournal={() => navigate("Journal")} workflows={studyWorkflows} />;
   const content = (() => {
     switch (active) {
       case "Home":
       case "Dashboard":
       case "Today": return home;
-      case "Syllabus": return <Syllabus list={chapterList} setList={setChapterList} preferences={preferences} updatePreference={updatePreference} completeChapter={completeChapter} persistProgress={(chapter) => persist("chapter_progress", [chapterRow(chapter)])} goGoals={() => setActive("Goals")} sessions={sessions} entries={entries} mistakes={mistakes} resources={resources} goResources={(chapterId) => { setResourceChapterId(chapterId); setActive("Resources"); }} />;
+      case "Syllabus": return <Syllabus list={chapterList} setList={setChapterList} preferences={preferences} updatePreference={updatePreference} completeChapter={completeChapter} persistProgress={(chapter) => persist("chapter_progress", [chapterRow(chapter)])} goGoals={() => navigate("Goals")} sessions={sessions} entries={entries} mistakes={mistakes} resources={resources} goResources={(chapterId) => { setResourceChapterId(chapterId); navigate("Resources"); }} />;
       case "Goals": return <Goals list={chapterList} preferences={preferences} updatePreference={updatePreference} updatePreferences={updatePreferences} completeChapter={completeChapter} buildQueue={buildGoalQueue} />;
-      case "Calendar": return <StudyCalendar tasks={tasks} preferences={preferences} update={updateTask} add={openManual} openTask={(task) => { setFocusTaskId(task.id); setActive("Home"); }} />;
-      case "Journal": return <Journal entries={entries} add={openJournal} />;
+      case "Calendar": return <StudyCalendar tasks={tasks} preferences={preferences} update={updateTask} add={openManual} openTask={(task) => { setFocusTaskId(task.id); navigate("Home"); }} onSynced={reloadTasks} />;
+      case "Journal": return <Journal entries={entries} add={() => openJournalEntry()} />;
       case "Progress": return <Progress entries={entries} list={chapterList} mocks={mocks} addMock={() => setMockOpen(true)} sessions={sessions} tasks={tasks} />;
-      case "Maths Lab": return <MathsLab mistakes={mistakes} chapters={chapterList} review={setRevisionMistake} goToday={() => setActive("Home")} />;
-      case "Exam Mode": return <ExamModeFocus tasks={tasks} activeTaskId={focusTaskId} onClose={() => setActive("Home")} onSaveSession={saveSession} onUpdateTask={updateTask} />;
+      case "Maths Lab": return <MathsLab mistakes={mistakes} chapters={chapterList} review={setRevisionMistake} goToday={() => navigate("Home")} />;
+      case "Exam Mode": return <ExamModeFocus tasks={tasks} activeTaskId={focusTaskId} onClose={() => navigate("Home")} onSaveSession={saveSession} onUpdateTask={updateTask} />;
       case "Resources": return <ResourceLibrary resources={resources.filter((resource) => !resource.archived)} chapters={chapterList} initialChapterId={resourceChapterId} save={saveResource} remove={removeResource} />;
-      case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => setActive("Home")} />;
+      case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => navigate("Home")} />;
       case "Exam Plan": return <ExamPlan />;
-      default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} learningPreferences={learningPreferences} saveAdaptive={saveAdaptiveProfile} />;
+      default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} learningPreferences={learningPreferences} saveAdaptive={saveAdaptiveProfile} workflows={studyWorkflows} saveWorkflows={saveWorkflows} onCalendarSynced={reloadTasks} />;
     }
   })();
 
   return <div className="app-shell">
     <button className="skip-link" onClick={() => document.querySelector("main")?.focus()}>Skip to main content</button>
-    <Sidebar active={active} setActive={setActive} open={menu} close={() => setMenu(false)} />
+    <Sidebar active={active} setActive={navigate} open={menu} close={() => setMenu(false)} />
     {menu && <button className="mobile-scrim" onClick={() => setMenu(false)} aria-label="Close navigation" />}
     <div className="workspace"><Topbar active={active} open={() => setMenu(true)} expanded={menu} profile={profile} /><div className="page-transition" key={active}>{content}</div></div>
-    <nav className="bottom-nav">{[["Home", House], ["Goals", Target], ["Countdown", Timer], ["Settings", SlidersHorizontal]].map(([label, Icon]) => <button key={String(label)} aria-label={String(label)} aria-current={active === label ? "page" : undefined} className={active === label ? "active" : ""} onClick={() => setActive(String(label))}><Icon size={22} weight={active === label ? "fill" : "regular"} /></button>)}</nav>
+    <nav className="bottom-nav" aria-label="Mobile navigation">{mobilePrimaryNav.map(([label, Icon]) => <button key={label} aria-label={label} aria-current={active === label ? "page" : undefined} className={active === label ? "active" : ""} onClick={() => navigate(label)}><Icon size={20} weight={active === label ? "fill" : "regular"} /><span>{label}</span></button>)}<button aria-label="More sections" aria-expanded={mobileMoreOpen} className={mobileMoreOpen ? "active" : ""} onClick={() => setMobileMoreOpen((open) => !open)}><Rows size={20} weight="bold" /><span>More</span></button></nav>
+    {mobileMoreOpen && <><button className="mobile-more-scrim" onClick={() => setMobileMoreOpen(false)} aria-label="Close more sections" /><section className="mobile-more-menu" aria-label="More sections">{nav.filter(([label]) => !mobilePrimaryNav.some(([primary]) => primary === label)).map(([label, Icon]) => <button key={label} className={active === label ? "active" : ""} onClick={() => navigate(label)}><Icon size={18} weight={active === label ? "fill" : "regular"} /><span><strong>{label}</strong><small>Open section</small></span></button>)}</section></>}
     {manualOpen && <ManualTaskModal close={() => { setManualOpen(false); setManualDate(undefined); }} save={addTask} defaultDate={manualDate} preferences={preferences} />}
     {journalTask && <JournalModal task={journalTask} close={() => setJournalTask(null)} save={save} />}
     {mockOpen && <MockResultModal close={() => setMockOpen(false)} save={saveMock} />}

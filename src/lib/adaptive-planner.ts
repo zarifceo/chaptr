@@ -134,6 +134,7 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
       pinned: true,
       status: "planned",
       currentStep: 0,
+      workflowPhase: "revise",
       reason: `Revision due · ${mistake.errorType}`,
       priorityScore: 135 + overdueDays * 8 + (mistake.revisionCount ?? 0) * 4,
       focusedSeconds: 0,
