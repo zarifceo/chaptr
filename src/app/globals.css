@@ -4785,3 +4785,33 @@ label {
     grid-column: auto;
   }
 }
+
+
+.task-workflow-context {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 14px;
+  padding: 11px 12px;
+  border: 1px solid rgb(37 99 235 / .16);
+  border-radius: 10px;
+  background: rgb(239 246 255 / .72);
+}
+
+.task-workflow-context span {
+  color: var(--brand);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .08em;
+}
+
+.task-workflow-context strong {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.task-workflow-context small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
