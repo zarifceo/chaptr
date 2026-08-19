@@ -1197,6 +1197,42 @@ export type Database = {
         }
         Relationships: []
       }
+      study_workflow_presets: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          name: string
+          phase: string
+          steps: Json
+          subject_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          phase: string
+          steps?: Json
+          subject_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          phase?: string
+          steps?: Json
+          subject_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       subjects: {
         Row: {
           book_language: string

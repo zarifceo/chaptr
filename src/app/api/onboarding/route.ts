@@ -27,7 +27,16 @@ const learningPreferencesPatch = z.object({
 
 const studyWorkflow = z.object({
   phase: z.enum(["learn", "revise", "practice", "exam"]),
-  steps: z.array(z.string().trim().min(1).max(120)).min(1).max(8),
+  steps: z.array(z.string().trim().min(1).max(180)).min(1).max(8),
+});
+
+const workflowPreset = z.object({
+  id: z.string().uuid(),
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(240),
+  phase: z.enum(["learn", "revise", "practice", "exam"]),
+  subject_type: z.enum(["theory", "mathematical", "custom"]),
+  steps: z.array(z.string().trim().min(1).max(180)).min(1).max(8),
 });
 
 const examPlanPhase = z.object({
@@ -68,6 +77,7 @@ const profilePatch = z.object({
   learning_preferences: learningPreferencesPatch.optional(),
   subject_assessments: z.array(subjectAssessment).max(30).optional(),
   study_workflows: z.array(studyWorkflow).max(4).optional(),
+  study_workflow_presets: z.array(workflowPreset).max(30).optional(),
   exam_plan_phases: z.array(examPlanPhase).max(30).optional(),
 });
 
@@ -114,7 +124,7 @@ export async function POST(request: Request) {
   const parsed = profilePatch.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid onboarding profile" }, { status: 400 });
 
-  const { accept_policies: acceptPolicies, learning_preferences: learningPreferences, subject_assessments: subjectAssessments, study_workflows: studyWorkflows, exam_plan_phases: examPlanPhases, ...profileData } = parsed.data;
+  const { accept_policies: acceptPolicies, learning_preferences: learningPreferences, subject_assessments: subjectAssessments, study_workflows: studyWorkflows, study_workflow_presets: studyWorkflowPresets, exam_plan_phases: examPlanPhases, ...profileData } = parsed.data;
   const consent = acceptPolicies ? {
     terms_accepted_at: new Date().toISOString(),
     privacy_accepted_at: new Date().toISOString(),
@@ -140,17 +150,26 @@ export async function POST(request: Request) {
     const { error: workflowError } = await supabase.from("study_workflows").upsert(studyWorkflows.map((workflow) => ({ user_id: userId, phase: workflow.phase, steps: workflow.steps, updated_at: new Date().toISOString() })), { onConflict: "user_id,phase" });
     if (workflowError) return NextResponse.json({ error: workflowError.message }, { status: 400 });
   }
+  if (studyWorkflowPresets) {
+    const { error: deletePresetsError } = await supabase.from("study_workflow_presets").delete().eq("user_id", userId);
+    if (deletePresetsError) return NextResponse.json({ error: deletePresetsError.message }, { status: 400 });
+    if (studyWorkflowPresets.length) {
+      const { error: presetError } = await supabase.from("study_workflow_presets").insert(studyWorkflowPresets.map((preset) => ({ id: preset.id, user_id: userId, name: preset.name, description: preset.description, phase: preset.phase, subject_type: preset.subject_type, steps: preset.steps, updated_at: new Date().toISOString() })));
+      if (presetError) return NextResponse.json({ error: presetError.message }, { status: 400 });
+    }
+  }
   if (examPlanPhases) {
     const { error: deletePlanError } = await supabase.from("exam_plan_phases").delete().eq("user_id", userId);
     if (deletePlanError) return NextResponse.json({ error: deletePlanError.message }, { status: 400 });
     const { error: planError } = await supabase.from("exam_plan_phases").insert(examPlanPhases.map((phase) => ({ user_id: userId, ...phase, updated_at: new Date().toISOString() })));
     if (planError) return NextResponse.json({ error: planError.message }, { status: 400 });
   }
-  const [{ data: savedPreferences }, { data: savedAssessments }, { data: savedWorkflows }, { data: savedExamPlan }] = await Promise.all([
+  const [{ data: savedPreferences }, { data: savedAssessments }, { data: savedWorkflows }, { data: savedPresets }, { data: savedExamPlan }] = await Promise.all([
     supabase.from("learning_preferences").select("*").eq("user_id", userId).maybeSingle(),
     supabase.from("subject_assessments").select("*").eq("user_id", userId).order("subject_id"),
     supabase.from("study_workflows").select("*").eq("user_id", userId).order("phase"),
+    supabase.from("study_workflow_presets").select("*").eq("user_id", userId).order("created_at"),
     supabase.from("exam_plan_phases").select("*").eq("user_id", userId).order("phase_order"),
   ]);
-  return NextResponse.json({ profile: data, learning_preferences: savedPreferences, subject_assessments: savedAssessments ?? [], study_workflows: savedWorkflows ?? [], exam_plan_phases: savedExamPlan ?? [] }, { headers: noStoreHeaders });
+  return NextResponse.json({ profile: data, learning_preferences: savedPreferences, subject_assessments: savedAssessments ?? [], study_workflows: savedWorkflows ?? [], study_workflow_presets: savedPresets ?? [], exam_plan_phases: savedExamPlan ?? [] }, { headers: noStoreHeaders });
 }
