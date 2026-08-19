@@ -6,7 +6,7 @@ import {
   ArrowCounterClockwise, ArrowRight, BookOpen, Books, Brain, CalendarBlank, CalendarPlus, CaretDown, CaretLeft, CaretRight, CaretUp,
   ChartBar, Check, CheckCircle, Clock, CloudCheck, Exam, Headphones, House,
   EyeSlash, ListChecks, MagnifyingGlass, NotePencil, Pause, Play, Plus, PushPin, Rows,
-  Sigma, SignOut, SlidersHorizontal, Sparkle, Target, Timer, Warning, X,
+  SignOut, SlidersHorizontal, Sparkle, Target, Timer, Warning, X,
 } from "@phosphor-icons/react";
 import {
   chapters, marksDistributions, subjects, workflowSteps, replaceAcademicData, orderChapters,
@@ -23,17 +23,17 @@ import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { ExamCountdownCenter } from "@/components/exam-countdown";
 import { recommendedExamPlan, phaseDateLabel } from "@/lib/exam-plan";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import type { AdaptivePlanSummary, Chapter, ChapterPreference, CuratedTextbook, ExamEvent, ExamPlanPhase, JournalEntry, LearningMethod, LearningPreferences, MarksDistribution, MathsFormula, Mistake, MockResult, PlanningSettings, RecommendationFeedback, StudyResource, StudySession, StudyTask, Subject, SubjectAssessment, UserProfile, ChapterDifficulty } from "@/lib/types";
+import type { AdaptivePlanSummary, Chapter, ChapterPreference, CuratedTextbook, ExamEvent, ExamPlanPhase, JournalEntry, LearningMethod, LearningPreferences, MarksDistribution, Mistake, MockResult, PlanningSettings, RecommendationFeedback, StudyResource, StudySession, StudyTask, Subject, SubjectAssessment, UserProfile, ChapterDifficulty } from "@/lib/types";
 
 const nav = [
   ["Home", House], ["Syllabus", Books],
-  ["Goals", Target], ["Calendar", CalendarPlus], ["Journal", NotePencil], ["Progress", ChartBar], ["Maths Lab", Sigma],
+  ["Goals", Target], ["Calendar", CalendarPlus], ["Journal", NotePencil], ["Progress", ChartBar],
   ["Exam Mode", Exam], ["Resources", BookOpen], ["Countdown", Timer], ["Exam Plan", Exam], ["Settings", SlidersHorizontal],
 ] as const;
 
 const sectionRoutes: Record<string, string> = {
   Home: "/home", Syllabus: "/syllabus", Goals: "/goals", Calendar: "/calendar", Journal: "/journal", Progress: "/progress",
-  "Maths Lab": "/maths-lab", "Exam Mode": "/exam-mode", Resources: "/resources", Countdown: "/countdown", "Exam Plan": "/exam-plan", Settings: "/settings",
+"Exam Mode": "/exam-mode", Resources: "/resources", Countdown: "/countdown", "Exam Plan": "/exam-plan", Settings: "/settings",
 };
 const routeSections: Record<string, string> = Object.fromEntries(Object.entries(sectionRoutes).map(([label, path]) => [path.slice(1), label]));
 const mobilePrimaryNav = [["Home", House], ["Syllabus", Books], ["Goals", Target], ["Calendar", CalendarPlus]] as const;
@@ -278,7 +278,7 @@ function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents
     <section className="strategy-ribbon"><button onClick={() => go("Goals")}><Target weight="fill" /><span><small>SSC STRATEGY</small><strong>{preferences.filter((item) => item.includedForSsc && !item.excluded).length} selected</strong></span><CaretRight /></button><button onClick={() => go("Goals")}><CalendarPlus weight="fill" /><span><small>{monthLabel(currentMonthKey()).toUpperCase()}</small><strong>{preferences.filter((item) => item.targetMonth === currentMonthKey() && !item.excluded).length} chapter goals</strong></span><CaretRight /></button><button onClick={() => go("Syllabus")}><EyeSlash weight="fill" /><span><small>STRATEGICALLY SKIPPED</small><strong>{preferences.filter((item) => item.excluded).length} excluded</strong></span><CaretRight /></button><button onClick={() => go("Countdown")}><Timer weight="fill" /><span><small>NEXT DEADLINE</small><strong>{examEvents.find((event) => event.id === "ssc")?.name ?? "Exam countdown"}</strong></span><CaretRight /></button></section>
     <section className="dashboard-grid">
       <article className="panel weekly"><SectionTitle kicker="LIVE EVIDENCE" title="Work that protects your result" /><div className="bars">{weeklyBars.map(([label, value, tone]) => <div key={label}><span>{label}</span><i><b className={tone} style={{ width: `${value}%` }} /></i><strong>{value}%</strong></div>)}</div></article>
-      <article className="panel risks"><SectionTitle kicker="URGENT" title="Repair queue"><Warning weight="fill" /></SectionTitle>{[["Maths", `${openMaths} open mistake${openMaths === 1 ? "" : "s"} need reattempts`, "lilac"], ["Agriculture", `${readiness("agriculture")}% readiness · deliberate exposure`, "mint"], ["Accounting", `${readiness("accounting")}% readiness · concepts plus practice`, "yellow"]].map(([name, note, tone]) => <button key={name} onClick={() => go(name === "Maths" ? "Maths Lab" : "Syllabus")}><i className={tone} /><span><strong>{name}</strong><small>{note}</small></span><CaretRight /></button>)}</article>
+      <article className="panel risks"><SectionTitle kicker="URGENT" title="Repair queue"><Warning weight="fill" /></SectionTitle>{[["Maths", `${openMaths} open mistake${openMaths === 1 ? "" : "s"} need reattempts`, "lilac"], ["Agriculture", `${readiness("agriculture")}% readiness · deliberate exposure`, "mint"], ["Accounting", `${readiness("accounting")}% readiness · concepts plus practice`, "yellow"]].map(([name, note, tone]) => <button key={name} onClick={() => go("Syllabus")}><i className={tone} /><span><strong>{name}</strong><small>{note}</small></span><CaretRight /></button>)}</article>
     </section>
     <section className="panel queue"><SectionTitle kicker="TODAY" title="Recommended queue"><button onClick={() => document.getElementById("daily-loop")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Open full day <ArrowRight /></button></SectionTitle>{visible.slice(0, 4).map((task, index) => <div key={task.id}><span className={`number ${bySubject(task.subjectId).accent}`}>{index + 1}</span><p><strong>{bySubject(task.subjectId).shortName}</strong><small>{task.title}</small></p><time>{task.plannedTime}</time><b>{task.duration}m</b></div>)}</section>
   </section>;
@@ -580,28 +580,6 @@ function RevisionModal({ mistake, close, save }: { mistake: Mistake; close: () =
   return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="revision-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form onSubmit={(event) => { event.preventDefault(); save(outcome, note); }}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>DELIBERATE RETRIEVAL</small><h2 id="revision-title">Reattempt this mistake</h2><p className="revision-prompt">{mistake.prompt}</p><small>{byChapter(mistake.chapterId).title} · {mistake.errorType} · {mistake.revisionCount ?? 0} previous attempt{(mistake.revisionCount ?? 0) === 1 ? "" : "s"}</small><label>What happened?<select autoFocus value={outcome} onChange={(event) => setOutcome(event.target.value as "solved" | "needs-work")}><option value="solved">Solved without help</option><option value="needs-work">Still needs work</option></select></label><label>Revision note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="What made the answer work, or where did you get stuck?" /></label><p className="revision-next">{outcome === "solved" ? "Closes this item and schedules a light 7-day check." : `Keeps it open and schedules another focused attempt in ${delay} day${delay === 1 ? "" : "s"}.`}</p><button className="solid-cta"><CheckCircle weight="fill" />Save revision attempt</button></form></div>;
 }
 
-function MathsLab({ mistakes, chapters, formulas, review, goToday }: { mistakes: Mistake[]; chapters: Chapter[]; formulas: MathsFormula[]; review: (mistake: Mistake) => void; goToday: () => void }) {
-  const divisions: MathsFormula["division"][] = ["Core basics", "Algebra", "Geometry", "Trigonometry & Mensuration", "Statistics"];
-  const [division, setDivision] = useState<MathsFormula["division"]>("Core basics");
-  const [chapterFilter, setChapterFilter] = useState("all");
-  const [query, setQuery] = useState("");
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const openMistakes = mistakes.filter((mistake) => !mistake.resolved);
-  const chapterName = (chapterId?: string) => chapterId ? chapters.find((chapter) => chapter.id === chapterId)?.title ?? "Linked chapter" : "Core reference";
-  const chapterOptions = orderChapters(chapters.filter((chapter) => chapter.subjectId === "mathematics" && formulas.some((formula) => formula.chapterId === chapter.id)));
-  const visibleFormulas = formulas.filter((formula) => formula.division === division && (chapterFilter === "all" || formula.chapterId === chapterFilter) && `${formula.title} ${formula.expression} ${formula.explanation} ${formula.tags.join(" ")}`.toLowerCase().includes(query.toLowerCase()));
-  const copyFormula = async (formula: MathsFormula) => {
-    try {
-      await navigator.clipboard?.writeText(`${formula.title}\n${formula.expression}`);
-      setCopiedId(formula.id);
-      window.setTimeout(() => setCopiedId((current) => current === formula.id ? null : current), 1600);
-    } catch {
-      setCopiedId(null);
-    }
-  };
-  return <main id="main-content" tabIndex={-1} className="page maths-lab-page"><SectionTitle kicker="FORMULAS + TARGETED REPAIR" title="Maths Lab"><span className="open-count">{openMistakes.length} repair{openMistakes.length === 1 ? "" : "s"}</span></SectionTitle><section className="maths-lab-thesis"><div><small>ONE PLACE TO LOOK BEFORE YOU SOLVE</small><h3>Find the formula, then use it on a real question.</h3><p>Choose the part of the syllabus you are studying. The reference is organized by division and linked to the chapters where each formula matters.</p></div><button className="solid-cta" onClick={() => openMistakes[0] ? review(openMistakes[0]) : goToday()}>{openMistakes[0] ? <><Timer />Repair first mistake</> : <><ArrowRight />Open today&apos;s work</>}</button></section><section className="maths-lab-grid"><section className="formula-hub"><div className="formula-hub-heading"><div><small>REFERENCE SET</small><h3>Formula collections</h3></div><label className="formula-search"><MagnifyingGlass /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search a formula or tag" aria-label="Search a formula or tag" /></label></div><div className="formula-division-tabs" role="tablist" aria-label="Formula divisions">{divisions.map((item) => <button type="button" role="tab" aria-selected={division === item} className={division === item ? "active" : ""} key={item} onClick={() => { setDivision(item); setChapterFilter("all"); }}>{item}<small>{formulas.filter((formula) => formula.division === item).length}</small></button>)}</div>{division !== "Core basics" && <div className="formula-chapter-tabs" aria-label="Filter formulas by chapter"><button type="button" className={chapterFilter === "all" ? "active" : ""} onClick={() => setChapterFilter("all")}>All chapters</button>{chapterOptions.filter((chapter) => formulas.some((formula) => formula.division === division && formula.chapterId === chapter.id)).map((chapter) => <button type="button" className={chapterFilter === chapter.id ? "active" : ""} key={chapter.id} onClick={() => setChapterFilter(chapter.id)}>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</button>)}</div>}<div className="formula-list">{visibleFormulas.length ? visibleFormulas.map((formula) => <article className="formula-card" key={formula.id}><div className="formula-card-meta"><span>{chapterName(formula.chapterId)}</span><button type="button" onClick={() => copyFormula(formula)}>{copiedId === formula.id ? "Copied" : "Copy formula"}</button></div><h4>{formula.title}</h4><pre>{formula.expression}</pre><p>{formula.explanation}</p><div className="formula-tags">{formula.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></article>) : <article className="formula-empty"><CheckCircle /><strong>No formula matches this filter.</strong><p>Try another division, chapter, or search term.</p></article>}</div></section><aside className="maths-lab-rail"><section className="maths-quick-routine"><small>USE IT, DON&apos;T JUST READ IT</small><h3>A 10-minute formula loop</h3><ol><li>Pick one formula set.</li><li>Say what each symbol means.</li><li>Solve one question without looking.</li><li>Log the mistake if you get stuck.</li></ol><button onClick={goToday}><ArrowRight />Open today&apos;s task</button></section><section className="maths-repair-queue"><div className="rail-heading"><div><small>REPAIR QUEUE</small><h3>{openMistakes.length ? `${openMistakes.length} open item${openMistakes.length === 1 ? "" : "s"}` : "No open mistakes"}</h3></div><Timer /></div>{openMistakes.length ? <div>{openMistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => review(mistake)}><span>{chapterName(mistake.chapterId)}</span><strong>{mistake.prompt}</strong><small>Start reattempt <ArrowRight /></small></button>)}</div> : <p>When a Maths journal entry records a difficult concept, it will appear here for a deliberate reattempt.</p>}</section></aside></section></main>;
-}
-
 function ExamPlan({ plan, save }: { plan: ExamPlanPhase[]; save: (phases: ExamPlanPhase[]) => Promise<void> }) {
   const defaultPlan = recommendedExamPlan("2027-01-07");
   const [draft, setDraft] = useState<ExamPlanPhase[]>(() => plan.length ? plan : defaultPlan);
@@ -830,7 +808,6 @@ export default function CommandCenter() {
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [resources, setResources] = useState<StudyResource[]>([]);
   const [curatedTextbooks, setCuratedTextbooks] = useState<CuratedTextbook[]>([]);
-  const [mathsFormulas, setMathsFormulas] = useState<MathsFormula[]>([]);
   const [examPlan, setExamPlan] = useState<ExamPlanPhase[]>([]);
   const [examEvents, setExamEvents] = useState<ExamEvent[]>([]);
   const [planning, setPlanning] = useState<PlanningSettings>({ mainStart: "15:00", mainEnd: "19:00", mathStart: "20:00", mathEnd: "22:00", dailyTarget: 240, mathDaysPerWeek: 6, agricultureDaysPerWeek: 4, remindersEnabled: false });
@@ -879,7 +856,6 @@ export default function CommandCenter() {
       const loadedMarks: MarksDistribution[] = (data.marks_distributions ?? []).map((row) => ({ subjectId: String(row.subject_id), part: row.part ? String(row.part) : undefined, questionType: String(row.question_type), rule: String(row.choice_rule), marks: Number(row.marks) }));
       const loadedExams = (data.exams ?? []).map((row) => ({ id: String(row.id), name: String(row.name), start: String(row.starts_on), end: String(row.ends_on) }));
       const loadedWorkflows = Object.fromEntries((data.workflow_steps ?? []).map((row) => [String(row.workflow_kind), Array.isArray(row.steps) ? row.steps.map(String) : []])) as unknown as typeof workflowSteps;
-      setMathsFormulas((data.maths_formulas ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: row.chapter_id ? String(row.chapter_id) : undefined, division: String(row.division) as MathsFormula["division"], title: String(row.title), expression: String(row.expression), explanation: String(row.explanation), tags: Array.isArray(row.tags) ? row.tags.map(String) : [], sortOrder: Number(row.sort_order ?? 0) })).sort((a, b) => a.sortOrder - b.sortOrder));
       setCuratedTextbooks((data.curated_textbooks ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), title: String(row.title), board: String(row.board ?? "NCTB"), academicYear: Number(row.academic_year), language: "bn" as const, studyGroup: row.study_group as CuratedTextbook["studyGroup"], religionSubject: row.religion_subject as CuratedTextbook["religionSubject"], fourthSubject: row.fourth_subject as CuratedTextbook["fourthSubject"], url: String(row.url), alternateUrl: row.alternate_url ? String(row.alternate_url) : undefined, sourcePage: String(row.source_page), sourceLabel: String(row.source_label), note: row.note ? String(row.note) : undefined, sortOrder: Number(row.sort_order ?? 0) })).sort((a, b) => a.sortOrder - b.sortOrder));
       setExamPlan((data.exam_plan_phases ?? []).map((row) => ({ id: String(row.id), title: String(row.title), start: String(row.starts_on), end: String(row.ends_on), objective: String(row.objective ?? ""), order: Number(row.phase_order ?? 0) })).sort((a, b) => a.order - b.order));
       replaceAcademicData({ subjects: loadedSubjects, chapters: loadedChapters, marksDistributions: loadedMarks, exams: loadedExams, workflowSteps: loadedWorkflows });
@@ -1248,7 +1224,6 @@ export default function CommandCenter() {
       case "Calendar": return <StudyCalendar tasks={tasks} preferences={preferences} update={updateTask} add={openManual} openTask={(task) => { setFocusTaskId(task.id); navigate("Home"); }} onSynced={reloadTasks} />;
       case "Journal": return <Journal entries={entries} add={() => openJournalEntry()} />;
       case "Progress": return <Progress entries={entries} list={chapterList} mocks={mocks} addMock={() => setMockOpen(true)} sessions={sessions} tasks={tasks} />;
-      case "Maths Lab": return <MathsLab mistakes={mistakes} chapters={chapterList} formulas={mathsFormulas} review={setRevisionMistake} goToday={() => navigate("Home")} />;
       case "Exam Mode": return <ExamModeFocus tasks={tasks} activeTaskId={focusTaskId} onClose={() => navigate("Home")} onSaveSession={saveSession} onUpdateTask={updateTask} />;
       case "Resources": return <ResourceLibrary resources={resources.filter((resource) => !resource.archived)} curatedTextbooks={curatedTextbooks} chapters={chapterList} initialChapterId={resourceChapterId} save={saveResource} remove={removeResource} upload={uploadResource} open={openResource} />;
       case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => navigate("Home")} />;

@@ -6,7 +6,6 @@ const sections = [
   "calendar",
   "journal",
   "progress",
-  "maths-lab",
   "exam-mode",
   "resources",
   "countdown",
