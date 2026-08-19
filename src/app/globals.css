@@ -4788,49 +4788,31 @@ label {
 
 
 .task-workflow-context {
-  display: grid;
-  gap: 5px;
-  margin: 0 0 14px;
-  padding: 11px 12px;
-  border: 1px solid rgb(37 99 235 / .16);
-  border-radius: 10px;
-  background: rgb(239 246 255 / .72);
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 0 0 12px;
+  padding: 7px 10px;
+  border: 1px solid rgb(37 99 235 / .12);
+  border-radius: 8px;
+  background: rgb(239 246 255 / .55);
 }
 
 .task-workflow-context span {
   color: var(--brand);
   font-size: 9px;
   font-weight: 850;
-  letter-spacing: .08em;
+  letter-spacing: .07em;
+  white-space: nowrap;
 }
 
 .task-workflow-context strong {
-  color: var(--text);
-  font-size: 12px;
-  line-height: 1.4;
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .task-workflow-context small {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-
-/* Keep compact settings cards content-sized instead of stretching to the tallest grid item. */
-.settings {
-  align-items: start;
-}
-
-.settings-editor.adaptive-settings {
-  align-self: start;
-  min-height: 0;
-}
-
-.settings-editor.adaptive-settings > p {
-  min-height: 0;
-}
-
-.settings-editor.adaptive-settings > .inline-fields {
-  align-items: start;
+  display: none;
 }
