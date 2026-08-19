@@ -141,6 +141,7 @@ export interface StudySession {
 }
 
 export type ResourceKind = "textbook" | "question-bank" | "video" | "notes" | "website" | "other";
+export type ResourceSource = "url" | "upload";
 
 export interface StudyResource {
   id: string;
@@ -149,10 +150,29 @@ export interface StudyResource {
   title: string;
   url: string;
   kind: ResourceKind;
+  source: ResourceSource;
+  storagePath?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileSize?: number;
   note?: string;
   createdAt: string;
   updatedAt: string;
   archived?: boolean;
+}
+
+export interface CuratedTextbook {
+  id: string;
+  subjectId: string;
+  title: string;
+  board: string;
+  academicYear: number;
+  url: string;
+  alternateUrl?: string;
+  sourcePage: string;
+  sourceLabel: string;
+  note?: string;
+  sortOrder: number;
 }
 
 export type ExamEventKind = "official" | "school" | "mock" | "custom";
