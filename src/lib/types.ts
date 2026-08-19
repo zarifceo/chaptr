@@ -2,6 +2,10 @@ export type StrengthLevel = "strongest" | "very-strong" | "moderate" | "toughest
 export type MasteryStatus = "not-started" | "learning" | "practising" | "exam-ready" | "needs-revision";
 export type ChapterDifficulty = 1 | 2 | 3 | 4 | 5;
 export type WorkflowKind = "notebooklm" | "accounting" | "bangla-1" | "bangla-2" | "english" | "mathematics";
+export type StudyGroup = "science" | "commerce" | "humanities";
+export type ReligionSubject = "islam" | "hinduism" | "buddhism" | "christianity";
+export type FourthSubject = "higher-mathematics" | "agriculture" | "home-science";
+export type SubjectCategory = "common" | "group" | "religion" | "fourth";
 
 export interface Subject {
   id: string;
@@ -11,6 +15,11 @@ export interface Subject {
   weaknessScore: number;
   workflow: WorkflowKind;
   accent: "lilac" | "mint" | "yellow" | "pink" | "blue";
+  category?: SubjectCategory;
+  studyGroup?: StudyGroup;
+  religionSubject?: ReligionSubject;
+  fourthSubject?: FourthSubject;
+  bookLanguage?: "bn";
 }
 
 export interface Chapter {
@@ -167,6 +176,10 @@ export interface CuratedTextbook {
   title: string;
   board: string;
   academicYear: number;
+  language?: "bn";
+  studyGroup?: StudyGroup;
+  religionSubject?: ReligionSubject;
+  fourthSubject?: FourthSubject;
   url: string;
   alternateUrl?: string;
   sourcePage: string;
@@ -270,6 +283,12 @@ export interface UserProfile {
   board: string;
   examYear: number;
   selectedSubjects: string[];
+  studyGroup?: StudyGroup;
+  religionSubject?: ReligionSubject;
+  fourthSubject?: FourthSubject;
+  academicYear?: number;
+  bookLanguage?: "bn";
+  academicProfileCompleted: boolean;
   dailyTarget: number;
   mainStart: string;
   mainEnd: string;

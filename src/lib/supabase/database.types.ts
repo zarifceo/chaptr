@@ -16,54 +16,72 @@ export type Database = {
     Tables: {
       user_profiles: {
         Row: {
+          academic_profile_completed: boolean
+          academic_year: number
+          book_language: string
           board: string
           created_at: string
           daily_target: number
           display_name: string | null
           exam_year: number
+          fourth_subject_id: string | null
           main_end: string
           main_start: string
           onboarding_completed: boolean
           onboarding_step: number
           privacy_accepted_at: string | null
           privacy_version: string | null
+          religion_subject_id: string | null
           selected_subjects: string[]
+          study_group: string | null
           terms_accepted_at: string | null
           terms_version: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          academic_profile_completed?: boolean
+          academic_year?: number
+          book_language?: string
           board?: string
           created_at?: string
           daily_target?: number
           display_name?: string | null
           exam_year?: number
+          fourth_subject_id?: string | null
           main_end?: string
           main_start?: string
           onboarding_completed?: boolean
           onboarding_step?: number
           privacy_accepted_at?: string | null
           privacy_version?: string | null
+          religion_subject_id?: string | null
           selected_subjects?: string[]
+          study_group?: string | null
           terms_accepted_at?: string | null
           terms_version?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          academic_profile_completed?: boolean
+          academic_year?: number
+          book_language?: string
           board?: string
           created_at?: string
           daily_target?: number
           display_name?: string | null
           exam_year?: number
+          fourth_subject_id?: string | null
           main_end?: string
           main_start?: string
           onboarding_completed?: boolean
           onboarding_step?: number
           privacy_accepted_at?: string | null
           privacy_version?: string | null
+          religion_subject_id?: string | null
           selected_subjects?: string[]
+          study_group?: string | null
           terms_accepted_at?: string | null
           terms_version?: string | null
           updated_at?: string
@@ -756,11 +774,15 @@ export type Database = {
           alternate_url: string | null
           board: string
           created_at: string
+          fourth_subject: string | null
           id: string
+          language: string
           note: string | null
+          religion_subject: string | null
           sort_order: number
           source_label: string
           source_page: string
+          study_group: string | null
           subject_id: string
           title: string
           updated_at: string
@@ -772,11 +794,15 @@ export type Database = {
           alternate_url?: string | null
           board?: string
           created_at?: string
+          fourth_subject?: string | null
           id: string
+          language?: string
           note?: string | null
+          religion_subject?: string | null
           sort_order?: number
           source_label?: string
           source_page: string
+          study_group?: string | null
           subject_id: string
           title: string
           updated_at?: string
@@ -788,11 +814,15 @@ export type Database = {
           alternate_url?: string | null
           board?: string
           created_at?: string
+          fourth_subject?: string | null
           id?: string
+          language?: string
           note?: string | null
+          religion_subject?: string | null
           sort_order?: number
           source_label?: string
           source_page?: string
+          study_group?: string | null
           subject_id?: string
           title?: string
           updated_at?: string
@@ -1169,33 +1199,48 @@ export type Database = {
       }
       subjects: {
         Row: {
+          book_language: string
+          category: string
           created_at: string
+          fourth_subject: string | null
           id: string
           maintenance_target: number
           name: string
           priority: number
+          religion_subject: string | null
           short_name: string
           strength_level: string
+          study_group: string | null
           workflow_kind: string
         }
         Insert: {
+          book_language?: string
+          category?: string
           created_at?: string
+          fourth_subject?: string | null
           id: string
           maintenance_target?: number
           name: string
           priority?: number
+          religion_subject?: string | null
           short_name: string
           strength_level: string
+          study_group?: string | null
           workflow_kind: string
         }
         Update: {
+          book_language?: string
+          category?: string
           created_at?: string
+          fourth_subject?: string | null
           id?: string
           maintenance_target?: number
           name?: string
           priority?: number
+          religion_subject?: string | null
           short_name?: string
           strength_level?: string
+          study_group?: string | null
           workflow_kind?: string
         }
         Relationships: []
