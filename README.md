@@ -24,3 +24,4 @@ This project uses [`next/font`](https://vercel.com/font), a Sora-based font fami
 
 <!-- Adaptive study planning is backed by Supabase. -->
 <!-- UI deployment trigger: control polish -->
+<!-- Schema and Home card repair deployment trigger -->
