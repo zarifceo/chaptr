@@ -239,7 +239,7 @@ function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents
   const strongReadiness = Math.round(strongIds.reduce((sum, id) => sum + readiness(id), 0) / strongIds.length);
   const weeklyBars: [string, number, string][] = [["Mathematics", readiness("mathematics"), "lilac"], ["Agriculture", readiness("agriculture"), "mint"], ["Written practice", writtenPractice, "pink"], ["Strong subjects", strongReadiness, "yellow"]];
   const openMaths = mistakes.filter((item) => !item.resolved).length;
-  const nextExam = [...examEvents].sort((a, b) => a.start.localeCompare(b.start))[0];
+  const countdownEvents = [...examEvents].sort((a, b) => a.start.localeCompare(b.start)).slice(0, 2);
   return <section className="dashboard-page home-section">
     <section className="hero-grid">
       <article className="priority-hero">
@@ -250,7 +250,7 @@ function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents
         <Button size="lg" className="solid-cta" onClick={() => startStudy(first)}><Play weight="fill" />Start study flow</Button>
         <Brain className="hero-art" weight="duotone" />
       </article>
-      <div className="countdown-stack">{nextExam ? <Countdown name={nextExam.name} date={nextExam.start} tone="lilac" /> : <article className="panel empty compact"><Timer /><p>No exam events yet. Add one in Countdown.</p></article>}</div>
+      <div className="countdown-stack">{countdownEvents.length ? countdownEvents.map((event, index) => <Countdown key={event.id} name={event.name} date={event.start} tone={index === 0 ? "lilac" : "mint"} />) : <article className="panel empty compact"><Timer /><p>No exam events yet. Add one in Countdown.</p></article>}</div>
     </section>
     <section className="strategy-ribbon"><button onClick={() => go("Goals")}><Target weight="fill" /><span><small>SSC STRATEGY</small><strong>{preferences.filter((item) => item.includedForSsc && !item.excluded).length} selected</strong></span><CaretRight /></button><button onClick={() => go("Goals")}><CalendarPlus weight="fill" /><span><small>{monthLabel(currentMonthKey()).toUpperCase()}</small><strong>{preferences.filter((item) => item.targetMonth === currentMonthKey() && !item.excluded).length} chapter goals</strong></span><CaretRight /></button><button onClick={() => go("Syllabus")}><EyeSlash weight="fill" /><span><small>STRATEGICALLY SKIPPED</small><strong>{preferences.filter((item) => item.excluded).length} excluded</strong></span><CaretRight /></button><button onClick={() => go("Countdown")}><Timer weight="fill" /><span><small>NEXT DEADLINE</small><strong>{examEvents.find((event) => event.id === "ssc")?.name ?? "Exam countdown"}</strong></span><CaretRight /></button></section>
     <section className="dashboard-grid">

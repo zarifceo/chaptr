@@ -2457,3 +2457,291 @@ label {
     height: 38px;
   }
 }
+
+
+/* Home correction: keep countdowns separate, bright, and structurally quiet. */
+.countdown-stack {
+  align-content: start;
+  grid-auto-rows: minmax(136px, auto);
+}
+
+.countdown-stack .countdown {
+  min-height: 136px;
+  padding: 22px;
+  border: 1px solid var(--stroke) !important;
+  border-radius: 18px !important;
+  background: var(--surface-1) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .045) !important;
+}
+
+.countdown-stack .countdown > svg {
+  width: 44px;
+  height: 44px;
+  padding: 11px;
+  border-radius: 12px;
+  background: var(--primary-soft) !important;
+}
+
+.countdown-stack .countdown small,
+.countdown-stack .countdown span,
+.countdown-stack .countdown strong em {
+  color: var(--ink-3) !important;
+}
+
+.countdown-stack .countdown strong {
+  color: var(--ink-1) !important;
+  font-size: 38px;
+  letter-spacing: -.06em;
+}
+
+.countdown-stack .countdown.lilac strong,
+.countdown-stack .countdown.lilac > svg {
+  color: #315efb !important;
+}
+
+.countdown-stack .countdown.mint strong,
+.countdown-stack .countdown.mint > svg {
+  color: #0e938c !important;
+}
+
+/* The Do Now card is a content surface, not a second hero. */
+.daily-loop-section .daily-task-card {
+  padding: 18px !important;
+  border: 1px solid var(--stroke) !important;
+  border-radius: 18px !important;
+  background: var(--surface-1) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .045) !important;
+}
+
+.daily-loop-section .daily-task-card.featured {
+  border-color: #c9d6ff !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%) !important;
+}
+
+.daily-loop-section .daily-task-meta {
+  min-height: 28px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--stroke);
+}
+
+.daily-loop-section .daily-task-meta span {
+  color: var(--brand) !important;
+  font-size: 10px;
+  letter-spacing: .12em;
+}
+
+.daily-loop-section .daily-task-meta small {
+  color: var(--ink-3) !important;
+  font-size: 11px;
+}
+
+.daily-loop-section .task-heading {
+  margin-top: 14px !important;
+}
+
+.daily-loop-section .task-summary {
+  min-height: 66px;
+  grid-template-columns: 44px minmax(0, 1fr) 40px;
+  gap: 12px;
+  padding: 0 !important;
+}
+
+.daily-loop-section .task-summary .subject-token {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--primary-soft) !important;
+  color: var(--brand) !important;
+}
+
+.daily-loop-section .task-summary strong {
+  color: var(--ink-1) !important;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.daily-loop-section .task-summary em {
+  color: var(--ink-3) !important;
+  font-size: 11px;
+}
+
+.daily-loop-section .remove-today {
+  width: 40px;
+  height: 40px;
+  justify-self: end;
+  border: 1px solid var(--stroke-strong) !important;
+  border-radius: 11px !important;
+  background: var(--surface-1) !important;
+  color: var(--ink-3) !important;
+}
+
+.daily-loop-section .remove-today:hover,
+.daily-loop-section .remove-today:focus-visible {
+  border-color: #f0a4b5 !important;
+  background: #fff5f7 !important;
+  color: #c2415b !important;
+}
+
+.daily-loop-section .method-note {
+  min-height: 40px;
+  margin: 12px 0 !important;
+  padding: 9px 12px !important;
+  border: 1px solid var(--stroke) !important;
+  border-radius: 11px !important;
+  background: var(--surface-2) !important;
+}
+
+.daily-loop-section .method-note span {
+  color: var(--ink-3) !important;
+  font-size: 10px;
+}
+
+.daily-loop-section .method-note strong {
+  color: var(--ink-1) !important;
+  font-size: 11px;
+}
+
+.daily-loop-section .timer-box {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  margin: 0 0 10px !important;
+  padding: 10px 12px !important;
+  border: 1px solid var(--stroke) !important;
+  border-radius: 13px !important;
+  background: var(--surface-2) !important;
+}
+
+.daily-loop-section .timer-box strong {
+  color: var(--ink-1) !important;
+  font-size: 20px;
+}
+
+.daily-loop-section .timer-box button,
+.daily-loop-section .task-actions button,
+.daily-loop-section .recommendation-feedback button,
+.daily-loop-section .finish {
+  min-height: 38px;
+  padding: 9px 12px !important;
+  border: 1px solid var(--stroke-strong) !important;
+  border-radius: 10px !important;
+  background: var(--surface-1) !important;
+  color: var(--ink-2) !important;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.daily-loop-section .timer-box button.primary,
+.daily-loop-section .task-actions button.pinned,
+.daily-loop-section .study-step.current > button {
+  border-color: var(--brand) !important;
+  background: var(--brand) !important;
+  color: #ffffff !important;
+}
+
+.daily-loop-section .task-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px !important;
+}
+
+.daily-loop-section .task-actions input {
+  width: 112px;
+  min-height: 38px;
+  padding: 9px 11px !important;
+  border: 1px solid var(--stroke-strong) !important;
+  border-radius: 10px !important;
+  background: var(--surface-1) !important;
+  color: var(--ink-1) !important;
+}
+
+.daily-loop-section .steps {
+  margin: 0 !important;
+  padding: 0 !important;
+  border-top: 1px solid var(--stroke);
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.daily-loop-section .study-step {
+  min-height: 64px;
+  grid-template-columns: 28px 40px minmax(0, 1fr) auto;
+  gap: 10px;
+  border-top: 0;
+  border-bottom: 1px solid var(--stroke);
+}
+
+.daily-loop-section .study-step:last-child {
+  border-bottom: 0;
+}
+
+.daily-loop-section .study-step .node {
+  width: 20px;
+  height: 20px;
+}
+
+.daily-loop-section .study-step .step-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--surface-2) !important;
+  color: var(--ink-3) !important;
+}
+
+.daily-loop-section .study-step p strong {
+  color: var(--ink-1) !important;
+  font-size: 13px;
+}
+
+.daily-loop-section .study-step p small,
+.daily-loop-section .study-step > em {
+  color: var(--ink-3) !important;
+  font-size: 11px;
+}
+
+.daily-loop-section .study-step.current > button {
+  min-width: 132px;
+  justify-content: center;
+  border-radius: 10px !important;
+}
+
+.daily-loop-section .finish {
+  width: 100%;
+  justify-content: center;
+  margin: 14px 0 0 !important;
+}
+
+.daily-loop-section .finish:hover,
+.daily-loop-section .timer-box button:hover,
+.daily-loop-section .task-actions button:hover,
+.daily-loop-section .recommendation-feedback button:hover {
+  border-color: #b9cdf8 !important;
+  background: var(--primary-soft) !important;
+  color: var(--brand) !important;
+}
+
+@media (max-width: 640px) {
+  .countdown-stack {
+    grid-template-columns: 1fr !important;
+  }
+
+  .daily-loop-section .study-step {
+    grid-template-columns: 25px 36px minmax(0, 1fr);
+    min-height: 68px;
+  }
+
+  .daily-loop-section .study-step.current > button {
+    grid-column: 3;
+    justify-self: start;
+    min-width: 0;
+    margin-top: 4px;
+  }
+
+  .daily-loop-section .study-step > em {
+    grid-column: 3;
+    justify-self: start;
+  }
+}
