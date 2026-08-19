@@ -232,6 +232,18 @@ export type PlanStrictness = "flexible" | "balanced" | "strict";
 export type StartingPoint = "comfortable" | "mixed" | "difficult" | "uncertain";
 export type RecommendationFeedbackType = "useful" | "too-easy" | "too-hard" | "not-useful" | "not-today";
 export type StudyPhase = "learn" | "revise" | "practice" | "exam";
+export type WorkflowPresetSubjectType = "theory" | "mathematical" | "custom";
+
+export interface WorkflowPreset {
+  id: string;
+  name: string;
+  description: string;
+  phase: StudyPhase;
+  subjectType: WorkflowPresetSubjectType;
+  steps: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export interface LearningPreferences {
   userId: string;

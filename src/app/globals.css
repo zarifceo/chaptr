@@ -4655,3 +4655,133 @@ label {
     width: min(360px, calc(100vw - 32px));
   }
 }
+
+
+/* Reusable workflow presets */
+.workflow-preset-library {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 14px 0 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-muted);
+}
+
+.workflow-preset-library > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.workflow-preset-library > div > small {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.workflow-preset-library > button,
+.workflow-editor-actions button {
+  white-space: nowrap;
+}
+
+.workflow-preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workflow-preset-list button {
+  display: grid;
+  gap: 3px;
+  min-width: 180px;
+  max-width: 260px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.workflow-preset-list button:hover,
+.workflow-preset-list button.active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.workflow-preset-list button strong {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-preset-list button span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.workflow-preset-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(220px, .7fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.workflow-preset-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.workflow-preset-fields label.wide {
+  grid-column: 1 / -1;
+}
+
+.workflow-preset-fields label > input,
+.workflow-preset-fields label > select,
+.workflow-preset-fields label > textarea {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.workflow-preset-fields label > textarea {
+  min-height: 66px;
+  resize: vertical;
+}
+
+.workflow-preset-fields label > input:focus-visible,
+.workflow-preset-fields label > select:focus-visible,
+.workflow-preset-fields label > textarea:focus-visible {
+  outline: 3px solid rgb(37 99 235 / .16);
+  outline-offset: 1px;
+  border-color: var(--brand);
+}
+
+@media (max-width: 720px) {
+  .workflow-preset-library {
+    display: grid;
+  }
+
+  .workflow-preset-library > button {
+    justify-self: start;
+  }
+
+  .workflow-preset-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-preset-fields label.wide {
+    grid-column: auto;
+  }
+}
