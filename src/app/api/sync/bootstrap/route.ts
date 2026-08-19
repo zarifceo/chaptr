@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ensureAcademicData } from "@/lib/seed-academics";
 import { recommendedWorkflows, studyPhases } from "@/lib/study-workflows";
+import { commonSubjectIds, groupSubjectIds } from "@/lib/academic-profile";
 
 const referenceTables = ["subjects", "chapters", "marks_distributions", "workflow_steps", "exams", "maths_formulas", "curated_textbooks"] as const;
 const userTables = ["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources", "exam_events", "exam_plan_phases", "planning_settings", "adaptive_plan_summaries", "user_profiles", "learning_preferences", "subject_assessments", "recommendation_feedback", "study_workflows"] as const;
@@ -22,11 +23,25 @@ export async function GET() {
   const userId = claims?.claims?.sub;
   if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: noStoreHeaders });
 
+  const { data: loadedProfile } = await supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle();
+  const profile = loadedProfile ?? (await supabase.from("user_profiles").upsert({ user_id: userId, selected_subjects: [], onboarding_step: 0, onboarding_completed: false, academic_profile_completed: false, book_language: "bn", academic_year: 2026 }).select("*").single()).data;
+  const activeSubjectIds = new Set<string>(commonSubjectIds);
+  if (profile?.academic_profile_completed && profile.study_group && profile.religion_subject_id && profile.fourth_subject_id) {
+    groupSubjectIds[profile.study_group as keyof typeof groupSubjectIds]?.forEach((id) => activeSubjectIds.add(id));
+    activeSubjectIds.add(String(profile.religion_subject_id));
+    activeSubjectIds.add(String(profile.fourth_subject_id));
+  }
+
   const referenceResults = await Promise.all(referenceTables.map(async (table) => {
     const { data, error } = await supabase.from(table).select("*");
     return [table, error ? [] : data ?? []] as const;
   }));
   const reference = Object.fromEntries(referenceResults) as Record<string, Record<string, unknown>[]>;
+  reference.subjects = (reference.subjects ?? []).filter((row) => activeSubjectIds.has(String(row.id)));
+  reference.chapters = (reference.chapters ?? []).filter((row) => activeSubjectIds.has(String(row.subject_id)));
+  reference.marks_distributions = (reference.marks_distributions ?? []).filter((row) => activeSubjectIds.has(String(row.subject_id)));
+  reference.maths_formulas = (reference.maths_formulas ?? []).filter((row) => activeSubjectIds.has(String(row.subject_id)));
+  reference.curated_textbooks = (reference.curated_textbooks ?? []).filter((row) => activeSubjectIds.has(String(row.subject_id)) && String(row.language ?? "bn") === "bn");
   const chapters = (reference.chapters ?? []) as Array<{ id: string }>;
   const exams = (reference.exams ?? []) as Array<{ id: string; name: string; starts_on: string; ends_on: string }>;
   const referenceSubjects = (reference.subjects ?? []) as Array<{ id: string }>;
@@ -53,9 +68,6 @@ export async function GET() {
   const existingWorkflowPhases = new Set((existingWorkflows ?? []).map((row) => row.phase));
   const missingWorkflows = defaultWorkflows.filter((workflow) => !existingWorkflowPhases.has(workflow.phase)).map((workflow) => ({ user_id: userId, ...workflow }));
   if (missingWorkflows.length) await supabase.from("study_workflows").upsert(missingWorkflows);
-
-  const { data: existingProfile } = await supabase.from("user_profiles").select("user_id").eq("user_id", userId).maybeSingle();
-  if (!existingProfile) await supabase.from("user_profiles").upsert({ user_id: userId, selected_subjects: [], onboarding_step: 0, onboarding_completed: false });
 
   const userResults = await Promise.all(userTables.map(async (table) => {
     const query = supabase.from(table).select("*");

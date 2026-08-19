@@ -1,19 +1,34 @@
 import type { Chapter, MarksDistribution, Subject } from "./types";
 
-export let subjects: Subject[] = [
-  { id: "bangla-1", name: "Bangla 1st Paper", shortName: "Bangla 1", strength: "moderate", weaknessScore: 58, workflow: "bangla-1", accent: "pink" },
-  { id: "bangla-2", name: "Bangla 2nd Paper", shortName: "Bangla 2", strength: "moderate", weaknessScore: 55, workflow: "bangla-2", accent: "yellow" },
-  { id: "english-1", name: "English 1st Paper", shortName: "English 1", strength: "strongest", weaknessScore: 20, workflow: "english", accent: "blue" },
-  { id: "english-2", name: "English 2nd Paper", shortName: "English 2", strength: "strongest", weaknessScore: 20, workflow: "english", accent: "blue" },
-  { id: "mathematics", name: "Mathematics", shortName: "Maths", strength: "toughest", weaknessScore: 100, workflow: "mathematics", accent: "lilac" },
-  { id: "science", name: "Science", shortName: "Science", strength: "very-strong", weaknessScore: 30, workflow: "notebooklm", accent: "mint" },
-  { id: "islam", name: "Islam / Religion", shortName: "Islam", strength: "strongest", weaknessScore: 22, workflow: "notebooklm", accent: "yellow" },
-  { id: "ict", name: "Information & Communication Technology", shortName: "ICT", strength: "strongest", weaknessScore: 25, workflow: "notebooklm", accent: "blue" },
-  { id: "business", name: "Business Entrepreneurship", shortName: "Business", strength: "strongest", weaknessScore: 18, workflow: "notebooklm", accent: "pink" },
-  { id: "finance", name: "Finance & Banking", shortName: "Finance", strength: "strongest", weaknessScore: 18, workflow: "notebooklm", accent: "mint" },
-  { id: "accounting", name: "Accounting", shortName: "Accounting", strength: "moderate", weaknessScore: 50, workflow: "accounting", accent: "yellow" },
-  { id: "agriculture", name: "Agriculture", shortName: "Agriculture", strength: "toughest", weaknessScore: 94, workflow: "notebooklm", accent: "mint" },
+export const allSubjectsCatalog: Subject[] = [
+  { id: "bangla-1", name: "Bangla 1st Paper", shortName: "Bangla 1", strength: "moderate", weaknessScore: 58, workflow: "bangla-1", accent: "pink", category: "common", bookLanguage: "bn" },
+  { id: "bangla-2", name: "Bangla 2nd Paper", shortName: "Bangla 2", strength: "moderate", weaknessScore: 55, workflow: "bangla-2", accent: "yellow", category: "common", bookLanguage: "bn" },
+  { id: "english-1", name: "English 1st Paper", shortName: "English 1", strength: "strongest", weaknessScore: 20, workflow: "english", accent: "blue", category: "common", bookLanguage: "bn" },
+  { id: "english-2", name: "English 2nd Paper", shortName: "English 2", strength: "strongest", weaknessScore: 20, workflow: "english", accent: "blue", category: "common", bookLanguage: "bn" },
+  { id: "mathematics", name: "Mathematics", shortName: "Maths", strength: "toughest", weaknessScore: 100, workflow: "mathematics", accent: "lilac", category: "common", bookLanguage: "bn" },
+  { id: "ict", name: "Information & Communication Technology", shortName: "ICT", strength: "strongest", weaknessScore: 25, workflow: "notebooklm", accent: "blue", category: "common", bookLanguage: "bn" },
+  { id: "physics", name: "Physics", shortName: "Physics", strength: "toughest", weaknessScore: 70, workflow: "notebooklm", accent: "lilac", category: "group", studyGroup: "science", bookLanguage: "bn" },
+  { id: "chemistry", name: "Chemistry", shortName: "Chemistry", strength: "toughest", weaknessScore: 70, workflow: "notebooklm", accent: "mint", category: "group", studyGroup: "science", bookLanguage: "bn" },
+  { id: "biology", name: "Biology", shortName: "Biology", strength: "moderate", weaknessScore: 55, workflow: "notebooklm", accent: "mint", category: "group", studyGroup: "science", bookLanguage: "bn" },
+  { id: "bgs", name: "Bangladesh and Global Studies", shortName: "BGS", strength: "moderate", weaknessScore: 45, workflow: "notebooklm", accent: "pink", category: "group", studyGroup: "science", bookLanguage: "bn" },
+  { id: "business", name: "Business Entrepreneurship", shortName: "Business", strength: "strongest", weaknessScore: 18, workflow: "notebooklm", accent: "pink", category: "group", studyGroup: "commerce", bookLanguage: "bn" },
+  { id: "finance", name: "Finance & Banking", shortName: "Finance", strength: "strongest", weaknessScore: 18, workflow: "notebooklm", accent: "mint", category: "group", studyGroup: "commerce", bookLanguage: "bn" },
+  { id: "accounting", name: "Accounting", shortName: "Accounting", strength: "moderate", weaknessScore: 50, workflow: "accounting", accent: "yellow", category: "group", studyGroup: "commerce", bookLanguage: "bn" },
+  { id: "science", name: "General Science", shortName: "Science", strength: "very-strong", weaknessScore: 30, workflow: "notebooklm", accent: "mint", category: "group", studyGroup: "commerce", bookLanguage: "bn" },
+  { id: "geography", name: "Geography and Environment", shortName: "Geography", strength: "moderate", weaknessScore: 48, workflow: "notebooklm", accent: "mint", category: "group", studyGroup: "humanities", bookLanguage: "bn" },
+  { id: "economics", name: "Economics", shortName: "Economics", strength: "moderate", weaknessScore: 50, workflow: "notebooklm", accent: "yellow", category: "group", studyGroup: "humanities", bookLanguage: "bn" },
+  { id: "history", name: "History of Bangladesh and World Civilization", shortName: "History", strength: "moderate", weaknessScore: 48, workflow: "notebooklm", accent: "pink", category: "group", studyGroup: "humanities", bookLanguage: "bn" },
+  { id: "civics", name: "Civics and Citizenship", shortName: "Civics", strength: "moderate", weaknessScore: 45, workflow: "notebooklm", accent: "blue", category: "group", studyGroup: "humanities", bookLanguage: "bn" },
+  { id: "islam", name: "Islam and Moral Education", shortName: "Islam", strength: "strongest", weaknessScore: 22, workflow: "notebooklm", accent: "yellow", category: "religion", religionSubject: "islam", bookLanguage: "bn" },
+  { id: "hinduism", name: "Hindu Religion and Moral Education", shortName: "Hindu Religion", strength: "moderate", weaknessScore: 40, workflow: "notebooklm", accent: "pink", category: "religion", religionSubject: "hinduism", bookLanguage: "bn" },
+  { id: "buddhism", name: "Buddhist Religion and Moral Education", shortName: "Buddhist Religion", strength: "moderate", weaknessScore: 40, workflow: "notebooklm", accent: "mint", category: "religion", religionSubject: "buddhism", bookLanguage: "bn" },
+  { id: "christianity", name: "Christian Religion and Moral Education", shortName: "Christian Religion", strength: "moderate", weaknessScore: 40, workflow: "notebooklm", accent: "blue", category: "religion", religionSubject: "christianity", bookLanguage: "bn" },
+  { id: "higher-mathematics", name: "Higher Mathematics", shortName: "Higher Math", strength: "toughest", weaknessScore: 72, workflow: "mathematics", accent: "lilac", category: "fourth", fourthSubject: "higher-mathematics", bookLanguage: "bn" },
+  { id: "agriculture", name: "Agriculture Studies", shortName: "Agriculture", strength: "toughest", weaknessScore: 94, workflow: "notebooklm", accent: "mint", category: "fourth", fourthSubject: "agriculture", bookLanguage: "bn" },
+  { id: "home-science", name: "Home Science", shortName: "Home Science", strength: "moderate", weaknessScore: 35, workflow: "notebooklm", accent: "pink", category: "fourth", fourthSubject: "home-science", bookLanguage: "bn" },
 ];
+
+export let subjects: Subject[] = [...allSubjectsCatalog];
 
 export let workflowSteps = {
   notebooklm: ["Video overview", "Audio overview", "Flashcards", "Reports", "Guidebook MCQ / CQ / SQ", "Independent recall & practice"],
@@ -49,6 +64,19 @@ const seed: Seed[] = [
   ...["অর্থায়ন ও ব্যবসায় অর্থায়ন", "অর্থায়নের উৎস", "শেয়ার, বন্ড ও ডিবেঞ্চার", "অর্থের সময়মূল্য", "ঝুঁকি ও অনিশ্চয়তা", "মূলধনি আয়-ব্যয় প্রাক্কলন", "মূলধন ব্যয়", "মুদ্রা, ব্যাংক ও ব্যাংকিং", "ব্যাংকিং ব্যবসায় ও তার ধরন", "বাণিজ্যিক ব্যাংক", "ব্যাংকের আমানত", "ব্যাংক ও গ্রাহক", "কেন্দ্রীয় ব্যাংক"].map((title, i) => ["finance", title, i + 1, i < 7 ? "Finance" : "Banking", undefined] as Seed),
   ...["হিসাববিজ্ঞান পরিচিতি", "লেনদেন", "দুতরফা দাখিলা পদ্ধতি", "মূলধন ও মুনাফা জাতীয় লেনদেন", "হিসাব", "জাবেদা", "খতিয়ান", "নগদান বই", "রেওয়ামিল", "আর্থিক বিবরণী", "পণ্যের ক্রয়মূল্য, উৎপাদন ব্যয় ও বিক্রয়মূল্য", "পারিবারিক ও আত্মকর্মসংস্থানমূলক উদ্যোগের হিসাব"].map((title, i) => ["accounting", title, i + 1, i === 9 ? "Financial statement" : undefined, i === 9 ? "Extremely difficult; direct 20-mark priority" : undefined] as Seed),
   ...["কৃষি প্রযুক্তি", "কৃষি উপকরণ", "কৃষি ও জলবায়ু", "কৃষিজ উৎপাদন", "বনায়ন", "কৃষি সমবায়", "পারিবারিক খামার"].map((title, i) => ["agriculture", title, i + 1, undefined, i === 3 ? "Never studied; very difficult" : undefined] as Seed),
+  ...["ভৌত রাশি ও পরিমাপ", "গতি", "বল", "কাজ, ক্ষমতা ও শক্তি", "পদার্থের অবস্থা ও চাপ", "প্রভাব", "তাপ", "মহাকর্ষ ও অভিকর্ষ", "তরঙ্গ", "আলোর প্রতিফলন", "আলোর প্রতিসরণ", "স্থির বিদ্যুৎ", "চল বিদ্যুৎ", "চুম্বকত্ব"].map((title, i) => ["physics", title, i + 1, undefined, undefined] as Seed),
+  ...["পদার্থের গঠন", "পদার্থের অবস্থা", "পদার্থের পরিবর্তন", "পর্যায় সারণি", "রাসায়নিক বন্ধন", "মোল ধারণা ও রাসায়নিক গণনা", "রাসায়নিক বিক্রিয়া", "অম্ল, ক্ষারক ও লবণ", "ধাতু ও অধাতু", "জৈব রসায়ন", "খনিজ সম্পদ", "ব্যবহারিক রসায়ন"].map((title, i) => ["chemistry", title, i + 1, undefined, undefined] as Seed),
+  ...["কোষ ও টিস্যু", "কোষ বিভাজন", "জীবনীশক্তি", "জীবজগতের শ্রেণিবিন্যাস", "উদ্ভিদ প্রজনন", "উদ্ভিদের বৃদ্ধি", "জীবের প্রজনন", "বংশগতি", "পরিবেশ", "জীবপ্রযুক্তি", "জীবের চলন", "জীবনে প্রযুক্তি"].map((title, i) => ["biology", title, i + 1, undefined, undefined] as Seed),
+  ...["বাংলাদেশের স্বাধীনতা সংগ্রাম", "বাংলাদেশের সরকার ও নাগরিক", "বাংলাদেশের সম্পদ ও অর্থনীতি", "বাংলাদেশের সামাজিক পরিবর্তন", "দক্ষিণ এশিয়ার ভূপ্রকৃতি", "জনসংখ্যা ও উন্নয়ন", "বাংলাদেশ ও আন্তর্জাতিক সম্পর্ক", "দুর্যোগ ও পরিবেশ", "টেকসই উন্নয়ন", "বিশ্বায়ন"].map((title, i) => ["bgs", title, i + 1, undefined, undefined] as Seed),
+  ...["ভূগোলের ধারণা ও পৃথিবী", "মহাবিশ্ব ও সৌরজগৎ", "ভূমিরূপ ও ভূ-প্রক্রিয়া", "বায়ুমণ্ডল ও জলবায়ু", "জলমণ্ডল", "বাংলাদেশের ভূপ্রকৃতি", "বাংলাদেশের জলবায়ু", "প্রাকৃতিক সম্পদ", "জনসংখ্যা ও বসতি", "পরিবেশ ও দুর্যোগ"].map((title, i) => ["geography", title, i + 1, undefined, undefined] as Seed),
+  ...["অর্থনীতির মৌলিক ধারণা", "উৎপাদন ও উপকরণ", "ভোগ ও সঞ্চয়", "বাজার ও মূল্য", "জাতীয় আয়", "মুদ্রা ও ব্যাংক", "বাংলাদেশের অর্থনীতি", "সরকারি অর্থব্যবস্থা", "আন্তর্জাতিক বাণিজ্য", "উন্নয়ন ও পরিবেশ"].map((title, i) => ["economics", title, i + 1, undefined, undefined] as Seed),
+  ...["ইতিহাসের ধারণা", "প্রাচীন বাংলার ইতিহাস", "মধ্যযুগের বাংলা", "ইউরোপ ও আধুনিক যুগ", "ব্রিটিশ শাসন", "বাংলার নবজাগরণ", "ভাষা আন্দোলন", "মুক্তিযুদ্ধ", "স্বাধীন বাংলাদেশের অভ্যুদয়", "বিশ্বসভ্যতা", "বিশ্বযুদ্ধ ও পরবর্তী বিশ্ব", "বাংলাদেশ ও বিশ্ব"].map((title, i) => ["history", title, i + 1, undefined, undefined] as Seed),
+  ...["পৌরনীতি ও নাগরিকতার ধারণা", "রাষ্ট্র ও সরকার", "নাগরিকতা ও আইন", "বাংলাদেশের সংবিধান", "স্থানীয় সরকার", "গণতন্ত্র ও নির্বাচন", "মানবাধিকার", "সুশাসন", "সামাজিক মূল্যবোধ", "আন্তর্জাতিক নাগরিকতা"].map((title, i) => ["civics", title, i + 1, undefined, undefined] as Seed),
+  ...["হিন্দুধর্মের বিশ্বাস", "বেদ ও উপনিষদ", "পূজা ও ধর্মীয় আচার", "নৈতিক শিক্ষা", "আদর্শ জীবন"].map((title, i) => ["hinduism", title, i + 1, undefined, undefined] as Seed),
+  ...["বুদ্ধের জীবন ও বাণী", "ত্রিরত্ন ও নৈতিকতা", "বৌদ্ধ আচার ও সংস্কৃতি", "সামাজিক মূল্যবোধ", "আদর্শ জীবন"].map((title, i) => ["buddhism", title, i + 1, undefined, undefined] as Seed),
+  ...["খ্রিষ্টীয় বিশ্বাস ও নৈতিকতা", "বাইবেল ও ধর্মীয় জীবন", "প্রার্থনা ও উপাসনা", "খ্রিষ্টীয় আদর্শ জীবন", "সামাজিক মূল্যবোধ"].map((title, i) => ["christianity", title, i + 1, undefined, undefined] as Seed),
+  ...["বীজগণিত", "জ্যামিতি", "ত্রিকোণমিতি", "সমতলীয় ভেক্টর", "সম্ভাবনা", "পরিসংখ্যান", "স্থানাঙ্ক জ্যামিতি", "ফাংশন", "ধারা", "ব্যবহারিক গণিত"].map((title, i) => ["higher-mathematics", title, i + 1, undefined, undefined] as Seed),
+  ...["গৃহ ব্যবস্থাপনা", "খাদ্য ও পুষ্টি", "স্বাস্থ্য ও পরিচ্ছন্নতা", "পোশাক ও বস্ত্র", "শিশু বিকাশ", "পরিবার ও সমাজ", "গৃহসজ্জা", "ভোক্তা শিক্ষা", "জীবনদক্ষতা", "ব্যবহারিক কাজ"].map((title, i) => ["home-science", title, i + 1, undefined, undefined] as Seed),
 ];
 
 const defaultFormats: Record<string, string[]> = {
@@ -95,6 +123,8 @@ export let marksDistributions: MarksDistribution[] = [
   { subjectId: "finance", questionType: "Creative", rule: "Answer 5 of 8; at least 2 Finance and 2 Banking", marks: 50 }, { subjectId: "finance", questionType: "Short", rule: "Answer 10 of 15; at least 4 from each part", marks: 20 }, { subjectId: "finance", questionType: "MCQ", rule: "Answer all 30", marks: 30 },
   { subjectId: "accounting", questionType: "Financial statement", rule: "Compulsory", marks: 20 }, { subjectId: "accounting", questionType: "Creative", rule: "Answer 4 of 7", marks: 40 }, { subjectId: "accounting", questionType: "Short", rule: "Answer 5 of 7", marks: 10 }, { subjectId: "accounting", questionType: "MCQ", rule: "Answer all 30", marks: 30 },
   { subjectId: "agriculture", part: "Written", questionType: "CQ", rule: "Creative question section", marks: 40 }, { subjectId: "agriculture", part: "Written", questionType: "Short", rule: "Short question section", marks: 10 }, { subjectId: "agriculture", part: "Written", questionType: "MCQ", rule: "MCQ section", marks: 25 }, { subjectId: "agriculture", part: "Practical", questionType: "Practical", rule: "Practical examination", marks: 25 },
+  ...["physics", "chemistry", "biology"].flatMap((subjectId) => [{ subjectId, part: "Written", questionType: "CQ", rule: "Creative question section", marks: 50 }, { subjectId, part: "Written", questionType: "MCQ", rule: "MCQ section", marks: 25 }, { subjectId, part: "Practical", questionType: "Practical", rule: "Practical examination", marks: 25 }]),
+  ...["bgs", "geography", "economics", "history", "civics", "hinduism", "buddhism", "christianity", "higher-mathematics", "home-science"].flatMap((subjectId) => [{ subjectId, questionType: "Creative", rule: "Creative question section", marks: 50 }, { subjectId, questionType: "Short", rule: "Short question section", marks: 20 }, { subjectId, questionType: "MCQ", rule: "MCQ section", marks: 30 }]),
 ];
 
 export type AcademicExam = { id: string; name: string; start: string; end: string };
