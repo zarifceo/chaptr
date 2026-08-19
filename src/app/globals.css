@@ -4815,3 +4815,22 @@ label {
   font-size: 11px;
   line-height: 1.45;
 }
+
+
+/* Keep compact settings cards content-sized instead of stretching to the tallest grid item. */
+.settings {
+  align-items: start;
+}
+
+.settings-editor.adaptive-settings {
+  align-self: start;
+  min-height: 0;
+}
+
+.settings-editor.adaptive-settings > p {
+  min-height: 0;
+}
+
+.settings-editor.adaptive-settings > .inline-fields {
+  align-items: start;
+}
