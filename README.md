@@ -20,7 +20,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-nextjs-app/optimizing/fonts) to automatically optimize and load Geist.
+This project uses [`next/font`](https://vercel.com/font), a Sora-based font family for the workspace.
 
 <!-- Adaptive study planning is backed by Supabase. -->
-<!-- Deployment trigger: verified production build -->
+<!-- UI deployment trigger: control polish -->
