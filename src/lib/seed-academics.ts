@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { chapters, exams, marksDistributions, subjects, workflowSteps } from "@/lib/academic-data";
+import { mathsFormulaSeeds } from "@/lib/maths-formula-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 let seedPromise: Promise<void> | null = null;
@@ -44,6 +45,17 @@ async function runSeed() {
     marks: mark.marks,
   }));
   const workflowRows = Object.entries(workflowSteps).map(([workflow_kind, steps]) => ({ workflow_kind, steps: [...steps] }));
+  const formulaRows = mathsFormulaSeeds.map((formula) => ({
+    id: stableUuid(["maths-formula", formula.division, formula.chapterTitle ?? "", formula.title].join("|")),
+    subject_id: "mathematics",
+    chapter_id: formula.chapterTitle ? chapters.find((chapter) => chapter.title === formula.chapterTitle)?.id ?? null : null,
+    division: formula.division,
+    title: formula.title,
+    expression: formula.expression,
+    explanation: formula.explanation,
+    tags: formula.tags,
+    sort_order: formula.sortOrder,
+  }));
   const examRows = exams.map((exam) => ({
     id: exam.id,
     name: exam.name,
@@ -65,6 +77,8 @@ async function runSeed() {
   results.forEach(({ error }, index) => {
     if (error) throw new Error(`Could not seed ${tables[index]}: ${error.message}`);
   });
+  const { error: formulaError } = await admin.from("maths_formulas").upsert(formulaRows);
+  if (formulaError) throw new Error(`Could not seed maths_formulas: ${formulaError.message}`);
 }
 
 export function ensureAcademicData() {

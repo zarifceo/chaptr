@@ -5,7 +5,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, BookOpen, Books, CheckCircle, Exam, LinkSimple, Pause, Play, Plus, Timer, Trash, X } from "@phosphor-icons/react";
-import { chapters as seedChapters, subjects } from "@/lib/academic-data";
+import { chapters as seedChapters, subjects, orderChapters } from "@/lib/academic-data";
 import type { Chapter, ChapterEvidence, JournalEntry, Mistake, ResourceKind, StudyResource, StudySession, StudyTask } from "@/lib/types";
 
 const bySubject = (id: string) => subjects.find((subject) => subject.id === id)!;
@@ -29,17 +29,76 @@ function evidenceLevel(item: Omit<ChapterEvidence, "evidenceLevel">): ChapterEvi
   return "none";
 }
 
+export type StudyEvidenceRecord = {
+  key: string;
+  subjectId: string;
+  chapterId: string;
+  happenedAt: string;
+  focusedSeconds: number;
+  pauseSeconds: number;
+  attempted: number;
+  correct: number;
+};
+
+function liveFocusedSeconds(session: StudySession, now: number) {
+  const runningSeconds = session.timerState === "running" && session.lastResumedAt ? Math.max(0, Math.floor((now - new Date(session.lastResumedAt).getTime()) / 1000)) : 0;
+  return session.focusedSeconds + runningSeconds;
+}
+
+function evidenceDateKey(value: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+}
+
+export function summarizeStudyEvidence(sessions: StudySession[], entries: JournalEntry[], now = Date.now()): StudyEvidenceRecord[] {
+  const buckets = new Map<string, { sessions: StudySession[]; entries: JournalEntry[] }>();
+  sessions.forEach((session) => {
+    const key = session.taskId ? `task:${session.taskId}` : `session:${session.id}`;
+    const bucket = buckets.get(key) ?? { sessions: [], entries: [] };
+    bucket.sessions.push(session);
+    buckets.set(key, bucket);
+  });
+  entries.forEach((entry) => {
+    const key = entry.taskId ? `task:${entry.taskId}` : `journal:${entry.id}`;
+    const bucket = buckets.get(key) ?? { sessions: [], entries: [] };
+    bucket.entries.push(entry);
+    buckets.set(key, bucket);
+  });
+  return [...buckets.entries()].map(([key, bucket]) => {
+    const first = bucket.sessions[0];
+    const latestEntry = [...bucket.entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const latestSession = [...bucket.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    const sessionAttempts = bucket.sessions.reduce((sum, session) => sum + (session.questionsAttempted ?? 0), 0);
+    const sessionCorrect = bucket.sessions.reduce((sum, session) => sum + (session.questionsCorrect ?? 0), 0);
+    const journalAttempts = bucket.entries.reduce((sum, entry) => sum + entry.attempted, 0);
+    const journalCorrect = bucket.entries.reduce((sum, entry) => sum + entry.correct, 0);
+    const sessionSeconds = bucket.sessions.reduce((sum, session) => sum + liveFocusedSeconds(session, now), 0);
+    const journalSeconds = bucket.entries.reduce((sum, entry) => sum + entry.minutes * 60, 0);
+    const happenedAt = latestEntry?.createdAt ?? latestSession?.endedAt ?? latestSession?.startedAt ?? new Date().toISOString();
+    return {
+      key,
+      subjectId: latestEntry?.subjectId ?? first?.subjectId ?? "",
+      chapterId: latestEntry?.chapterId ?? first?.chapterId ?? "",
+      happenedAt,
+      focusedSeconds: Math.max(sessionSeconds, journalSeconds),
+      pauseSeconds: bucket.sessions.reduce((sum, session) => sum + session.pauseSeconds, 0),
+      attempted: Math.max(sessionAttempts, journalAttempts),
+      correct: Math.max(sessionCorrect, journalCorrect),
+    };
+  }).filter((record) => record.subjectId && record.chapterId);
+}
+
 export function buildChapterEvidence(chapters: Chapter[], sessions: StudySession[], entries: JournalEntry[], mistakes: Mistake[], resources: StudyResource[]): ChapterEvidence[] {
-  return chapters.map((chapter) => {
+  return orderChapters(chapters).map((chapter) => {
     const chapterSessions = sessions.filter((session) => session.chapterId === chapter.id);
     const chapterEntries = entries.filter((entry) => entry.chapterId === chapter.id);
+    const chapterEvidence = summarizeStudyEvidence(chapterSessions, chapterEntries);
     const chapterMistakes = mistakes.filter((mistake) => mistake.chapterId === chapter.id);
-    const attempted = chapterEntries.reduce((sum, entry) => sum + entry.attempted, 0) + chapterSessions.reduce((sum, session) => sum + (session.questionsAttempted ?? 0), 0);
-    const correct = chapterEntries.reduce((sum, entry) => sum + entry.correct, 0) + chapterSessions.reduce((sum, session) => sum + (session.questionsCorrect ?? 0), 0);
+    const attempted = chapterEvidence.reduce((sum, record) => sum + record.attempted, 0);
+    const correct = chapterEvidence.reduce((sum, record) => sum + record.correct, 0);
     const base = {
       chapterId: chapter.id,
-      sessions: chapterSessions.length,
-      focusedMinutes: Math.round(chapterSessions.reduce((sum, session) => sum + session.focusedSeconds, 0) / 60),
+      sessions: chapterEvidence.length,
+      focusedMinutes: Math.round(chapterEvidence.reduce((sum, record) => sum + record.focusedSeconds, 0) / 60),
       journalEntries: chapterEntries.length,
       attempted,
       correct,
@@ -47,40 +106,49 @@ export function buildChapterEvidence(chapters: Chapter[], sessions: StudySession
       openMistakes: chapterMistakes.filter((mistake) => !mistake.resolved).length,
       resolvedMistakes: chapterMistakes.filter((mistake) => mistake.resolved).length,
       resources: resources.filter((resource) => resource.chapterId === chapter.id).length,
-      lastEvidenceAt: [...chapterSessions.map((session) => session.endedAt ?? session.startedAt), ...chapterEntries.map((entry) => entry.createdAt)].sort().at(-1),
+      lastEvidenceAt: chapterEvidence.map((record) => record.happenedAt).sort().at(-1),
     };
     return { ...base, evidenceLevel: evidenceLevel(base) };
   });
 }
 
 export function StudyAnalytics({ sessions, entries, tasks }: { sessions: StudySession[]; entries: JournalEntry[]; tasks: StudyTask[] }) {
-  const completedSessions = sessions.filter((session) => session.endedAt);
-  const focusedSeconds = completedSessions.reduce((sum, session) => sum + session.focusedSeconds, 0);
-  const pauseSeconds = completedSessions.reduce((sum, session) => sum + session.pauseSeconds, 0);
-  const attempted = entries.reduce((sum, entry) => sum + entry.attempted, 0) + sessions.reduce((sum, session) => sum + (session.questionsAttempted ?? 0), 0);
-  const correct = entries.reduce((sum, entry) => sum + entry.correct, 0) + sessions.reduce((sum, session) => sum + (session.questionsCorrect ?? 0), 0);
+  const [now, setNow] = useState(() => Date.now());
+  const hasRunningSession = sessions.some((session) => session.timerState === "running");
+  useEffect(() => {
+    if (!hasRunningSession) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [hasRunningSession]);
+  const evidence = summarizeStudyEvidence(sessions, entries, now);
+  const focusedSeconds = evidence.reduce((sum, record) => sum + record.focusedSeconds, 0);
+  const pauseSeconds = evidence.reduce((sum, record) => sum + record.pauseSeconds, 0);
+  const attempted = evidence.reduce((sum, record) => sum + record.attempted, 0);
+  const correct = evidence.reduce((sum, record) => sum + record.correct, 0);
   const completedTasks = tasks.filter((task) => task.status === "completed").length;
-  const today = new Date();
+  const todayKey = evidenceDateKey(new Date().toISOString());
+  const today = new Date(`${todayKey}T00:00:00+06:00`);
   const lastSeven = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (6 - index));
-    const key = date.toISOString().slice(0, 10);
-    const seconds = completedSessions.filter((session) => session.startedAt.slice(0, 10) === key).reduce((sum, session) => sum + session.focusedSeconds, 0);
-    return { key, label: date.toLocaleDateString("en-GB", { weekday: "short" }), minutes: Math.round(seconds / 60) };
+    const date = new Date(today);
+    date.setUTCDate(date.getUTCDate() - (6 - index));
+    const key = evidenceDateKey(date.toISOString());
+    const seconds = evidence.filter((record) => evidenceDateKey(record.happenedAt) === key).reduce((sum, record) => sum + record.focusedSeconds, 0);
+    return { key, label: date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "Asia/Dhaka" }), minutes: Math.round(seconds / 60) };
   });
   const subjectRows = subjects.map((subject) => {
-    const mine = completedSessions.filter((session) => session.subjectId === subject.id);
-    return { subject, seconds: mine.reduce((sum, session) => sum + session.focusedSeconds, 0), sessions: mine.length };
+    const mine = evidence.filter((record) => record.subjectId === subject.id);
+    return { subject, seconds: mine.reduce((sum, record) => sum + record.focusedSeconds, 0), sessions: mine.length };
   }).filter((row) => row.seconds || row.sessions).sort((a, b) => b.seconds - a.seconds);
-  const chartConfig = { minutes: { label: "Focused minutes", color: "#315efb" } } satisfies ChartConfig;
+  const chartConfig = { minutes: { label: "Recorded minutes", color: "#315efb" } } satisfies ChartConfig;
   const statCards = [
-    { label: "Focused time", value: formatDuration(focusedSeconds), detail: `${completedSessions.length} saved sessions`, tone: "blue" },
-    { label: "Average session", value: completedSessions.length ? formatDuration(Math.round(focusedSeconds / completedSessions.length)) : "0m", detail: pauseSeconds ? `${Math.round(pauseSeconds / 60)}m paused` : "No pause data yet", tone: "violet" },
-    { label: "Answer accuracy", value: attempted ? `${Math.round(correct / attempted * 100)}%` : "—", detail: attempted ? `${correct}/${attempted} correct` : "Log evidence in a session", tone: "amber" },
-    { label: "Task completion", value: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : "0%", detail: `${completedTasks} of ${tasks.length} tasks closed`, tone: "emerald" },
+    { label: "Recorded study time", value: formatDuration(focusedSeconds), detail: `${evidence.length} evidence block${evidence.length === 1 ? "" : "s"} · timer + journal`, tone: "blue" },
+    { label: "Average study block", value: evidence.length ? formatDuration(Math.round(focusedSeconds / evidence.length)) : "0m", detail: pauseSeconds ? `${Math.round(pauseSeconds / 60)}m paused` : "No pause data yet", tone: "violet" },
+    { label: "Answer accuracy", value: attempted ? `${Math.round(correct / attempted * 100)}%` : "—", detail: attempted ? `${correct}/${attempted} correct` : "Log answers in a journal or session", tone: "amber" },
+    { label: "Task completion", value: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : "—", detail: tasks.length ? `${completedTasks} of ${tasks.length} tasks closed` : "No tasks have been scheduled", tone: "emerald" },
   ];
   return <section className="analytics-panel">
     <div className="analytics-stat-grid">{statCards.map((stat) => <Card className={`analytics-stat-card ${stat.tone}`} key={stat.label}><CardHeader><CardDescription>{stat.label}</CardDescription><CardTitle>{stat.value}</CardTitle></CardHeader><CardContent><p>{stat.detail}</p></CardContent></Card>)}</div>
-    <div className="analytics-grid"><Card className="analytics-chart-card"><CardHeader><CardDescription>LAST 7 DAYS</CardDescription><CardTitle>Focused minutes</CardTitle></CardHeader><CardContent><ChartContainer config={chartConfig} className="h-[260px] w-full"><BarChart accessibilityLayer data={lastSeven} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}><CartesianGrid vertical={false} strokeDasharray="4 4" /><XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} /><YAxis tickLine={false} axisLine={false} width={34} allowDecimals={false} /><ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} /><Bar dataKey="minutes" fill="var(--color-minutes)" radius={[8, 8, 3, 3]} /></BarChart></ChartContainer></CardContent></Card><Card className="analytics-subjects-card"><CardHeader><CardDescription>WHERE TIME GOES</CardDescription><CardTitle>Subject balance</CardTitle></CardHeader><CardContent>{subjectRows.length ? <div className="subject-analytics-list">{subjectRows.slice(0, 6).map(({ subject, seconds, sessions: count }) => <div className="subject-analytics-row" key={subject.id}><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><p><strong>{subject.shortName}</strong><small>{count} session{count === 1 ? "" : "s"}</small></p><b>{Math.round(seconds / 60)}m</b></div>)}</div> : <div className="feature-empty"><Timer /><p>Start a focused session to see your real time balance.</p></div>}</CardContent></Card></div>
+    <div className="analytics-grid"><Card className="analytics-chart-card"><CardHeader><CardDescription>LAST 7 DAYS</CardDescription><CardTitle>Recorded study minutes</CardTitle></CardHeader><CardContent><ChartContainer config={chartConfig} className="h-[260px] w-full"><BarChart accessibilityLayer data={lastSeven} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}><CartesianGrid vertical={false} strokeDasharray="4 4" /><XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} /><YAxis tickLine={false} axisLine={false} width={34} allowDecimals={false} /><ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} /><Bar dataKey="minutes" fill="var(--color-minutes)" radius={[8, 8, 3, 3]} /></BarChart></ChartContainer></CardContent></Card><Card className="analytics-subjects-card"><CardHeader><CardDescription>WHERE TIME GOES</CardDescription><CardTitle>Subject balance</CardTitle></CardHeader><CardContent>{subjectRows.length ? <div className="subject-analytics-list">{subjectRows.slice(0, 6).map(({ subject, seconds, sessions: count }) => <div className="subject-analytics-row" key={subject.id}><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><p><strong>{subject.shortName}</strong><small>{count} study block{count === 1 ? "" : "s"}</small></p><b>{Math.round(seconds / 60)}m</b></div>)}</div> : <div className="feature-empty"><Timer /><p>Record a journal entry or focused session to see your real time balance.</p></div>}</CardContent></Card></div>
   </section>;
 }
 
@@ -119,9 +187,9 @@ export function ResourceLibrary({ resources, chapters, initialChapterId, save, r
   const [url, setUrl] = useState("");
   const [kind, setKind] = useState<ResourceKind>("question-bank");
   const [note, setNote] = useState("");
-  const subjectChapters = chapters.filter((chapter) => subjectId === "all" || chapter.subjectId === subjectId);
+  const subjectChapters = orderChapters(chapters.filter((chapter) => subjectId === "all" || chapter.subjectId === subjectId));
   const formSubjectId = subjectId === "all" ? subjects[0]?.id ?? "" : subjectId;
-  const formChapters = chapters.filter((chapter) => chapter.subjectId === formSubjectId);
+  const formChapters = orderChapters(chapters.filter((chapter) => chapter.subjectId === formSubjectId));
   const formChapterId = formChapters.some((chapter) => chapter.id === chapterId) ? chapterId : formChapters[0]?.id ?? "";
   const visible = resources.filter((resource) => (subjectId === "all" || resource.subjectId === subjectId) && (chapterId === "all" || resource.chapterId === chapterId));
   const submit = (event: React.FormEvent) => { event.preventDefault(); const chapter = chapters.find((item) => item.id === formChapterId) ?? formChapters[0]; if (!chapter || !title.trim() || !url.trim()) return; save({ id: crypto.randomUUID(), subjectId: chapter.subjectId, chapterId: chapter.id, title: title.trim(), url: url.trim(), kind, note: note.trim() || undefined, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); setTitle(""); setUrl(""); setNote(""); setAdding(false); };

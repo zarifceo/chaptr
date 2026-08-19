@@ -10,19 +10,20 @@ import {
   Sigma, SignOut, SlidersHorizontal, Sparkle, Target, Timer, Warning, X,
 } from "@phosphor-icons/react";
 import {
-  chapters, marksDistributions, subjects, workflowSteps, replaceAcademicData,
+  chapters, marksDistributions, subjects, workflowSteps, replaceAcademicData, orderChapters,
 } from "@/lib/academic-data";
 import { queueCloudSync } from "@/lib/offline-sync";
 import { Button } from "@/components/ui/button";
 import { recommendTasks } from "@/lib/recommendations";
 import { buildAdaptivePlan, revisionDelayDays } from "@/lib/adaptive-planner";
 import { workflowForTask, type CustomStudyWorkflow, type StudyPhase, recommendedWorkflow, studyPhases } from "@/lib/study-workflows";
-import { StudyAnalytics, SyllabusEvidenceMap, ExamModeFocus, ResourceLibrary } from "@/components/study-features";
+import { StudyAnalytics, SyllabusEvidenceMap, ExamModeFocus, ResourceLibrary, summarizeStudyEvidence } from "@/components/study-features";
 import { AuthScreen } from "@/components/auth-screen";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { ExamCountdownCenter } from "@/components/exam-countdown";
+import { recommendedExamPlan, phaseDateLabel } from "@/lib/exam-plan";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import type { AdaptivePlanSummary, Chapter, ChapterPreference, ExamEvent, JournalEntry, LearningMethod, LearningPreferences, MarksDistribution, Mistake, MockResult, PlanningSettings, RecommendationFeedback, StudyResource, StudySession, StudyTask, Subject, SubjectAssessment, UserProfile } from "@/lib/types";
+import type { AdaptivePlanSummary, Chapter, ChapterPreference, ExamEvent, ExamPlanPhase, JournalEntry, LearningMethod, LearningPreferences, MarksDistribution, MathsFormula, Mistake, MockResult, PlanningSettings, RecommendationFeedback, StudyResource, StudySession, StudyTask, Subject, SubjectAssessment, UserProfile, ChapterDifficulty } from "@/lib/types";
 
 const nav = [
   ["Home", House], ["Syllabus", Books],
@@ -44,7 +45,9 @@ const subjectAccent: Record<string, Subject["accent"]> = { "bangla-1": "pink", "
 const officialTotalFor = (subjectId: string) => marksDistributions.filter((mark) => mark.subjectId === subjectId).reduce((sum, mark) => sum + mark.marks, 0);
 
 type BootstrapRow = Record<string, unknown>;
-const studyTaskFromRow = (row: BootstrapRow): StudyTask => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), plannedTime: row.planned_start ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "numeric", minute: "2-digit" }).format(new Date(String(row.planned_start))) : "Unscheduled", plannedStart: row.planned_start ? String(row.planned_start) : undefined, plannedEnd: row.planned_end ? String(row.planned_end) : undefined, deferredUntil: row.deferred_until ? String(row.deferred_until) : undefined, duration: Number(row.duration_minutes), origin: row.origin as StudyTask["origin"], pinned: Boolean(row.pinned), status: row.status as StudyTask["status"], currentStep: Number(row.current_step), reason: String(row.priority_explanation ?? "Database task"), priorityScore: Number(row.priority_score), focusedSeconds: Number(row.focused_seconds ?? 0), studyMethod: row.study_method ? String(row.study_method) as StudyTask["studyMethod"] : undefined, workflowPhase: row.workflow_phase ? String(row.workflow_phase) as StudyTask["workflowPhase"] : undefined, recommendationFactors: row.recommendation_factors && typeof row.recommendation_factors === "object" ? row.recommendation_factors as Record<string, number> : undefined });
+const chapterDifficulty = (value: unknown): ChapterDifficulty => Math.max(1, Math.min(5, Number(value ?? 3))) as ChapterDifficulty;
+
+const studyTaskFromRow = (row: BootstrapRow): StudyTask => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), plannedTime: row.planned_start ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "numeric", minute: "2-digit" }).format(new Date(String(row.planned_start))) : "Unscheduled", plannedStart: row.planned_start ? String(row.planned_start) : undefined, plannedEnd: row.planned_end ? String(row.planned_end) : undefined, deferredUntil: row.deferred_until ? String(row.deferred_until) : undefined, duration: Number(row.duration_minutes), origin: row.origin as StudyTask["origin"], pinned: Boolean(row.pinned), status: row.status as StudyTask["status"], currentStep: Number(row.current_step), reason: String(row.priority_explanation ?? "Database task"), priorityScore: Number(row.priority_score), focusedSeconds: Number(row.focused_seconds ?? 0), studyMethod: row.study_method ? String(row.study_method) as StudyTask["studyMethod"] : undefined, workflowPhase: row.workflow_phase ? String(row.workflow_phase) as StudyTask["workflowPhase"] : undefined, workflowSteps: Array.isArray(row.workflow_steps) ? row.workflow_steps.map(String).filter(Boolean) : undefined, recommendationFactors: row.recommendation_factors && typeof row.recommendation_factors === "object" ? row.recommendation_factors as Record<string, number> : undefined });
 
 const methodLabel = (method?: LearningMethod) => method ? method.replace("question-bank", "question bank").replace("online-class", "online class").replace("group-study", "group study") : "your preferred method";
 
@@ -101,6 +104,7 @@ function taskRow(task: StudyTask) {
     current_step: task.currentStep, focused_seconds: task.focusedSeconds ?? 0, planned_start: plannedStart, planned_end: plannedEnd,
     deferred_until: task.deferredUntil ?? null,
     study_method: task.studyMethod ?? null,
+    workflow_steps: task.workflowSteps?.length ? task.workflowSteps : null,
     recommendation_factors: task.recommendationFactors ?? {},
   };
 }
@@ -108,7 +112,7 @@ function taskRow(task: StudyTask) {
 function chapterRow(chapter: Chapter) {
   return {
     id: `progress-${chapter.id}`, chapter_id: chapter.id, status: chapter.status,
-    confidence: chapter.confidence, last_studied: chapter.lastStudied ?? null,
+    confidence: chapter.confidence, difficulty: chapter.difficulty, last_studied: chapter.lastStudied ?? null,
     next_review: chapter.nextReview ?? null, questions_attempted: chapter.questionsAttempted,
     questions_correct: chapter.questionsCorrect,
   };
@@ -145,7 +149,7 @@ function mistakeRow(mistake: Mistake, subjectId = "mathematics") {
 }
 
 function sessionRow(session: StudySession) {
-  return { id: session.id, task_id: session.taskId, subject_id: session.subjectId, chapter_id: session.chapterId, mode: session.mode, started_at: session.startedAt, ended_at: session.endedAt ?? null, focused_seconds: session.focusedSeconds, pause_seconds: session.pauseSeconds, completed: session.completed, questions_attempted: session.questionsAttempted ?? null, questions_correct: session.questionsCorrect ?? null };
+  return { id: session.id, task_id: session.taskId, subject_id: session.subjectId, chapter_id: session.chapterId, mode: session.mode, started_at: session.startedAt, ended_at: session.endedAt ?? null, last_resumed_at: session.lastResumedAt ?? null, focused_seconds: session.focusedSeconds, pause_seconds: session.pauseSeconds, timer_state: session.timerState ?? (session.completed ? "completed" : "paused"), completed: session.completed, questions_attempted: session.questionsAttempted ?? null, questions_correct: session.questionsCorrect ?? null };
 }
 
 function resourceRow(resource: StudyResource) {
@@ -192,6 +196,10 @@ function feedbackRow(value: RecommendationFeedback) {
 
 function workflowRow(value: CustomStudyWorkflow) {
   return { phase: value.phase, steps: value.steps, updated_at: value.updatedAt ?? new Date().toISOString() };
+}
+
+function examPlanPhaseRow(value: ExamPlanPhase) {
+  return { id: value.id, title: value.title, starts_on: value.start, ends_on: value.end, objective: value.objective, phase_order: value.order };
 }
 
 function Sidebar({ active, setActive, open, close }: { active: string; setActive: (value: string) => void; open: boolean; close: () => void }) {
@@ -257,7 +265,7 @@ function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents
       <article className="panel weekly"><SectionTitle kicker="LIVE EVIDENCE" title="Work that protects your result" /><div className="bars">{weeklyBars.map(([label, value, tone]) => <div key={label}><span>{label}</span><i><b className={tone} style={{ width: `${value}%` }} /></i><strong>{value}%</strong></div>)}</div></article>
       <article className="panel risks"><SectionTitle kicker="URGENT" title="Repair queue"><Warning weight="fill" /></SectionTitle>{[["Maths", `${openMaths} open mistake${openMaths === 1 ? "" : "s"} need reattempts`, "lilac"], ["Agriculture", `${readiness("agriculture")}% readiness · deliberate exposure`, "mint"], ["Accounting", `${readiness("accounting")}% readiness · concepts plus practice`, "yellow"]].map(([name, note, tone]) => <button key={name} onClick={() => go(name === "Maths" ? "Maths Lab" : "Syllabus")}><i className={tone} /><span><strong>{name}</strong><small>{note}</small></span><CaretRight /></button>)}</article>
     </section>
-    <section className="panel queue"><SectionTitle kicker="TODAY" title="Recommended queue"><button onClick={() => go("Home")}>Open full day <ArrowRight /></button></SectionTitle>{visible.slice(0, 4).map((task, index) => <div key={task.id}><span className={`number ${bySubject(task.subjectId).accent}`}>{index + 1}</span><p><strong>{bySubject(task.subjectId).shortName}</strong><small>{task.title}</small></p><time>{task.plannedTime}</time><b>{task.duration}m</b></div>)}</section>
+    <section className="panel queue"><SectionTitle kicker="TODAY" title="Recommended queue"><button onClick={() => document.getElementById("daily-loop")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Open full day <ArrowRight /></button></SectionTitle>{visible.slice(0, 4).map((task, index) => <div key={task.id}><span className={`number ${bySubject(task.subjectId).accent}`}>{index + 1}</span><p><strong>{bySubject(task.subjectId).shortName}</strong><small>{task.title}</small></p><time>{task.plannedTime}</time><b>{task.duration}m</b></div>)}</section>
   </section>;
 }
 
@@ -272,23 +280,40 @@ function StudyStep({ name, index, current, onAdvance }: { name: string; index: n
   </div>;
 }
 
-function FocusTimer({ seconds, onChange }: { seconds: number; onChange: (seconds: number) => void }) {
-  const [running, setRunning] = useState(false);
+function focusElapsedSeconds(session?: StudySession | null, now = Date.now()) {
+  if (!session) return 0;
+  const liveSeconds = session.timerState === "running" && session.lastResumedAt ? Math.max(0, Math.floor((now - new Date(session.lastResumedAt).getTime()) / 1000)) : 0;
+  return session.focusedSeconds + liveSeconds;
+}
+
+function FocusTimer({ session, baseSeconds = 0, onStart, onChange, onReset }: { session?: StudySession; baseSeconds?: number; onStart: () => void; onChange: (session: StudySession) => void; onReset: () => void }) {
+  const [now, setNow] = useState(() => Date.now());
+  const running = session?.timerState === "running";
   useEffect(() => {
     if (!running) return;
-    const id = window.setInterval(() => onChange(seconds + 1), 1000);
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [onChange, running, seconds]);
+  }, [running]);
+  useEffect(() => {
+    if (!running || !session) return;
+    const id = window.setInterval(() => {
+      const elapsed = focusElapsedSeconds(session);
+      onChange({ ...session, focusedSeconds: elapsed, lastResumedAt: new Date().toISOString() });
+    }, 10000);
+    return () => window.clearInterval(id);
+  }, [onChange, running, session]);
+  const seconds = session ? focusElapsedSeconds(session, now) : baseSeconds;
   const label = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-  return <div className="timer-box"><Timer /><strong>{label}</strong><button className="primary" onClick={() => setRunning(!running)}>{running ? <><Pause weight="fill" />Pause</> : <><Play weight="fill" />Focus</>}</button><button onClick={() => { setRunning(false); onChange(0); }}>Reset</button></div>;
+  return <div className="timer-box"><Timer /><strong>{label}</strong><button className="primary" onClick={() => { if (!session || session.timerState !== "running") onStart(); else onChange({ ...session, focusedSeconds: seconds, timerState: "paused", lastResumedAt: undefined }); }}>{running ? <><Pause weight="fill" />Pause</> : <><Play weight="fill" />{session?.timerState === "paused" ? "Resume" : "Focus"}</>}</button><button onClick={onReset}>Reset</button></div>;
 }
 
-function AdaptivePlannerControls({ summary, run }: { summary: AdaptivePlanSummary | null; run: (minutes: number) => void }) {
+function AdaptivePlannerControls({ summary, run, state, message }: { summary: AdaptivePlanSummary | null; run: (minutes: number) => void | Promise<void>; state: "idle" | "running" | "success" | "error"; message?: string }) {
   const [minutes, setMinutes] = useState(summary?.availableMinutes ?? 240);
-  return <article className="panel adaptive-planner"><div><small className="eyebrow">ADAPTIVE DAILY PLANNER</small><h3>Plan today around the gaps.</h3><p>Review open mistakes first, then schedule the next useful chapter.</p>{summary?.rationale.map((line) => <small className="planner-note" key={line}>{line}</small>)}</div><div className="adaptive-planner-actions"><label>Available minutes<input type="number" min="15" max="600" step="15" value={minutes} onChange={(event) => setMinutes(Math.max(15, Math.min(600, Number(event.target.value))))} /></label><button className="accent" onClick={() => run(minutes)}><Sparkle weight="fill" />Adapt my day</button>{summary && <span className="planner-result" role="status">{summary.usedMinutes}/{summary.availableMinutes} min placed · {summary.deferredCount} deferred</span>}</div></article>;
+  const busy = state === "running";
+  return <article className="panel adaptive-planner"><div><small className="eyebrow">ADAPTIVE DAILY PLANNER</small><h3>Plan today around the gaps.</h3><p>Review open mistakes first, then schedule the next useful chapter.</p>{summary?.rationale.map((line) => <small className="planner-note" key={line}>{line}</small>)}</div><div className="adaptive-planner-actions"><label>Available minutes<input type="number" min="15" max="600" step="15" value={minutes} onChange={(event) => setMinutes(Math.max(15, Math.min(600, Number(event.target.value))))} /></label><button className="accent" onClick={() => void run(minutes)} disabled={busy}><Sparkle weight="fill" />{busy ? "Planning…" : "Adapt my day"}</button>{summary && <span className="planner-result" role="status">{summary.usedMinutes}/{summary.availableMinutes} min placed · {summary.deferredCount} deferred</span>}{message && <span className={`planner-feedback ${state}`} role="status">{message}</span>}</div></article>;
 }
 
-function DailyTaskCard({ task, subject, index, featured, expanded, toggle, update, remove, journal, feedback, workflows }: { task: StudyTask; subject: Subject; index: number; featured?: boolean; expanded: boolean; toggle: () => void; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; workflows: CustomStudyWorkflow[] }) {
+function DailyTaskCard({ task, subject, index, featured, expanded, toggle, update, remove, journal, feedback, workflows, focusSession, startFocus, updateFocus, resetFocus }: { task: StudyTask; subject: Subject; index: number; featured?: boolean; expanded: boolean; toggle: () => void; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; workflows: CustomStudyWorkflow[]; focusSession?: StudySession; startFocus: () => void; updateFocus: (session: StudySession) => void; resetFocus: () => void }) {
   const workflow = workflowForTask(task, workflows);
   const steps = workflow.steps;
   const advance = () => {
@@ -301,7 +326,7 @@ function DailyTaskCard({ task, subject, index, featured, expanded, toggle, updat
       <div className="task-heading"><button className="task-summary" onClick={toggle} aria-expanded={expanded}><span className="subject-token">{subject.shortName.slice(0, 2)}</span><p><small>{subject.shortName}{task.pinned ? " · PINNED" : ""}</small><strong>{task.title}</strong><em>{task.reason}</em></p><CaretDown /></button><button className="remove-today" onClick={() => remove(task)} aria-label={`Remove ${task.title} from today's plan`} title="Remove from today"><X /></button></div>
       {expanded && <div className="steps">
         <p className="method-note"><span>RECOMMENDED {studyPhases.find((phase) => phase.id === workflow.phase)?.label.toUpperCase()}</span><strong>{methodLabel(task.studyMethod)} · {workflows.some((item) => item.phase === workflow.phase) ? "your steps" : "recommended steps"}</strong></p>
-        <FocusTimer seconds={task.focusedSeconds ?? 0} onChange={(focusedSeconds) => update({ ...task, focusedSeconds, status: focusedSeconds ? "in-progress" : task.status })} />
+        <FocusTimer session={focusSession} baseSeconds={task.focusedSeconds ?? 0} onStart={startFocus} onChange={updateFocus} onReset={resetFocus} />
         <div className="task-actions"><button className={task.pinned ? "pinned" : ""} onClick={() => update({ ...task, pinned: !task.pinned, priorityScore: task.pinned ? task.priorityScore : 100 })}><PushPin weight={task.pinned ? "fill" : "regular"} />{task.pinned ? "Pinned" : "Pin first"}</button><button onClick={() => update({ ...task, status: "planned", plannedTime: "Tomorrow", deferredUntil: new Date(Date.now() + 86400000).toISOString() })}>Move to tomorrow</button></div>
         <div className="recommendation-feedback"><small>Was this a useful next step?</small><button onClick={() => feedback(task, "useful")}>Useful</button><button onClick={() => feedback(task, "too-hard")}>Too hard</button><button onClick={() => feedback(task, "too-easy")}>Too easy</button><button onClick={() => feedback(task, "not-today")}>Not today</button></div>
         {steps.map((name, step) => <StudyStep key={name} name={name} index={step} current={task.currentStep} onAdvance={advance} />)}
@@ -311,7 +336,7 @@ function DailyTaskCard({ task, subject, index, featured, expanded, toggle, updat
   </article>;
 }
 
-function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, planSummary, planToday, feedback, adaptiveRiskSubject, entries, goJournal, workflows }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; adaptiveRiskSubject: string; entries: JournalEntry[]; goJournal: () => void; workflows: CustomStudyWorkflow[] }) {
+function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, planSummary, planToday, plannerState, plannerMessage, feedback, adaptiveRiskSubject, entries, goJournal, workflows, sessions, startFocus, updateFocus, resetFocus }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void | Promise<void>; plannerState: "idle" | "running" | "success" | "error"; plannerMessage?: string; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; adaptiveRiskSubject: string; entries: JournalEntry[]; goJournal: () => void; workflows: CustomStudyWorkflow[]; sessions: StudySession[]; startFocus: (task: StudyTask) => void; updateFocus: (session: StudySession) => void; resetFocus: (task: StudyTask) => void }) {
   const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
   const visible = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped" && isTaskAvailable(task) && !excluded.has(task.chapterId));
   const doNow = visible[0];
@@ -327,17 +352,17 @@ function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, 
   }, [doNow?.id, focusTaskId]);
   const completedMinutes = todayEntries.reduce((sum, entry) => sum + entry.minutes, 0);
   const plannedMinutes = visible.reduce((sum, task) => sum + task.duration, 0);
-  return <section className="today-page home-section">
+  return <section id="daily-loop" className="today-page home-section" tabIndex={-1}>
     <SectionTitle kicker={`YOUR DAILY LOOP · ${dhakaDate()}`} title="What to do next"><button className="add-task" onClick={add}><Plus />Add task</button></SectionTitle>
-    <AdaptivePlannerControls summary={planSummary} run={planToday} />
+    <AdaptivePlannerControls summary={planSummary} run={planToday} state={plannerState} message={plannerMessage} />
     <div className="daily-loop-grid">
       <section className="daily-loop-section do-now-section">
         <div className="daily-loop-heading"><span className="daily-loop-index">1</span><div><small>DO NOW</small><h3>Start with one clear action.</h3><p>The strongest next step is first. You do not need to plan the whole day before beginning.</p></div></div>
-        {doNow ? <DailyTaskCard task={doNow} subject={bySubject(doNow.subjectId)} index={0} featured expanded={expanded === doNow.id} toggle={() => setExpanded(expanded === doNow.id ? "" : doNow.id)} update={update} remove={remove} journal={journal} feedback={feedback} workflows={workflows} /> : <div className="daily-loop-empty"><CheckCircle weight="fill" /><strong>Your open queue is clear.</strong><p>Use the journal to record what you completed, or add one manual task when you are ready.</p><button className="solid-cta" onClick={goJournal}><NotePencil />Close today&apos;s loop</button></div>}
+        {doNow ? <DailyTaskCard task={doNow} subject={bySubject(doNow.subjectId)} index={0} featured expanded={expanded === doNow.id} toggle={() => setExpanded(expanded === doNow.id ? "" : doNow.id)} update={update} remove={remove} journal={journal} feedback={feedback} workflows={workflows} focusSession={sessions.find((session) => session.taskId === doNow.id && session.mode === "focus" && session.timerState !== "completed")} startFocus={() => startFocus(doNow)} updateFocus={updateFocus} resetFocus={() => resetFocus(doNow)} /> : <div className="daily-loop-empty"><CheckCircle weight="fill" /><strong>Your open queue is clear.</strong><p>Use the journal to record what you completed, or add one manual task when you are ready.</p><button className="solid-cta" onClick={goJournal}><NotePencil />Close today&apos;s loop</button></div>}
       </section>
       <section className="daily-loop-section more-time-section">
         <div className="daily-loop-heading"><span className="daily-loop-index">2</span><div><small>IF YOU HAVE MORE TIME</small><h3>Keep going without guessing.</h3><p>These are useful follow-ups after Do Now. Stop when your planned time is used.</p></div></div>
-        <div className="daily-more-list">{moreTime.length ? moreTime.map((task, index) => <DailyTaskCard key={task.id} task={task} subject={bySubject(task.subjectId)} index={index + 1} expanded={expanded === task.id} toggle={() => setExpanded(expanded === task.id ? "" : task.id)} update={update} remove={remove} journal={journal} feedback={feedback} workflows={workflows} />) : <div className="daily-loop-empty compact"><Timer /><strong>No extra work is required.</strong><p>Protect your energy and return tomorrow. The planner will refill this section when needed.</p></div>}</div>
+        <div className="daily-more-list">{moreTime.length ? moreTime.map((task, index) => <DailyTaskCard key={task.id} task={task} subject={bySubject(task.subjectId)} index={index + 1} expanded={expanded === task.id} toggle={() => setExpanded(expanded === task.id ? "" : task.id)} update={update} remove={remove} journal={journal} feedback={feedback} workflows={workflows} focusSession={sessions.find((session) => session.taskId === task.id && session.mode === "focus" && session.timerState !== "completed")} startFocus={() => startFocus(task)} updateFocus={updateFocus} resetFocus={() => resetFocus(task)} />) : <div className="daily-loop-empty compact"><Timer /><strong>No extra work is required.</strong><p>Protect your energy and return tomorrow. The planner will refill this section when needed.</p></div>}</div>
       </section>
     </div>
     <section className="daily-loop-section close-loop-section">
@@ -349,16 +374,53 @@ function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, 
   </section>;
 }
 
-function Home({ tasks, chapters, preferences, mistakes, entries, examEvents, update, remove, journal, add, focusTaskId, planSummary, planToday, go, startStudy, feedback, adaptiveRiskSubject, goJournal, workflows }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void; go: (value: string) => void; startStudy: (task: StudyTask) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; adaptiveRiskSubject: string; goJournal: () => void; workflows: CustomStudyWorkflow[] }) {
-  return <main id="main-content" tabIndex={-1} className="page home-page"><Dashboard tasks={tasks} chapters={chapters} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} go={go} startStudy={startStudy} add={add} /><Today tasks={tasks} preferences={preferences} update={update} remove={remove} journal={journal} add={add} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} feedback={feedback} adaptiveRiskSubject={adaptiveRiskSubject} entries={entries} goJournal={goJournal} workflows={workflows} /></main>;
+function Home({ tasks, chapters, preferences, mistakes, entries, examEvents, update, remove, journal, add, focusTaskId, planSummary, planToday, plannerState, plannerMessage, sessions, startFocus, updateFocus, resetFocus, go, startStudy, feedback, adaptiveRiskSubject, goJournal, workflows }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void | Promise<void>; plannerState: "idle" | "running" | "success" | "error"; plannerMessage?: string; sessions: StudySession[]; startFocus: (task: StudyTask) => void; updateFocus: (session: StudySession) => void; resetFocus: (task: StudyTask) => void; go: (value: string) => void; startStudy: (task: StudyTask) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; adaptiveRiskSubject: string; goJournal: () => void; workflows: CustomStudyWorkflow[] }) {
+  return <main id="main-content" tabIndex={-1} className="page home-page"><Dashboard tasks={tasks} chapters={chapters} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} go={go} startStudy={startStudy} add={add} /><Today tasks={tasks} preferences={preferences} update={update} remove={remove} journal={journal} add={add} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} plannerState={plannerState} plannerMessage={plannerMessage} feedback={feedback} adaptiveRiskSubject={adaptiveRiskSubject} entries={entries} goJournal={goJournal} workflows={workflows} sessions={sessions} startFocus={startFocus} updateFocus={updateFocus} resetFocus={resetFocus} /></main>;
 }
 
-function Syllabus({ list, setList, preferences, updatePreference, completeChapter, persistProgress, goGoals, sessions, entries, mistakes, resources, goResources }: { list: Chapter[]; setList: (value: Chapter[]) => void; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; completeChapter: (chapter: Chapter) => void; persistProgress: (chapter: Chapter) => void; goGoals: () => void; sessions: StudySession[]; entries: JournalEntry[]; mistakes: Mistake[]; resources: StudyResource[]; goResources: (chapterId: string) => void }) {
+const difficultyLabels: Record<ChapterDifficulty, string> = { 1: "Easy", 2: "Light", 3: "Moderate", 4: "Hard", 5: "Very hard" };
+
+function DifficultyPicker({ value, onChange }: { value: ChapterDifficulty; onChange: (value: ChapterDifficulty) => void }) {
+  return <div className="difficulty-picker" role="group" aria-label="Chapter difficulty"><small>Difficulty</small><span>{([1, 2, 3, 4, 5] as ChapterDifficulty[]).map((level) => <button type="button" key={level} className={level === value ? "active" : ""} onClick={() => onChange(level)} aria-label={`${difficultyLabels[level]} difficulty`} aria-pressed={level === value}>{level}</button>)}</span><em>{difficultyLabels[value]}</em></div>;
+}
+
+function PriorCompletionPanel({ list, subjects: availableSubjects, save, close }: { list: Chapter[]; subjects: Subject[]; save: (chapterIds: string[]) => Promise<void>; close: () => void }) {
+  const subjectOptions = availableSubjects.filter((subject) => list.some((chapter) => chapter.subjectId === subject.id));
+  const [subjectId, setSubjectId] = useState(subjectOptions[0]?.id ?? "");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const currentSubject = subjectOptions.find((subject) => subject.id === subjectId) ?? subjectOptions[0];
+  const currentChapters = currentSubject ? orderChapters(list.filter((chapter) => chapter.subjectId === currentSubject.id && chapter.status !== "exam-ready")) : [];
+  const toggle = (chapterId: string) => setSelectedIds((current) => current.includes(chapterId) ? current.filter((id) => id !== chapterId) : [...current, chapterId]);
+  const markAll = () => setSelectedIds((current) => Array.from(new Set([...current, ...currentChapters.map((chapter) => chapter.id)])));
+  const saveSelection = async () => {
+    if (!selectedIds.length) {
+      setMessage("Choose at least one chapter first.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      await save(selectedIds);
+      setMessage(`${selectedIds.length} chapter${selectedIds.length === 1 ? "" : "s"} added to your completed history.`);
+      setSelectedIds([]);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save completed chapters.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <section className="prior-completion-panel" aria-labelledby="prior-completion-title"><div className="prior-completion-heading"><div><small>STARTING POINT</small><h3 id="prior-completion-title">Already finished chapters?</h3><p>Mark work you completed before joining. Those chapters will leave the new-learning queue and remain available for revision.</p></div><button type="button" className="panel-close-button" onClick={close} aria-label="Close prior completion panel"><X /></button></div><div className="prior-completion-subjects" role="tablist" aria-label="Choose a subject">{subjectOptions.map((subject) => <button type="button" role="tab" aria-selected={currentSubject?.id === subject.id} className={currentSubject?.id === subject.id ? `active ${subject.accent}` : ""} key={subject.id} onClick={() => setSubjectId(subject.id)}><strong>{subject.shortName}</strong><small>{list.filter((chapter) => chapter.subjectId === subject.id && chapter.status === "exam-ready").length} complete</small></button>)}</div>{currentSubject && <div className="prior-completion-list"><div className="prior-completion-list-heading"><strong>{currentSubject.name}</strong><button type="button" onClick={markAll} disabled={!currentChapters.length}>Mark all visible</button></div>{currentChapters.length ? currentChapters.map((chapter) => <button type="button" key={chapter.id} className={selectedIds.includes(chapter.id) ? "selected" : ""} onClick={() => toggle(chapter.id)} aria-pressed={selectedIds.includes(chapter.id)}><span>{selectedIds.includes(chapter.id) ? <CheckCircle weight="fill" /> : <span />}</span><strong>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</strong><small>{selectedIds.includes(chapter.id) ? "Will be marked complete" : chapter.status.replace("-", " ")}</small></button>) : <p className="prior-completion-empty">All chapters in this subject are already marked complete.</p>}</div>}<div className="prior-completion-footer"><span>{selectedIds.length} selected</span><div><button type="button" onClick={close}>Not now</button><button type="button" className="accent" onClick={saveSelection} disabled={busy || !selectedIds.length}>{busy ? "Saving…" : "Save completed history"}</button></div></div>{message && <p className="prior-completion-message" role="status">{message}</p>}</section>;
+}
+
+function Syllabus({ list, setList, preferences, updatePreference, completeChapter, persistProgress, saveCompletedChapters, goGoals, sessions, entries, mistakes, resources, goResources }: { list: Chapter[]; setList: (value: Chapter[]) => void; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; completeChapter: (chapter: Chapter) => void; persistProgress: (chapter: Chapter) => void; saveCompletedChapters: (chapterIds: string[]) => Promise<void>; goGoals: () => void; sessions: StudySession[]; entries: JournalEntry[]; mistakes: Mistake[]; resources: StudyResource[]; goResources: (chapterId: string) => void }) {
   const [selected, setSelected] = useState("mathematics");
   const [query, setQuery] = useState("");
   const [showExcluded, setShowExcluded] = useState(false);
+  const [priorPanelOpen, setPriorPanelOpen] = useState(false);
   const subject = bySubject(selected);
-  const mine = list.filter((chapter) => chapter.subjectId === selected && chapter.title.toLowerCase().includes(query.toLowerCase()) && (showExcluded || !preferenceFor(chapter.id, preferences).excluded));
+  const mine = orderChapters(list.filter((chapter) => chapter.subjectId === selected && chapter.title.toLowerCase().includes(query.toLowerCase()) && (showExcluded || !preferenceFor(chapter.id, preferences).excluded)));
   const marks = marksDistributions.filter((mark) => mark.subjectId === selected);
   const cycle = (chapter: Chapter) => {
     const states: Chapter["status"][] = ["not-started", "learning", "practising", "exam-ready", "needs-revision"];
@@ -371,12 +433,17 @@ function Syllabus({ list, setList, preferences, updatePreference, completeChapte
     setList(list.map((item) => item.id === chapter.id ? updated : item));
     persistProgress(updated);
   };
+  const setDifficulty = (chapter: Chapter, difficulty: ChapterDifficulty) => {
+    const updated = { ...chapter, difficulty };
+    setList(list.map((item) => item.id === chapter.id ? updated : item));
+    persistProgress(updated);
+  };
   const listedTotal = marks.reduce((sum, item) => sum + item.marks, 0);
   const officialTotal = officialTotalFor(selected) || undefined;
   const hasConflict = Boolean(officialTotal && listedTotal && listedTotal !== officialTotal);
   return <main id="main-content" tabIndex={-1} className="page syllabus-page">
     <section className="subject-strip" aria-label="Subjects">{subjects.map((item) => <button key={item.id} className={selected === item.id ? `active ${item.accent}` : ""} onClick={() => setSelected(item.id)}><span>{item.shortName.slice(0, 2)}</span><strong>{item.shortName}</strong><small>{list.filter((chapter) => chapter.subjectId === item.id).length} topics</small></button>)}</section>
-    <section className="syllabus-layout"><div><SectionTitle kicker={`${subject.strength.replace("-", " ")} · ${subject.workflow === "accounting" ? "separate accounting workflow" : subject.workflow}`} title={subject.name}><div className="syllabus-tools"><label className="search"><MagnifyingGlass /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a chapter" aria-label="Find a chapter" /></label><button className={showExcluded ? "active" : ""} onClick={() => setShowExcluded(!showExcluded)}><EyeSlash />{showExcluded ? "Hide excluded" : "Show excluded"}</button><button onClick={goGoals}><Target />Plan goals</button></div></SectionTitle><div className="chapters">{mine.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); return <article className={preference.excluded ? "excluded" : ""} key={chapter.id}><span className={`number ${subject.accent}`}>{chapter.number ?? "•"}</span><p><strong>{chapter.title}</strong><small>{preference.excluded ? `Excluded${preference.exclusionReason ? ` · ${preference.exclusionReason}` : ""}` : [chapter.division, chapter.note].filter(Boolean).join(" · ") || chapter.formats.join(" · ")}</small></p><div className="chapter-actions"><button className={preference.targetMonth === currentMonthKey() ? "selected" : ""} onClick={() => updatePreference({ ...preference, excluded: false, targetMonth: preference.targetMonth === currentMonthKey() ? undefined : currentMonthKey() })}>Month</button><button className={preference.includedForSsc ? "selected" : ""} onClick={() => updatePreference({ ...preference, excluded: false, includedForSsc: !preference.includedForSsc })}>SSC</button><button className={preference.excluded ? "danger selected" : "danger"} onClick={() => updatePreference({ ...preference, excluded: !preference.excluded, includedForSsc: preference.excluded ? preference.includedForSsc : false, targetMonth: preference.excluded ? preference.targetMonth : undefined, exclusionReason: preference.excluded ? undefined : "Strategic skip" })} aria-label={preference.excluded ? `Restore ${chapter.title}` : `Exclude ${chapter.title}`}>{preference.excluded ? <ArrowCounterClockwise /> : <EyeSlash />}</button></div><div className="chapter-status-actions"><button className={`status ${chapter.status}`} onClick={() => cycle(chapter)} aria-label={`Change status for ${chapter.title}`}>{chapter.status === "exam-ready" ? "Complete" : chapter.status.replace("-", " ")}</button><button className="complete-chapter" onClick={() => completeChapter(chapter)} disabled={chapter.status === "exam-ready"} aria-label={`${chapter.status === "exam-ready" ? "Completed" : "Mark"} ${chapter.title} complete`}>{chapter.status === "exam-ready" ? <><CheckCircle weight="fill" />Completed</> : <><Check />Mark complete</>}</button></div><span className="confidence" role="group" aria-label={`Confidence for ${chapter.title}`}>{([1, 2, 3, 4, 5] as const).map((n) => <button type="button" className={n <= chapter.confidence ? "on" : ""} key={n} onClick={() => setConfidence(chapter, n)} aria-label={`Set confidence to ${n} out of 5`} aria-pressed={chapter.confidence === n} />)}</span></article>; })}</div></div><aside className="marks"><small>OFFICIAL QUESTION-TYPE DISTRIBUTION</small><h3>{officialTotal ? `${officialTotal} marks` : marks.length ? `${listedTotal} marks listed` : "Pattern pending"}</h3>{hasConflict && <p className="source-warning"><Warning weight="fill" />The source says {officialTotal} total, while its listed rows add to {listedTotal}. Kept visible for confirmation; no chapter marks were invented.</p>}{marks.length ? marks.map((mark) => <div key={`${mark.part}-${mark.questionType}`}><p><strong>{mark.questionType}</strong><small>{mark.rule}</small></p><b>{mark.marks}</b></div>) : <p>No complete readable Agriculture marks table was available. No chapter weights have been invented.</p>}</aside></section><SyllabusEvidenceMap chapters={list} sessions={sessions} entries={entries} mistakes={mistakes} resources={resources} onOpenResources={goResources} />
+    <section className="syllabus-layout"><div><SectionTitle kicker={`${subject.strength.replace("-", " ")} · ${subject.workflow === "accounting" ? "separate accounting workflow" : subject.workflow}`} title={subject.name}><div className="syllabus-tools"><label className="search"><MagnifyingGlass /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a chapter" aria-label="Find a chapter" /></label><button className={showExcluded ? "active" : ""} onClick={() => setShowExcluded(!showExcluded)}><EyeSlash />{showExcluded ? "Hide excluded" : "Show excluded"}</button><button className={priorPanelOpen ? "active" : ""} onClick={() => setPriorPanelOpen((open) => !open)}><CheckCircle weight="fill" />Mark prior progress</button><button onClick={goGoals}><Target />Plan goals</button></div></SectionTitle>{priorPanelOpen && <PriorCompletionPanel list={list} subjects={subjects} save={saveCompletedChapters} close={() => setPriorPanelOpen(false)} />}<div className="chapters">{mine.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); return <article className={preference.excluded ? "excluded" : ""} key={chapter.id}><span className={`number ${subject.accent}`}>{chapter.number ?? "•"}</span><p><strong>{chapter.title}</strong><small>{preference.excluded ? `Excluded${preference.exclusionReason ? ` · ${preference.exclusionReason}` : ""}` : [chapter.division, chapter.note].filter(Boolean).join(" · ") || chapter.formats.join(" · ")}</small></p><div className="chapter-actions"><button className={preference.targetMonth === currentMonthKey() ? "selected" : ""} onClick={() => updatePreference({ ...preference, excluded: false, targetMonth: preference.targetMonth === currentMonthKey() ? undefined : currentMonthKey() })}>Month</button><button className={preference.includedForSsc ? "selected" : ""} onClick={() => updatePreference({ ...preference, excluded: false, includedForSsc: !preference.includedForSsc })}>SSC</button><button className={preference.excluded ? "danger selected" : "danger"} onClick={() => updatePreference({ ...preference, excluded: !preference.excluded, includedForSsc: preference.excluded ? preference.includedForSsc : false, targetMonth: preference.excluded ? preference.targetMonth : undefined, exclusionReason: preference.excluded ? undefined : "Strategic skip" })} aria-label={preference.excluded ? `Restore ${chapter.title}` : `Exclude ${chapter.title}`}>{preference.excluded ? <ArrowCounterClockwise /> : <EyeSlash />}</button></div><div className="chapter-status-actions"><button className={`status ${chapter.status}`} onClick={() => cycle(chapter)} aria-label={`Change status for ${chapter.title}`}>{chapter.status === "exam-ready" ? "Complete" : chapter.status.replace("-", " ")}</button><button className="complete-chapter" onClick={() => completeChapter(chapter)} disabled={chapter.status === "exam-ready"} aria-label={`${chapter.status === "exam-ready" ? "Completed" : "Mark"} ${chapter.title} complete`}>{chapter.status === "exam-ready" ? <><CheckCircle weight="fill" />Completed</> : <><Check />Mark complete</>}</button></div><DifficultyPicker value={chapter.difficulty} onChange={(difficulty) => setDifficulty(chapter, difficulty)} /><span className="confidence" role="group" aria-label={`Confidence for ${chapter.title}`}>{([1, 2, 3, 4, 5] as const).map((n) => <button type="button" className={n <= chapter.confidence ? "on" : ""} key={n} onClick={() => setConfidence(chapter, n)} aria-label={`Set confidence to ${n} out of 5`} aria-pressed={chapter.confidence === n} />)}</span></article>; })}</div></div><aside className="marks"><small>OFFICIAL QUESTION-TYPE DISTRIBUTION</small><h3>{officialTotal ? `${officialTotal} marks` : marks.length ? `${listedTotal} marks listed` : "Pattern pending"}</h3>{hasConflict && <p className="source-warning"><Warning weight="fill" />The source says {officialTotal} total, while its listed rows add to {listedTotal}. Kept visible for confirmation; no chapter marks were invented.</p>}{marks.length ? marks.map((mark) => <div key={`${mark.part}-${mark.questionType}`}><p><strong>{mark.questionType}</strong><small>{mark.rule}</small></p><b>{mark.marks}</b></div>) : <p>No complete readable Agriculture marks table was available. No chapter weights have been invented.</p>}</aside></section><SyllabusEvidenceMap chapters={list} sessions={sessions} entries={entries} mistakes={mistakes} resources={resources} onOpenResources={goResources} />
   </main>;
 }
 
@@ -388,16 +455,16 @@ function GoalMetrics({ chapters }: { chapters: Chapter[] }) {
   return <div className="goal-metrics"><article><small>Selected</small><strong>{chapters.length}</strong></article><article><small>Exam-ready</small><strong>{ready}</strong></article><article><small>In progress</small><strong>{active}</strong></article><article><small>Left</small><strong>{left}</strong></article><article className="wide"><small>Completion</small><i><b style={{ width: `${percent}%` }} /></i><strong>{percent}%</strong></article></div>;
 }
 
-function Goals({ list, preferences, updatePreference, updatePreferences, completeChapter, buildQueue }: { list: Chapter[]; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; updatePreferences: (values: ChapterPreference[]) => void; completeChapter: (chapter: Chapter) => void; buildQueue: (chapters: Chapter[], label: string) => void }) {
+function Goals({ list, preferences, updatePreference, updatePreferences, completeChapter, setDifficulty, buildQueue }: { list: Chapter[]; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; updatePreferences: (values: ChapterPreference[]) => void; completeChapter: (chapter: Chapter) => void; setDifficulty: (chapter: Chapter, difficulty: ChapterDifficulty) => void; buildQueue: (chapters: Chapter[], label: string) => void }) {
   const [month, setMonth] = useState(currentMonthKey());
   const [subjectId, setSubjectId] = useState("all");
   const [mode, setMode] = useState<"monthly" | "ssc" | "excluded">("ssc");
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
-  const monthly = list.filter((chapter) => preferenceFor(chapter.id, preferences).targetMonth === month && !preferenceFor(chapter.id, preferences).excluded);
-  const ssc = list.filter((chapter) => preferenceFor(chapter.id, preferences).includedForSsc && !preferenceFor(chapter.id, preferences).excluded);
-  const excluded = list.filter((chapter) => preferenceFor(chapter.id, preferences).excluded);
+  const monthly = orderChapters(list.filter((chapter) => preferenceFor(chapter.id, preferences).targetMonth === month && !preferenceFor(chapter.id, preferences).excluded));
+  const ssc = orderChapters(list.filter((chapter) => preferenceFor(chapter.id, preferences).includedForSsc && !preferenceFor(chapter.id, preferences).excluded));
+  const excluded = orderChapters(list.filter((chapter) => preferenceFor(chapter.id, preferences).excluded));
   const selected = mode === "monthly" ? monthly : mode === "ssc" ? ssc : excluded;
-  const candidates = list.filter((chapter) => subjectId === "all" || chapter.subjectId === subjectId);
+  const candidates = orderChapters(list.filter((chapter) => subjectId === "all" || chapter.subjectId === subjectId));
   const deadline = mode === "monthly" ? new Date(new Date(`${month}T00:00:00+06:00`).getFullYear(), new Date(`${month}T00:00:00+06:00`).getMonth() + 1, 0) : new Date("2027-01-07T00:00:00+06:00");
   const weeks = Math.max(1, Math.ceil((deadline.getTime() - Date.now()) / 604800000));
   const remaining = selected.filter((chapter) => chapter.status !== "exam-ready").length;
@@ -407,21 +474,21 @@ function Goals({ list, preferences, updatePreference, updatePreferences, complet
     const preference = preferenceFor(chapter.id, preferences);
     if (mode === "monthly") updatePreference({ ...preference, excluded: false, exclusionReason: undefined, targetMonth: chosen ? month : undefined });
     else if (mode === "ssc") updatePreference({ ...preference, excluded: false, exclusionReason: undefined, includedForSsc: chosen });
-    else updatePreference({ ...preference, excluded: !chosen, includedForSsc: false, targetMonth: undefined, exclusionReason: chosen ? "Strategic skip" : undefined });
+    else updatePreference({ ...preference, excluded: chosen, includedForSsc: false, targetMonth: undefined, exclusionReason: chosen ? "Strategic skip" : undefined });
   };
   const toggleSubject = (subjectIdToChange: string) => {
     const group = candidates.filter((chapter) => chapter.subjectId === subjectIdToChange);
     const allChosen = group.length > 0 && group.every(isChosen);
-    updatePreferences(group.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); const chosen = !allChosen; if (mode === "monthly") return { ...preference, excluded: false, exclusionReason: undefined, targetMonth: chosen ? month : undefined }; if (mode === "ssc") return { ...preference, excluded: false, exclusionReason: undefined, includedForSsc: chosen }; return { ...preference, excluded: !chosen, includedForSsc: false, targetMonth: undefined, exclusionReason: chosen ? "Strategic skip" : undefined }; }));
+    updatePreferences(group.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); const chosen = !allChosen; if (mode === "monthly") return { ...preference, excluded: false, exclusionReason: undefined, targetMonth: chosen ? month : undefined }; if (mode === "ssc") return { ...preference, excluded: false, exclusionReason: undefined, includedForSsc: chosen }; return { ...preference, excluded: chosen, includedForSsc: false, targetMonth: undefined, exclusionReason: chosen ? "Strategic skip" : undefined }; }));
   };
-  const toggleAll = (chosen: boolean) => updatePreferences(candidates.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); if (mode === "monthly") return { ...preference, excluded: false, exclusionReason: undefined, targetMonth: chosen ? month : undefined }; if (mode === "ssc") return { ...preference, excluded: false, exclusionReason: undefined, includedForSsc: chosen }; return { ...preference, excluded: !chosen, includedForSsc: false, targetMonth: undefined, exclusionReason: chosen ? "Strategic skip" : undefined }; }));
-  const subjectGroups = subjects.map((subject) => ({ subject, chapters: candidates.filter((chapter) => chapter.subjectId === subject.id) })).filter((group) => group.chapters.length);
+  const toggleAll = (chosen: boolean) => updatePreferences(candidates.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); if (mode === "monthly") return { ...preference, excluded: false, exclusionReason: undefined, targetMonth: chosen ? month : undefined }; if (mode === "ssc") return { ...preference, excluded: false, exclusionReason: undefined, includedForSsc: chosen }; return { ...preference, excluded: chosen, includedForSsc: false, targetMonth: undefined, exclusionReason: chosen ? "Strategic skip" : undefined }; }));
+  const subjectGroups = subjects.map((subject) => ({ subject, chapters: orderChapters(candidates.filter((chapter) => chapter.subjectId === subject.id)) })).filter((group) => group.chapters.length);
   return <main id="main-content" tabIndex={-1} className="page goals-page">
     <SectionTitle kicker="BUILD THE SYLLABUS YOU WILL ACTUALLY STUDY" title="Strategic chapter goals"><span><Target weight="fill" />{pace} chapter{pace === 1 ? "" : "s"}/week needed</span></SectionTitle>
     <section className="panel goal-intro"><div><small>SSC 2027 TARGET CAMPAIGN</small><h3>{mode === "ssc" ? "Every chapter is included by default." : mode === "monthly" ? `${monthLabel(month)} campaign` : "Your reversible exclusions"}</h3><p>{mode === "ssc" ? "Keep all chapters selected, then exclude only the chapters you deliberately do not want in your plan." : "Use subject sections and bulk actions instead of managing a long undifferentiated list."}</p></div><div className="goal-bulk-actions">{mode !== "excluded" && <button className="accent" onClick={() => toggleAll(true)}><CheckCircle weight="fill" />Select all visible</button>}<button onClick={() => toggleAll(false)}><X />{mode === "excluded" ? "Clear exclusions" : "Clear visible"}</button></div></section>
     <section className="goal-controls"><div className="segmented">{(["monthly", "ssc", "excluded"] as const).map((item) => <button className={mode === item ? "active" : ""} key={item} onClick={() => setMode(item)}>{item === "monthly" ? "Monthly goal" : item === "ssc" ? "Before SSC" : "Excluded"}</button>)}</div>{mode === "monthly" && <label>Target month<input type="month" value={month.slice(0, 7)} onChange={(event) => setMonth(`${event.target.value}-01`)} /></label>}<label>Subject<select value={subjectId} onChange={(event) => setSubjectId(event.target.value)}><option value="all">All subjects</option>{subjects.map((subject) => <option value={subject.id} key={subject.id}>{subject.name}</option>)}</select></label></section>
     <GoalMetrics chapters={selected} />
-    <section className="goals-structured"><article className="panel goal-selected"><SectionTitle kicker={mode === "monthly" ? monthLabel(month) : mode === "ssc" ? "SSC 2027 TARGET SET" : "REVERSIBLE STRATEGIC SKIPS"} title={mode === "excluded" ? "Chapters you chose not to prepare" : "Selected chapters"}>{mode !== "excluded" && selected.length > 0 && <button className="accent" onClick={() => buildQueue(selected, mode === "monthly" ? `${monthLabel(month)} goal` : "SSC target")}><ListChecks />Build next 5</button>}</SectionTitle>{selected.length ? subjectGroups.map(({ subject }) => { const mine = selected.filter((chapter) => chapter.subjectId === subject.id); if (!mine.length) return null; return <section className="goal-selected-subject" key={subject.id}><header><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><div><strong>{subject.name}</strong><small>{mine.length} selected · {mine.filter((chapter) => chapter.status === "exam-ready").length} complete</small></div></header>{mine.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); return <div className="goal-row" key={chapter.id}><span className={`number ${subject.accent}`}>{chapter.number ?? "•"}</span><p><strong>{chapter.title}</strong><small>{chapter.status === "exam-ready" ? "Completed before or during this app" : chapter.status.replace("-", " ")}</small></p>{mode !== "excluded" && <label className="priority-control">Priority<select value={preference.priority} onChange={(event) => updatePreference({ ...preference, priority: Number(event.target.value) as ChapterPreference["priority"] })}>{[1, 2, 3, 4, 5].map((level) => <option value={level} key={level}>{level}</option>)}</select></label>}<button className={chapter.status === "exam-ready" ? "complete-inline is-complete" : "complete-inline"} onClick={() => chapter.status === "exam-ready" ? undefined : completeChapter(chapter)} disabled={chapter.status === "exam-ready"}>{chapter.status === "exam-ready" ? <><CheckCircle weight="fill" />Complete</> : <><Check />Mark complete</>}</button><button className="remove-goal" onClick={() => updateSelection(chapter, false)}>{mode === "excluded" ? <><ArrowCounterClockwise />Restore</> : "Remove from goal"}</button></div>; })}</section>; }) : <div className="empty compact"><Target /><h3>No chapters selected yet.</h3><p>Choose a subject group from the right to add chapters back into this campaign.</p></div>}</article><aside className="panel goal-picker"><SectionTitle kicker="STRUCTURED BY SUBJECT" title="Choose your coverage" />{subjectGroups.map(({ subject, chapters }) => { const chosenCount = chapters.filter(isChosen).length; const allChosen = chapters.length > 0 && chosenCount === chapters.length; return <section className="goal-subject-section" key={subject.id}><header><div><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><div><strong>{subject.name}</strong><small>{chosenCount}/{chapters.length} {mode === "excluded" ? "excluded" : "selected"}</small></div></div><div className="subject-group-actions"><button type="button" onClick={() => toggleSubject(subject.id)}>{allChosen ? "Clear subject" : "Select subject"}</button><button type="button" className="expand-subject" aria-expanded={expandedSubject === subject.id} aria-controls={`coverage-${subject.id}`} onClick={() => setExpandedSubject((current) => current === subject.id ? null : subject.id)}>{expandedSubject === subject.id ? "Hide chapters" : "View chapters"}<CaretDown weight="bold" /></button></div></header>{expandedSubject === subject.id && <div className="goal-chapter-list" id={`coverage-${subject.id}`}>{chapters.map((chapter) => { const chosen = isChosen(chapter); return <label className={`goal-chapter-option ${chosen ? "chosen" : ""}`} key={chapter.id}><input type="checkbox" checked={chosen} onChange={(event) => updateSelection(chapter, event.target.checked)} /><span><strong>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</strong><small>{chapter.status === "exam-ready" ? "Completed" : chapter.status.replace("-", " ")}</small></span>{chosen ? <CheckCircle weight="fill" /> : <Plus />}</label>; })}</div>}</section>; })}</aside></section>
+    <section className="goals-structured"><article className="panel goal-selected"><SectionTitle kicker={mode === "monthly" ? monthLabel(month) : mode === "ssc" ? "SSC 2027 TARGET SET" : "REVERSIBLE STRATEGIC SKIPS"} title={mode === "excluded" ? "Chapters you chose not to prepare" : "Selected chapters"}>{mode !== "excluded" && selected.length > 0 && <button className="accent" onClick={() => buildQueue(selected, mode === "monthly" ? `${monthLabel(month)} goal` : "SSC target")}><ListChecks />Build next 5</button>}</SectionTitle>{selected.length ? subjectGroups.map(({ subject }) => { const mine = selected.filter((chapter) => chapter.subjectId === subject.id); if (!mine.length) return null; return <section className="goal-selected-subject" key={subject.id}><header><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><div><strong>{subject.name}</strong><small>{mine.length} selected · {mine.filter((chapter) => chapter.status === "exam-ready").length} complete</small></div></header>{mine.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); return <div className="goal-row" key={chapter.id}><span className={`number ${subject.accent}`}>{chapter.number ?? "•"}</span><p><strong>{chapter.title}</strong><small>{chapter.status === "exam-ready" ? "Completed before or during this app" : chapter.status.replace("-", " ")}</small></p>{mode !== "excluded" && <label className="priority-control">Priority<select value={preference.priority} onChange={(event) => updatePreference({ ...preference, priority: Number(event.target.value) as ChapterPreference["priority"] })}>{[1, 2, 3, 4, 5].map((level) => <option value={level} key={level}>{level}</option>)}</select></label>}<button className={chapter.status === "exam-ready" ? "complete-inline is-complete" : "complete-inline"} onClick={() => chapter.status === "exam-ready" ? undefined : completeChapter(chapter)} disabled={chapter.status === "exam-ready"}>{chapter.status === "exam-ready" ? <><CheckCircle weight="fill" />Complete</> : <><Check />Mark complete</>}</button><DifficultyPicker value={chapter.difficulty} onChange={(difficulty) => setDifficulty(chapter, difficulty)} /><button className="remove-goal" onClick={() => updateSelection(chapter, false)}>{mode === "excluded" ? <><ArrowCounterClockwise />Restore</> : "Remove from goal"}</button></div>; })}</section>; }) : <div className="empty compact"><Target /><h3>No chapters selected yet.</h3><p>Choose a subject group from the right to add chapters back into this campaign.</p></div>}</article><aside className="panel goal-picker"><SectionTitle kicker="STRUCTURED BY SUBJECT" title="Choose your coverage" />{subjectGroups.map(({ subject, chapters }) => { const chosenCount = chapters.filter(isChosen).length; const allChosen = chapters.length > 0 && chosenCount === chapters.length; return <section className="goal-subject-section" key={subject.id}><header><div><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><div><strong>{subject.name}</strong><small>{chosenCount}/{chapters.length} {mode === "excluded" ? "excluded" : "selected"}</small></div></div><div className="subject-group-actions"><button type="button" onClick={() => toggleSubject(subject.id)}>{allChosen ? "Clear subject" : "Select subject"}</button><button type="button" className="expand-subject" aria-expanded={expandedSubject === subject.id} aria-controls={`coverage-${subject.id}`} onClick={() => setExpandedSubject((current) => current === subject.id ? null : subject.id)}>{expandedSubject === subject.id ? "Hide chapters" : "View chapters"}<CaretDown weight="bold" /></button></div></header>{expandedSubject === subject.id && <div className="goal-chapter-list" id={`coverage-${subject.id}`}>{chapters.map((chapter) => { const chosen = isChosen(chapter); return <label className={`goal-chapter-option ${chosen ? "chosen" : ""}`} key={chapter.id}><input type="checkbox" checked={chosen} onChange={(event) => updateSelection(chapter, event.target.checked)} /><span><strong>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</strong><small>{chapter.status === "exam-ready" ? "Completed" : chapter.status.replace("-", " ")}</small></span>{chosen ? <CheckCircle weight="fill" /> : <Plus />}</label>; })}</div>}</section>; })}</aside></section>
   </main>;
 }
 
@@ -479,12 +546,16 @@ function Journal({ entries, add }: { entries: JournalEntry[]; add: () => void })
 }
 
 function Progress({ entries, list, mocks, addMock, sessions, tasks }: { entries: JournalEntry[]; list: Chapter[]; mocks: MockResult[]; addMock: () => void; sessions: StudySession[]; tasks: StudyTask[] }) {
-  const studied = list.filter((chapter) => chapter.status !== "not-started").length;
+  const evidence = summarizeStudyEvidence(sessions, entries);
+  const evidenceChapterIds = new Set(evidence.map((record) => record.chapterId));
+  const studiedChapters = list.filter((chapter) => chapter.status !== "not-started" || evidenceChapterIds.has(chapter.id));
   const ready = list.filter((chapter) => chapter.status === "exam-ready").length;
-  const mathEntries = entries.filter((entry) => entry.subjectId === "mathematics");
-  const mathsAccuracy = mathEntries.reduce((sum, entry) => sum + entry.attempted, 0) ? Math.round(mathEntries.reduce((sum, entry) => sum + entry.correct, 0) / mathEntries.reduce((sum, entry) => sum + entry.attempted, 0) * 100) : 0;
+  const mathEvidence = evidence.filter((record) => record.subjectId === "mathematics");
+  const mathsAttempted = mathEvidence.reduce((sum, record) => sum + record.attempted, 0);
+  const mathsAccuracy = mathsAttempted ? Math.round(mathEvidence.reduce((sum, record) => sum + record.correct, 0) / mathsAttempted * 100) : null;
   const latestMock = [...mocks].sort((a, b) => b.takenAt.localeCompare(a.takenAt))[0];
-  return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="RESULTS OVER BUSYWORK" title="Progress intelligence"><button className="accent" onClick={addMock}><Plus />Record mock</button></SectionTitle><StudyAnalytics sessions={sessions} entries={entries} tasks={tasks} /><section className="metrics">{[["Coverage", `${Math.round(studied / list.length * 100)}%`, "lilac"], ["Exam-ready", ready, "mint"], ["Journal entries", entries.length, "yellow"], [latestMock ? "Latest mock" : "Maths accuracy", latestMock ? `${Math.round(latestMock.score / latestMock.total * 100)}%` : `${mathsAccuracy}%`, "pink"]].map(([label, value, tone]) => <article className={String(tone)} key={label}><small>{label}</small><strong>{value}</strong><span>Current evidence</span></article>)}</section><section className="progress-layout"><section className="panel subject-progress"><SectionTitle kicker="SUBJECT READINESS" title="Where attention is buying marks" />{subjects.map((subject) => { const mine = list.filter((chapter) => chapter.subjectId === subject.id); const score = Math.round(mine.reduce((sum, chapter) => sum + chapter.confidence, 0) / (mine.length * 5) * 100); return <div key={subject.id}><span>{subject.shortName}</span><i><b className={subject.accent} style={{ width: `${score}%` }} /></i><strong>{score}%</strong></div>; })}</section><aside className="panel mock-history"><SectionTitle kicker="EXAM EVIDENCE" title="Mock results" />{mocks.length ? [...mocks].sort((a, b) => b.takenAt.localeCompare(a.takenAt)).slice(0, 6).map((mock) => <article key={mock.id}><p><strong>{bySubject(mock.subjectId).shortName}</strong><small>{mock.paperType} · {new Date(mock.takenAt).toLocaleDateString("en-GB")}</small></p><b>{mock.score}/{mock.total}</b></article>) : <div className="empty compact"><Exam /><h3>No mock results yet.</h3><p>Record a full paper or timed section to strengthen recommendations.</p></div>}</aside></section></main>;
+  const coverage = list.length ? Math.round(studiedChapters.length / list.length * 100) : 0;
+  return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="RESULTS OVER BUSYWORK" title="Progress intelligence"><button className="accent" onClick={addMock}><Plus />Record mock</button></SectionTitle><StudyAnalytics sessions={sessions} entries={entries} tasks={tasks} /><section className="metrics">{[["Evidence coverage", `${coverage}%`, "lilac"], ["Exam-ready", ready, "mint"], ["Journal entries", entries.length, "yellow"], [latestMock ? "Latest mock" : "Maths accuracy", latestMock ? `${Math.round(latestMock.score / latestMock.total * 100)}%` : mathsAccuracy == null ? "—" : `${mathsAccuracy}%`, "pink"]].map(([label, value, tone]) => <article className={String(tone)} key={label}><small>{label}</small><strong>{value}</strong><span>Current evidence</span></article>)}</section><section className="progress-layout"><section className="panel subject-progress"><SectionTitle kicker="SUBJECT READINESS" title="Where attention is buying marks" />{subjects.map((subject) => { const mine = list.filter((chapter) => chapter.subjectId === subject.id); const withEvidence = mine.filter((chapter) => chapter.status !== "not-started" || evidenceChapterIds.has(chapter.id)); const score = withEvidence.length ? Math.round(withEvidence.reduce((sum, chapter) => sum + chapter.confidence, 0) / (withEvidence.length * 5) * 100) : null; return <div key={subject.id}><span>{subject.shortName}</span><i><b className={subject.accent} style={{ width: `${score ?? 0}%` }} /></i><strong>{score == null ? "—" : `${score}%`}</strong></div>; })}</section><aside className="panel mock-history"><SectionTitle kicker="EXAM EVIDENCE" title="Mock results" />{mocks.length ? [...mocks].sort((a, b) => b.takenAt.localeCompare(a.takenAt)).slice(0, 6).map((mock) => <article key={mock.id}><p><strong>{bySubject(mock.subjectId).shortName}</strong><small>{mock.paperType} · {new Date(mock.takenAt).toLocaleDateString("en-GB")}</small></p><b>{mock.score}/{mock.total}</b></article>) : <div className="empty compact"><Exam /><h3>No mock results yet.</h3><p>Record a full paper or timed section to strengthen recommendations.</p></div>}</aside></section></main>;
 }
 
 function RevisionModal({ mistake, close, save }: { mistake: Mistake; close: () => void; save: (outcome: "solved" | "needs-work", note: string) => void }) {
@@ -494,16 +565,50 @@ function RevisionModal({ mistake, close, save }: { mistake: Mistake; close: () =
   return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="revision-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form onSubmit={(event) => { event.preventDefault(); save(outcome, note); }}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>DELIBERATE RETRIEVAL</small><h2 id="revision-title">Reattempt this mistake</h2><p className="revision-prompt">{mistake.prompt}</p><small>{byChapter(mistake.chapterId).title} · {mistake.errorType} · {mistake.revisionCount ?? 0} previous attempt{(mistake.revisionCount ?? 0) === 1 ? "" : "s"}</small><label>What happened?<select autoFocus value={outcome} onChange={(event) => setOutcome(event.target.value as "solved" | "needs-work")}><option value="solved">Solved without help</option><option value="needs-work">Still needs work</option></select></label><label>Revision note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="What made the answer work, or where did you get stuck?" /></label><p className="revision-next">{outcome === "solved" ? "Closes this item and schedules a light 7-day check." : `Keeps it open and schedules another focused attempt in ${delay} day${delay === 1 ? "" : "s"}.`}</p><button className="solid-cta"><CheckCircle weight="fill" />Save revision attempt</button></form></div>;
 }
 
-function MathsLab({ mistakes, chapters, review, goToday }: { mistakes: Mistake[]; chapters: Chapter[]; review: (mistake: Mistake) => void; goToday: () => void }) {
+function MathsLab({ mistakes, chapters, formulas, review, goToday }: { mistakes: Mistake[]; chapters: Chapter[]; formulas: MathsFormula[]; review: (mistake: Mistake) => void; goToday: () => void }) {
+  const divisions: MathsFormula["division"][] = ["Core basics", "Algebra", "Geometry", "Trigonometry & Mensuration", "Statistics"];
+  const [division, setDivision] = useState<MathsFormula["division"]>("Core basics");
+  const [chapterFilter, setChapterFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const openMistakes = mistakes.filter((mistake) => !mistake.resolved);
-  return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="CORRECT WITHOUT HELP TO CLOSE AN ITEM" title="Maths reattempt lab"><span className="open-count">{openMistakes.length} open</span></SectionTitle><section className="math-layout"><div className="mistakes">{mistakes.length ? mistakes.map((mistake, index) => <article className={mistake.resolved ? "resolved" : ""} key={mistake.id}><span>{index + 1}</span><p><small>{byChapter(mistake.chapterId).division} · {mistake.errorType}</small><strong>{mistake.prompt}</strong><em>{byChapter(mistake.chapterId).title} · {mistake.revisionCount ?? 0} attempt{(mistake.revisionCount ?? 0) === 1 ? "" : "s"}{mistake.reattemptDate ? ` · next ${new Date(`${mistake.reattemptDate}T00:00:00+06:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</em></p><button onClick={() => review(mistake)}>{mistake.resolved ? <><ArrowCounterClockwise />Review again</> : <><Timer />Start revision attempt</>}</button></article>) : <article className="maths-empty"><div className="empty-icon"><CheckCircle weight="fill" /></div><small>NO OPEN RETRIES</small><h3>Your Maths queue is clear.</h3><p>When a Maths journal entry includes a difficult concept, it will appear here for a focused reattempt.</p><button className="solid-cta" onClick={goToday}><ArrowRight />Open Today</button></article>}</div><aside className="division"><small>DIVISION COVERAGE</small>{["Algebra", "Geometry", "Trigonometry & Mensuration", "Statistics"].map((division) => <div key={division}><span>{division}</span><b>{chapters.filter((chapter) => chapter.subjectId === "mathematics" && chapter.division === division).length} chapters</b></div>)}</aside></section></main>;
+  const chapterName = (chapterId?: string) => chapterId ? chapters.find((chapter) => chapter.id === chapterId)?.title ?? "Linked chapter" : "Core reference";
+  const chapterOptions = orderChapters(chapters.filter((chapter) => chapter.subjectId === "mathematics" && formulas.some((formula) => formula.chapterId === chapter.id)));
+  const visibleFormulas = formulas.filter((formula) => formula.division === division && (chapterFilter === "all" || formula.chapterId === chapterFilter) && `${formula.title} ${formula.expression} ${formula.explanation} ${formula.tags.join(" ")}`.toLowerCase().includes(query.toLowerCase()));
+  const copyFormula = async (formula: MathsFormula) => {
+    try {
+      await navigator.clipboard?.writeText(`${formula.title}\n${formula.expression}`);
+      setCopiedId(formula.id);
+      window.setTimeout(() => setCopiedId((current) => current === formula.id ? null : current), 1600);
+    } catch {
+      setCopiedId(null);
+    }
+  };
+  return <main id="main-content" tabIndex={-1} className="page maths-lab-page"><SectionTitle kicker="FORMULAS + TARGETED REPAIR" title="Maths Lab"><span className="open-count">{openMistakes.length} repair{openMistakes.length === 1 ? "" : "s"}</span></SectionTitle><section className="maths-lab-thesis"><div><small>ONE PLACE TO LOOK BEFORE YOU SOLVE</small><h3>Find the formula, then use it on a real question.</h3><p>Choose the part of the syllabus you are studying. The reference is organized by division and linked to the chapters where each formula matters.</p></div><button className="solid-cta" onClick={() => openMistakes[0] ? review(openMistakes[0]) : goToday()}>{openMistakes[0] ? <><Timer />Repair first mistake</> : <><ArrowRight />Open today&apos;s work</>}</button></section><section className="maths-lab-grid"><section className="formula-hub"><div className="formula-hub-heading"><div><small>REFERENCE SET</small><h3>Formula collections</h3></div><label className="formula-search"><MagnifyingGlass /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search a formula or tag" aria-label="Search a formula or tag" /></label></div><div className="formula-division-tabs" role="tablist" aria-label="Formula divisions">{divisions.map((item) => <button type="button" role="tab" aria-selected={division === item} className={division === item ? "active" : ""} key={item} onClick={() => { setDivision(item); setChapterFilter("all"); }}>{item}<small>{formulas.filter((formula) => formula.division === item).length}</small></button>)}</div>{division !== "Core basics" && <div className="formula-chapter-tabs" aria-label="Filter formulas by chapter"><button type="button" className={chapterFilter === "all" ? "active" : ""} onClick={() => setChapterFilter("all")}>All chapters</button>{chapterOptions.filter((chapter) => formulas.some((formula) => formula.division === division && formula.chapterId === chapter.id)).map((chapter) => <button type="button" className={chapterFilter === chapter.id ? "active" : ""} key={chapter.id} onClick={() => setChapterFilter(chapter.id)}>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</button>)}</div>}<div className="formula-list">{visibleFormulas.length ? visibleFormulas.map((formula) => <article className="formula-card" key={formula.id}><div className="formula-card-meta"><span>{chapterName(formula.chapterId)}</span><button type="button" onClick={() => copyFormula(formula)}>{copiedId === formula.id ? "Copied" : "Copy formula"}</button></div><h4>{formula.title}</h4><pre>{formula.expression}</pre><p>{formula.explanation}</p><div className="formula-tags">{formula.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></article>) : <article className="formula-empty"><CheckCircle /><strong>No formula matches this filter.</strong><p>Try another division, chapter, or search term.</p></article>}</div></section><aside className="maths-lab-rail"><section className="maths-quick-routine"><small>USE IT, DON&apos;T JUST READ IT</small><h3>A 10-minute formula loop</h3><ol><li>Pick one formula set.</li><li>Say what each symbol means.</li><li>Solve one question without looking.</li><li>Log the mistake if you get stuck.</li></ol><button onClick={goToday}><ArrowRight />Open today&apos;s task</button></section><section className="maths-repair-queue"><div className="rail-heading"><div><small>REPAIR QUEUE</small><h3>{openMistakes.length ? `${openMistakes.length} open item${openMistakes.length === 1 ? "" : "s"}` : "No open mistakes"}</h3></div><Timer /></div>{openMistakes.length ? <div>{openMistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => review(mistake)}><span>{chapterName(mistake.chapterId)}</span><strong>{mistake.prompt}</strong><small>Start reattempt <ArrowRight /></small></button>)}</div> : <p>When a Maths journal entry records a difficult concept, it will appear here for a deliberate reattempt.</p>}</section></aside></section></main>;
 }
 
-function ExamPlan() {
-  const phases = [{ date: "15 Aug—13 Sep", title: "Coverage & diagnostics", start: "2026-08-15", end: "2026-09-13" }, { date: "14 Sep—11 Oct", title: "Active recall & writing", start: "2026-09-14", end: "2026-10-11" }, { date: "12—27 Oct", title: "Test mock phase", start: "2026-10-12", end: "2026-10-27" }, { date: "28 Oct—12 Nov", title: "Test exam mode", start: "2026-10-28", end: "2026-11-12" }, { date: "13 Nov—10 Dec", title: "Result-driven repair", start: "2026-11-13", end: "2026-12-10" }, { date: "11 Dec—6 Jan", title: "SSC mock cycles", start: "2026-12-11", end: "2027-01-06" }, { date: "7 Jan—6 Feb", title: "SSC exam mode", start: "2027-01-07", end: "2027-02-06" }];
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  const current = Math.max(0, phases.findIndex((phase) => today >= phase.start && today <= phase.end));
-  return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="TWO FULL-SYLLABUS DEADLINES" title="Exam campaign" /><section className="phases">{phases.map((phase, index) => <article className={index === current ? "current" : index < current ? "complete" : ""} key={phase.date}><span>{index < current ? <Check weight="bold" /> : index + 1}</span><p><small>{phase.date}</small><strong>{phase.title}</strong><em>{index === current ? (today < phase.start ? "Starts tomorrow: prepare the first diagnostic list." : "This is the active preparation stage.") : "Full-syllabus preparation stage."}</em></p>{index === current && <b>{today < phase.start ? "Starts next" : "Current phase"}</b>}</article>)}</section></main>;
+function ExamPlan({ plan, save }: { plan: ExamPlanPhase[]; save: (phases: ExamPlanPhase[]) => Promise<void> }) {
+  const defaultPlan = recommendedExamPlan("2027-01-07");
+  const [draft, setDraft] = useState<ExamPlanPhase[]>(() => plan.length ? plan : defaultPlan);
+  const [examDate, setExamDate] = useState(() => (plan.at(-1)?.end ? plan.at(-1)!.end : defaultPlan.at(-1)!.end));
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date());
+  const current = draft.findIndex((phase) => today >= phase.start && today <= phase.end);
+  const update = (id: string, patch: Partial<ExamPlanPhase>) => setDraft((currentPlan) => currentPlan.map((phase) => phase.id === id ? { ...phase, ...patch } : phase));
+  const move = (index: number, direction: -1 | 1) => setDraft((currentPlan) => { const nextIndex = index + direction; if (nextIndex < 0 || nextIndex >= currentPlan.length) return currentPlan; const next = [...currentPlan]; [next[index], next[nextIndex]] = [next[nextIndex], next[index]]; return next.map((phase, order) => ({ ...phase, order })); });
+  const remove = (id: string) => setDraft((currentPlan) => currentPlan.filter((phase) => phase.id !== id).map((phase, order) => ({ ...phase, order })));
+  const add = () => { const index = draft.length; const start = draft.at(-1)?.end ?? today; const endDate = new Date(`${start}T00:00:00+06:00`); endDate.setUTCDate(endDate.getUTCDate() + 14); const end = endDate.toISOString().slice(0, 10); setDraft([...draft, { id: `phase-custom-${crypto.randomUUID()}`, title: "New phase", start, end, objective: "What should this phase help you accomplish?", order: index }]); };
+  const useRecommended = () => { const next = recommendedExamPlan(examDate); setDraft(next); setMessage("Recommended phases restored. Edit them before saving."); };
+  const saveDraft = async () => {
+    const clean = draft.map((phase, order) => ({ ...phase, title: phase.title.trim(), objective: phase.objective.trim(), order })).filter((phase) => phase.title && phase.start && phase.end && phase.objective);
+    if (!clean.length) return setMessage("Keep at least one complete phase.");
+    if (clean.some((phase) => phase.end < phase.start)) return setMessage("Each phase must end on or after its start date.");
+    setBusy(true);
+    setMessage("");
+    try { await save(clean); setDraft(clean); setMessage("Your exam timeline is saved."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save your exam timeline."); } finally { setBusy(false); }
+  };
+  return <main id="main-content" tabIndex={-1} className="page exam-plan-page"><SectionTitle kicker="YOUR DATES, YOUR CAMPAIGN" title="Exam plan"><div className="exam-plan-actions"><label>Exam date<input type="date" value={examDate} onChange={(event) => setExamDate(event.target.value)} /></label><button type="button" onClick={useRecommended}>Use recommended phases</button><button type="button" className="accent" onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save timeline"}</button></div></SectionTitle><section className="exam-plan-intro"><div><small>STUDENT-OWNED TIMELINE</small><h3>Plan the journey, then let the daily planner work inside it.</h3><p>Change the phase names, dates, and purpose to match your school schedule, coaching plan, or personal target. The app will not silently replace your timeline.</p></div><span>{draft.length} phase{draft.length === 1 ? "" : "s"}<small>{current >= 0 ? ` · ${draft[current]?.title} now` : " · ready to start"}</small></span></section><section className="exam-plan-editor">{draft.map((phase, index) => <article className={`exam-plan-phase ${current === index ? "current" : ""}`} key={phase.id}><div className="exam-plan-phase-index"><span>{current > index ? <Check weight="bold" /> : index + 1}</span><small>{current === index ? "CURRENT" : phaseDateLabel(phase.start, phase.end)}</small></div><div className="exam-plan-phase-fields"><label>Phase name<input value={phase.title} onChange={(event) => update(phase.id, { title: event.target.value })} /></label><label>Purpose<textarea value={phase.objective} onChange={(event) => update(phase.id, { objective: event.target.value })} rows={2} /></label><div className="exam-plan-date-row"><label>Starts<input type="date" value={phase.start} onChange={(event) => update(phase.id, { start: event.target.value })} /></label><label>Ends<input type="date" value={phase.end} onChange={(event) => update(phase.id, { end: event.target.value })} /></label></div></div><div className="exam-plan-phase-actions"><button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move phase up"><CaretUp /></button><button type="button" onClick={() => move(index, 1)} disabled={index === draft.length - 1} aria-label="Move phase down"><CaretDown /></button><button type="button" onClick={() => remove(phase.id)} disabled={draft.length <= 1}>Remove</button></div></article>)}<button type="button" className="exam-plan-add" onClick={add}><Plus />Add phase</button></section>{message && <p className="exam-plan-message" role="status">{message}</p>}</main>;
 }
 
 function WorkflowEditor({ workflows, save }: { workflows: CustomStudyWorkflow[]; save: (workflows: CustomStudyWorkflow[]) => Promise<void> }) {
@@ -597,7 +702,7 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
   </section></main>;
 }
 
-function ManualTaskModal({ close, save, defaultDate, preferences }: { close: () => void; save: (task: StudyTask) => void; defaultDate?: string; preferences: ChapterPreference[] }) {
+function ManualTaskModal({ close, save, defaultDate, preferences, workflows }: { close: () => void; save: (task: StudyTask) => void; defaultDate?: string; preferences: ChapterPreference[]; workflows: CustomStudyWorkflow[] }) {
   const selectable = chapters.filter((chapter) => !preferenceFor(chapter.id, preferences).excluded);
   const selectableSubjects = subjects.filter((subject) => selectable.some((chapter) => chapter.subjectId === subject.id));
   const initialSubject = selectable.some((chapter) => chapter.subjectId === "mathematics") ? "mathematics" : selectable[0]?.subjectId ?? "mathematics";
@@ -607,7 +712,15 @@ function ManualTaskModal({ close, save, defaultDate, preferences }: { close: () 
   const [time, setTime] = useState("3:00 PM");
   const [duration, setDuration] = useState(45);
   const [date, setDate] = useState(defaultDate ?? "");
-  return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="manual-task-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form onSubmit={(event) => { event.preventDefault(); const chapter = byChapter(chapterId); const task: StudyTask = { id: crypto.randomUUID(), subjectId, chapterId, title: chapter.title, plannedTime: time, duration, origin: "manual", pinned: true, status: "planned", currentStep: 0, reason: "Manual priority · pinned first", priorityScore: 100, focusedSeconds: 0 }; save(date ? scheduleOn(task, date) : task); }}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>MANUAL CONTROL</small><h2 id="manual-task-title">Add a study task</h2><label>Subject<select autoFocus value={subjectId} onChange={(event) => { const nextSubject = event.target.value; setSubjectId(nextSubject); setChapterId(selectable.find((chapter) => chapter.subjectId === nextSubject)!.id); }}>{selectableSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label><label>Chapter<select value={chapterId} onChange={(event) => setChapterId(event.target.value)}>{available.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</option>)}</select></label><div className="form-row"><label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label>Planned time<input value={time} onChange={(event) => setTime(event.target.value)} /></label><label>Minutes<input type="number" min="10" max="240" value={duration} onChange={(event) => setDuration(Number(event.target.value))} /></label></div><button className="solid-cta"><Plus />Add and pin first</button></form></div>;
+  const [phase, setPhase] = useState<StudyPhase>("learn");
+  const [steps, setSteps] = useState<string[]>(() => workflows.find((workflow) => workflow.phase === "learn")?.steps ?? recommendedWorkflow("learn"));
+  const stepsForPhase = (nextPhase: StudyPhase) => workflows.find((workflow) => workflow.phase === nextPhase)?.steps ?? recommendedWorkflow(nextPhase);
+  const changePhase = (nextPhase: StudyPhase) => { setPhase(nextPhase); setSteps([...stepsForPhase(nextPhase)]); };
+  const updateStep = (index: number, value: string) => setSteps((current) => current.map((step, stepIndex) => stepIndex === index ? value : step));
+  const moveStep = (index: number, direction: -1 | 1) => setSteps((current) => { const nextIndex = index + direction; if (nextIndex < 0 || nextIndex >= current.length) return current; const next = [...current]; [next[index], next[nextIndex]] = [next[nextIndex], next[index]]; return next; });
+  const removeStep = (index: number) => setSteps((current) => current.length <= 1 ? current : current.filter((_, stepIndex) => stepIndex !== index));
+  const addStep = () => setSteps((current) => current.length >= 8 ? current : [...current, "New step"]);
+  return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="manual-task-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form className="manual-task-form" onSubmit={(event) => { event.preventDefault(); const chapter = byChapter(chapterId); const cleanSteps = steps.map((step) => step.trim()).filter(Boolean).slice(0, 8); const task: StudyTask = { id: crypto.randomUUID(), subjectId, chapterId, title: chapter.title, plannedTime: time, duration, origin: "manual", pinned: true, status: "planned", currentStep: 0, reason: "Manual priority · pinned first", priorityScore: 100, focusedSeconds: 0, workflowPhase: phase, workflowSteps: cleanSteps.length ? cleanSteps : recommendedWorkflow(phase) }; save(date ? scheduleOn(task, date) : task); }}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>MANUAL CONTROL</small><h2 id="manual-task-title">Add a study task</h2><p className="modal-intro">Choose the kind of work and tailor the exact steps for this task. Settings presets are only the starting point.</p><label>Subject<select autoFocus value={subjectId} onChange={(event) => { const nextSubject = event.target.value; setSubjectId(nextSubject); setChapterId(selectable.find((chapter) => chapter.subjectId === nextSubject)!.id); }}>{selectableSubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label><label>Chapter<select value={chapterId} onChange={(event) => setChapterId(event.target.value)}>{available.map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</option>)}</select></label><div className="form-row"><label>Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label>Planned time<input value={time} onChange={(event) => setTime(event.target.value)} /></label><label>Minutes<input type="number" min="10" max="240" value={duration} onChange={(event) => setDuration(Number(event.target.value))} /></label></div><section className="task-workflow-editor"><div className="task-workflow-heading"><div><strong>Steps for this task</strong><small>These steps belong to this task and can differ from your Settings preset.</small></div><button type="button" onClick={() => setSteps([...stepsForPhase(phase)])}>Use recommended</button></div><div className="task-workflow-tabs" role="tablist" aria-label="Task study phase">{studyPhases.map((item) => <button type="button" key={item.id} className={phase === item.id ? "active" : ""} onClick={() => changePhase(item.id)}>{item.label}</button>)}</div><div className="task-workflow-steps">{steps.map((step, index) => <div className="task-workflow-row" key={`${phase}-${index}`}><span>{index + 1}</span><input value={step} onChange={(event) => updateStep(index, event.target.value)} aria-label={`Task step ${index + 1}`} /><button type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label="Move task step up"><CaretUp /></button><button type="button" onClick={() => moveStep(index, 1)} disabled={index === steps.length - 1} aria-label="Move task step down"><CaretDown /></button><button type="button" onClick={() => removeStep(index)} disabled={steps.length <= 1} aria-label="Remove task step"><X /></button></div>)}</div><button type="button" className="task-workflow-add" onClick={addStep} disabled={steps.length >= 8}><Plus />Add step</button></section><button className="solid-cta"><Plus />Add and pin first</button></form></div>;
 }
 
 function JournalModal({ task, close, save }: { task: StudyTask; close: () => void; save: (entry: JournalEntry) => void }) {
@@ -671,6 +784,8 @@ export default function CommandCenter() {
   const [mocks, setMocks] = useState<MockResult[]>([]);
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [resources, setResources] = useState<StudyResource[]>([]);
+  const [mathsFormulas, setMathsFormulas] = useState<MathsFormula[]>([]);
+  const [examPlan, setExamPlan] = useState<ExamPlanPhase[]>([]);
   const [examEvents, setExamEvents] = useState<ExamEvent[]>([]);
   const [planning, setPlanning] = useState<PlanningSettings>({ mainStart: "15:00", mainEnd: "19:00", mathStart: "20:00", mathEnd: "22:00", dailyTarget: 240, mathDaysPerWeek: 6, agricultureDaysPerWeek: 4, remindersEnabled: false });
   const [preferences, setPreferences] = useState<ChapterPreference[]>([]);
@@ -686,6 +801,8 @@ export default function CommandCenter() {
   const [resourceChapterId, setResourceChapterId] = useState<string | undefined>();
   const [revisionMistake, setRevisionMistake] = useState<Mistake | null>(null);
   const [planSummary, setPlanSummary] = useState<AdaptivePlanSummary | null>(null);
+  const [plannerState, setPlannerState] = useState<"idle" | "running" | "success" | "error">("idle");
+  const [plannerMessage, setPlannerMessage] = useState("");
   const [databaseStatus, setDatabaseStatus] = useState<"loading" | "ready" | "auth-required" | "error">("loading");
   const [databaseError, setDatabaseError] = useState("");
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -712,13 +829,15 @@ export default function CommandCenter() {
       if (cancelled || payload?.mode !== "cloud" || !payload.data) { setDatabaseStatus("error"); setDatabaseError("The database returned an invalid workspace response."); return; }
       const data = payload.data;
       const loadedSubjects: Subject[] = (data.subjects ?? []).map((row) => ({ id: String(row.id), name: String(row.name), shortName: String(row.short_name), strength: String(row.strength_level) as Subject["strength"], weaknessScore: Number(row.priority), workflow: String(row.workflow_kind) as Subject["workflow"], accent: subjectAccent[String(row.id)] ?? "blue" }));
-      const loadedChapters: Chapter[] = (data.chapters ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), number: row.chapter_number == null ? undefined : Number(row.chapter_number), title: String(row.title), division: row.division ? String(row.division) : undefined, note: row.note ? String(row.note) : undefined, status: "not-started", confidence: 1, formats: Array.isArray(row.question_formats) ? row.question_formats.map(String) : [], questionsAttempted: 0, questionsCorrect: 0 }));
+      const loadedChapters: Chapter[] = orderChapters((data.chapters ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), number: row.chapter_number == null ? undefined : Number(row.chapter_number), title: String(row.title), division: row.division ? String(row.division) : undefined, note: row.note ? String(row.note) : undefined, status: "not-started" as const, confidence: 1 as const, difficulty: 3 as ChapterDifficulty, formats: Array.isArray(row.question_formats) ? row.question_formats.map(String) : [], questionsAttempted: 0, questionsCorrect: 0 })));
       const loadedMarks: MarksDistribution[] = (data.marks_distributions ?? []).map((row) => ({ subjectId: String(row.subject_id), part: row.part ? String(row.part) : undefined, questionType: String(row.question_type), rule: String(row.choice_rule), marks: Number(row.marks) }));
       const loadedExams = (data.exams ?? []).map((row) => ({ id: String(row.id), name: String(row.name), start: String(row.starts_on), end: String(row.ends_on) }));
       const loadedWorkflows = Object.fromEntries((data.workflow_steps ?? []).map((row) => [String(row.workflow_kind), Array.isArray(row.steps) ? row.steps.map(String) : []])) as unknown as typeof workflowSteps;
+      setMathsFormulas((data.maths_formulas ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: row.chapter_id ? String(row.chapter_id) : undefined, division: String(row.division) as MathsFormula["division"], title: String(row.title), expression: String(row.expression), explanation: String(row.explanation), tags: Array.isArray(row.tags) ? row.tags.map(String) : [], sortOrder: Number(row.sort_order ?? 0) })).sort((a, b) => a.sortOrder - b.sortOrder));
+      setExamPlan((data.exam_plan_phases ?? []).map((row) => ({ id: String(row.id), title: String(row.title), start: String(row.starts_on), end: String(row.ends_on), objective: String(row.objective ?? ""), order: Number(row.phase_order ?? 0) })).sort((a, b) => a.order - b.order));
       replaceAcademicData({ subjects: loadedSubjects, chapters: loadedChapters, marksDistributions: loadedMarks, exams: loadedExams, workflowSteps: loadedWorkflows });
       const progress = new Map((data.chapter_progress ?? []).map((row) => [String(row.chapter_id), row]));
-      setChapterList(loadedChapters.map((chapter) => { const row = progress.get(chapter.id); return row ? { ...chapter, status: row.status as Chapter["status"], confidence: Number(row.confidence) as Chapter["confidence"], lastStudied: row.last_studied ? String(row.last_studied) : undefined, nextReview: row.next_review ? String(row.next_review) : undefined, questionsAttempted: Number(row.questions_attempted), questionsCorrect: Number(row.questions_correct) } : chapter; }));
+      setChapterList(loadedChapters.map((chapter) => { const row = progress.get(chapter.id); return row ? { ...chapter, status: row.status as Chapter["status"], confidence: Number(row.confidence) as Chapter["confidence"], difficulty: chapterDifficulty(row.difficulty), lastStudied: row.last_studied ? String(row.last_studied) : undefined, nextReview: row.next_review ? String(row.next_review) : undefined, questionsAttempted: Number(row.questions_attempted), questionsCorrect: Number(row.questions_correct) } : chapter; }));
       setTasks((data.study_tasks ?? []).map(studyTaskFromRow));
       setPreferences((data.chapter_preferences ?? []).map((row) => ({ chapterId: String(row.chapter_id), includedForSsc: Boolean(row.included_for_ssc), targetMonth: row.target_month ? String(row.target_month) : undefined, excluded: Boolean(row.excluded), exclusionReason: row.exclusion_reason ? String(row.exclusion_reason) : undefined, priority: Number(row.priority) as ChapterPreference["priority"] })));
       const learningRow = data.learning_preferences?.[0];
@@ -729,7 +848,7 @@ export default function CommandCenter() {
       setEntries((data.journal_entries ?? []).map((row) => ({ id: String(row.id), taskId: String(row.task_id ?? ""), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), minutes: Number(row.minutes), attempted: Number(row.attempted), correct: Number(row.correct), confidenceBefore: Number(row.confidence_before), confidenceAfter: Number(row.confidence_after), learningGoal: String(row.learning_goal ?? ""), resources: Array.isArray(row.resources) ? row.resources.map(String) : [], mistakesText: row.mistakes_text ? String(row.mistakes_text) : undefined, writtenScore: row.written_score == null ? undefined : Number(row.written_score), reflection: String(row.reflection ?? ""), nextAction: String(row.next_action ?? ""), createdAt: String(row.created_at) })));
       setMistakes((data.mistakes ?? []).map((row) => ({ id: String(row.id), chapterId: String(row.chapter_id), prompt: String(row.prompt), errorType: String(row.error_type), reattemptDate: String(row.reattempt_date ?? ""), resolved: Boolean(row.resolved), revisionCount: Number(row.revision_count ?? 0), lastAttemptedAt: row.last_attempted_at ? String(row.last_attempted_at) : undefined, lastAttemptNote: row.last_attempt_note ? String(row.last_attempt_note) : undefined })));
       setMocks((data.mock_results ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), paperType: String(row.paper_type ?? "Full paper"), score: Number(row.score), total: Number(row.total), durationMinutes: row.duration_minutes == null ? undefined : Number(row.duration_minutes), takenAt: String(row.taken_at) })));
-      setSessions((data.study_sessions ?? []).map((row) => ({ id: String(row.id), taskId: String(row.task_id), subjectId: String(row.subject_id ?? ""), chapterId: String(row.chapter_id ?? ""), mode: row.mode === "exam" ? "exam" : "focus", startedAt: String(row.started_at), endedAt: row.ended_at ? String(row.ended_at) : undefined, focusedSeconds: Number(row.focused_seconds ?? 0), pauseSeconds: Number(row.pause_seconds ?? 0), completed: Boolean(row.completed), questionsAttempted: row.questions_attempted == null ? undefined : Number(row.questions_attempted), questionsCorrect: row.questions_correct == null ? undefined : Number(row.questions_correct) })));
+      setSessions((data.study_sessions ?? []).map((row) => ({ id: String(row.id), taskId: String(row.task_id), subjectId: String(row.subject_id ?? ""), chapterId: String(row.chapter_id ?? ""), mode: row.mode === "exam" ? "exam" : "focus", startedAt: String(row.started_at), endedAt: row.ended_at ? String(row.ended_at) : undefined, timerState: row.timer_state === "running" || row.timer_state === "paused" || row.timer_state === "completed" ? row.timer_state : row.completed ? "completed" : "paused", lastResumedAt: row.last_resumed_at ? String(row.last_resumed_at) : undefined, focusedSeconds: Number(row.focused_seconds ?? 0), pauseSeconds: Number(row.pause_seconds ?? 0), completed: Boolean(row.completed), questionsAttempted: row.questions_attempted == null ? undefined : Number(row.questions_attempted), questionsCorrect: row.questions_correct == null ? undefined : Number(row.questions_correct) })));
       setResources((data.study_resources ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), url: String(row.url), kind: row.kind as StudyResource["kind"], note: row.note ? String(row.note) : undefined, archived: Boolean(row.archived), createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
       setExamEvents((data.exam_events ?? []).map((row) => ({ id: String(row.id), name: String(row.name), start: String(row.starts_on), end: String(row.ends_on), kind: row.kind as ExamEvent["kind"], scope: Array.isArray(row.scope) ? row.scope.map(String) : [], note: row.note ? String(row.note) : undefined, locked: Boolean(row.locked), archived: Boolean(row.archived) })).filter((event) => !event.archived));
       const planningRow = data.planning_settings?.[0];
@@ -773,6 +892,13 @@ export default function CommandCenter() {
     setChapterList(updated);
     const changed = updated.filter((chapter) => completed.has(chapter.id));
     if (changed.length) persist("chapter_progress", changed.map(chapterRow));
+  };
+
+  const saveExamPlan = async (phases: ExamPlanPhase[]) => {
+    const response = await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ exam_plan_phases: phases.map(examPlanPhaseRow) }) });
+    const payload = await response.json().catch(() => null) as { exam_plan_phases?: BootstrapRow[]; error?: string } | null;
+    if (!response.ok) throw new Error(payload?.error ?? "Could not save your exam timeline");
+    setExamPlan((payload?.exam_plan_phases ?? phases.map(examPlanPhaseRow)).map((row) => ({ id: String(row.id), title: String(row.title), start: String(row.starts_on), end: String(row.ends_on), objective: String(row.objective ?? ""), order: Number(row.phase_order ?? 0) })).sort((a, b) => a.order - b.order));
   };
 
   const saveAdaptiveProfile = async (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => {
@@ -837,6 +963,36 @@ export default function CommandCenter() {
     persist("study_tasks", [taskRow(updated)]);
   };
 
+  const startFocus = (task: StudyTask) => {
+    const now = new Date().toISOString();
+    const existing = sessions.find((session) => session.taskId === task.id && session.mode === "focus" && session.timerState !== "completed");
+    const session: StudySession = existing ? { ...existing, timerState: "running", lastResumedAt: existing.timerState === "running" && existing.lastResumedAt ? existing.lastResumedAt : now, endedAt: undefined, completed: false } : { id: crypto.randomUUID(), taskId: task.id, subjectId: task.subjectId, chapterId: task.chapterId, mode: "focus", startedAt: now, timerState: "running", lastResumedAt: now, focusedSeconds: task.focusedSeconds ?? 0, pauseSeconds: 0, completed: false };
+    setSessions([session, ...sessions.filter((item) => item.id !== session.id)]);
+    persist("study_sessions", [sessionRow(session)]);
+    updateTask({ ...task, focusedSeconds: session.focusedSeconds, status: "in-progress" });
+  };
+
+  const updateFocus = (session: StudySession) => {
+    setSessions([session, ...sessions.filter((item) => item.id !== session.id)]);
+    persist("study_sessions", [sessionRow(session)]);
+    const task = tasks.find((item) => item.id === session.taskId);
+    if (task && task.focusedSeconds !== session.focusedSeconds) {
+      const updatedTask = { ...task, focusedSeconds: session.focusedSeconds, status: session.focusedSeconds ? "in-progress" as const : task.status };
+      setTasks(tasks.map((item) => item.id === task.id ? updatedTask : item));
+      persist("study_tasks", [taskRow(updatedTask)]);
+    }
+  };
+
+  const resetFocus = (task: StudyTask) => {
+    const existing = sessions.find((session) => session.taskId === task.id && session.mode === "focus" && session.timerState !== "completed");
+    if (existing) {
+      const reset = { ...existing, focusedSeconds: 0, timerState: "paused" as const, lastResumedAt: undefined, completed: false, endedAt: undefined };
+      setSessions([reset, ...sessions.filter((item) => item.id !== reset.id)]);
+      persist("study_sessions", [sessionRow(reset)]);
+    }
+    updateTask({ ...task, focusedSeconds: 0, status: task.status === "in-progress" ? "planned" : task.status });
+  };
+
   const removeTaskFromToday = (task: StudyTask) => {
     updateTask({
       ...task,
@@ -890,6 +1046,12 @@ export default function CommandCenter() {
     persist("chapter_progress", [chapterRow(updated)]);
   };
 
+  const setChapterDifficulty = (chapter: Chapter, difficulty: ChapterDifficulty) => {
+    const updated = { ...chapter, difficulty };
+    setChapterList(chapterList.map((item) => item.id === chapter.id ? updated : item));
+    persist("chapter_progress", [chapterRow(updated)]);
+  };
+
   const buildGoalQueue = (selected: Chapter[], label: string) => {
     const openChapterIds = new Set(tasks.filter((task) => task.status !== "completed" && task.status !== "skipped").map((task) => task.chapterId));
     const candidates = selected
@@ -937,9 +1099,14 @@ export default function CommandCenter() {
       setMistakes(nextMistakes);
       persist("mistakes", [mistakeRow(mistake)]);
     }
-    if ((taskById(updatedTasks, entry.taskId)?.focusedSeconds ?? 0) > 0) {
+    const activeFocus = sessions.find((session) => session.taskId === entry.taskId && session.mode === "focus" && session.timerState !== "completed");
+    if (activeFocus) {
+      const completedFocus = { ...activeFocus, focusedSeconds: focusElapsedSeconds(activeFocus, new Date(entry.createdAt).getTime()), timerState: "completed" as const, lastResumedAt: undefined, endedAt: entry.createdAt, completed: true, questionsAttempted: entry.attempted, questionsCorrect: entry.correct };
+      setSessions([completedFocus, ...sessions.filter((session) => session.id !== completedFocus.id)]);
+      persist("study_sessions", [sessionRow(completedFocus)]);
+    } else if ((taskById(updatedTasks, entry.taskId)?.focusedSeconds ?? 0) > 0) {
       const focusedSeconds = taskById(updatedTasks, entry.taskId)?.focusedSeconds ?? 0;
-      saveSession({ id: crypto.randomUUID(), taskId: entry.taskId, subjectId: entry.subjectId, chapterId: entry.chapterId, mode: "focus", startedAt: new Date(new Date(entry.createdAt).getTime() - focusedSeconds * 1000).toISOString(), endedAt: entry.createdAt, focusedSeconds, pauseSeconds: 0, completed: true, questionsAttempted: entry.attempted, questionsCorrect: entry.correct });
+      saveSession({ id: crypto.randomUUID(), taskId: entry.taskId, subjectId: entry.subjectId, chapterId: entry.chapterId, mode: "focus", startedAt: new Date(new Date(entry.createdAt).getTime() - focusedSeconds * 1000).toISOString(), endedAt: entry.createdAt, timerState: "completed", focusedSeconds, pauseSeconds: 0, completed: true, questionsAttempted: entry.attempted, questionsCorrect: entry.correct });
     }
     setJournalTask(null);
     navigate("Home");
@@ -965,37 +1132,48 @@ export default function CommandCenter() {
     navigate("Home");
   };
 
-  const planToday = (availableMinutes: number) => {
+  const planToday = async (availableMinutes: number) => {
+    setPlannerState("running");
+    setPlannerMessage("");
     const dayMinutes = new Date().getDay() === 0 || new Date().getDay() === 6 ? learningPreferences.weekendMinutes : learningPreferences.weekdayMinutes;
-    const result = buildAdaptivePlan({ tasks, chapters: chapterList, preferences, mistakes, mocks, subjects, settings: planning, availableMinutes: availableMinutes || dayMinutes, learningPreferences, assessments: subjectAssessments, feedback: recommendationFeedback });
-    const summary: AdaptivePlanSummary = { usedMinutes: result.usedMinutes, availableMinutes: result.availableMinutes, deferredCount: result.deferredCount, generatedRevisionCount: result.generatedRevisionCount, rationale: result.rationale, plannedAt: new Date().toISOString() };
-    setTasks(result.tasks);
-    setPlanSummary(summary);
-    persist("study_tasks", result.tasks.map(taskRow));
-    persist("adaptive_plan_summaries", [adaptivePlanRow(summary)]);
-    navigate("Home");
+    try {
+      const result = buildAdaptivePlan({ tasks, chapters: chapterList, preferences, mistakes, mocks, subjects, settings: planning, availableMinutes: availableMinutes || dayMinutes, learningPreferences, assessments: subjectAssessments, feedback: recommendationFeedback });
+      const summary: AdaptivePlanSummary = { usedMinutes: result.usedMinutes, availableMinutes: result.availableMinutes, deferredCount: result.deferredCount, generatedRevisionCount: result.generatedRevisionCount, rationale: result.rationale, plannedAt: new Date().toISOString() };
+      setTasks(result.tasks);
+      setPlanSummary(summary);
+      await Promise.all([
+        queueCloudSync("study_tasks", result.tasks.map(taskRow)),
+        queueCloudSync("adaptive_plan_summaries", [adaptivePlanRow(summary)]),
+      ]);
+      setPlannerState("success");
+      setPlannerMessage(result.selected.length ? `${result.usedMinutes} minutes arranged across ${result.selected.length} task${result.selected.length === 1 ? "" : "s"}.` : "No task fit this budget. Increase the minutes or add a revision item.");
+      navigate("Home");
+    } catch (error) {
+      setPlannerState("error");
+      setPlannerMessage(error instanceof Error ? error.message : "Could not save today’s plan. Try again.");
+    }
   };
 
   if (databaseStatus !== "ready") return <DatabaseGate status={databaseStatus} error={databaseError} />;
   if (!profile) return <DatabaseGate status="loading" error="Preparing your private workspace…" />;
-  if (!profile.onboardingCompleted) return <OnboardingWizard profile={profile} subjects={subjects} chapters={chapterList} save={saveProfile} saveAdaptive={saveAdaptiveProfile} saveCompletedChapters={saveCompletedChapters} startPlan={() => planToday(learningPreferences.weekdayMinutes)} />;
+  if (!profile.onboardingCompleted) return <OnboardingWizard profile={profile} subjects={subjects} chapters={chapterList} save={saveProfile} saveAdaptive={saveAdaptiveProfile} saveCompletedChapters={saveCompletedChapters} examPlan={examPlan} saveExamPlan={saveExamPlan} startPlan={() => planToday(learningPreferences.weekdayMinutes)} />;
   const adaptiveRiskSubject = subjects.filter((subject) => learningPreferences.userId ? subjectAssessments.some((assessment) => assessment.subjectId === subject.id) : false).map((subject) => ({ subject, assessment: subjectAssessments.find((assessment) => assessment.subjectId === subject.id)! })).sort((a, b) => (b.assessment.difficulty + b.assessment.priority) - (a.assessment.difficulty + a.assessment.priority))[0]?.subject.name ?? "Your next priority";
-  const home = <Home tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} go={navigate} startStudy={startStudy} feedback={recordFeedback} adaptiveRiskSubject={adaptiveRiskSubject} goJournal={() => navigate("Journal")} workflows={studyWorkflows} />;
+  const home = <Home tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} plannerState={plannerState} plannerMessage={plannerMessage} sessions={sessions} startFocus={startFocus} updateFocus={updateFocus} resetFocus={resetFocus} go={navigate} startStudy={startStudy} feedback={recordFeedback} adaptiveRiskSubject={adaptiveRiskSubject} goJournal={() => navigate("Journal")} workflows={studyWorkflows} />;
   const content = (() => {
     switch (active) {
       case "Home":
       case "Dashboard":
       case "Today": return home;
-      case "Syllabus": return <Syllabus list={chapterList} setList={setChapterList} preferences={preferences} updatePreference={updatePreference} completeChapter={completeChapter} persistProgress={(chapter) => persist("chapter_progress", [chapterRow(chapter)])} goGoals={() => navigate("Goals")} sessions={sessions} entries={entries} mistakes={mistakes} resources={resources} goResources={(chapterId) => { setResourceChapterId(chapterId); navigate("Resources"); }} />;
-      case "Goals": return <Goals list={chapterList} preferences={preferences} updatePreference={updatePreference} updatePreferences={updatePreferences} completeChapter={completeChapter} buildQueue={buildGoalQueue} />;
+      case "Syllabus": return <Syllabus list={chapterList} setList={setChapterList} preferences={preferences} updatePreference={updatePreference} completeChapter={completeChapter} persistProgress={(chapter) => persist("chapter_progress", [chapterRow(chapter)])} saveCompletedChapters={saveCompletedChapters} goGoals={() => navigate("Goals")} sessions={sessions} entries={entries} mistakes={mistakes} resources={resources} goResources={(chapterId) => { setResourceChapterId(chapterId); navigate("Resources"); }} />;
+      case "Goals": return <Goals list={chapterList} preferences={preferences} updatePreference={updatePreference} updatePreferences={updatePreferences} completeChapter={completeChapter} setDifficulty={setChapterDifficulty} buildQueue={buildGoalQueue} />;
       case "Calendar": return <StudyCalendar tasks={tasks} preferences={preferences} update={updateTask} add={openManual} openTask={(task) => { setFocusTaskId(task.id); navigate("Home"); }} onSynced={reloadTasks} />;
       case "Journal": return <Journal entries={entries} add={() => openJournalEntry()} />;
       case "Progress": return <Progress entries={entries} list={chapterList} mocks={mocks} addMock={() => setMockOpen(true)} sessions={sessions} tasks={tasks} />;
-      case "Maths Lab": return <MathsLab mistakes={mistakes} chapters={chapterList} review={setRevisionMistake} goToday={() => navigate("Home")} />;
+      case "Maths Lab": return <MathsLab mistakes={mistakes} chapters={chapterList} formulas={mathsFormulas} review={setRevisionMistake} goToday={() => navigate("Home")} />;
       case "Exam Mode": return <ExamModeFocus tasks={tasks} activeTaskId={focusTaskId} onClose={() => navigate("Home")} onSaveSession={saveSession} onUpdateTask={updateTask} />;
       case "Resources": return <ResourceLibrary resources={resources.filter((resource) => !resource.archived)} chapters={chapterList} initialChapterId={resourceChapterId} save={saveResource} remove={removeResource} />;
       case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => navigate("Home")} />;
-      case "Exam Plan": return <ExamPlan />;
+      case "Exam Plan": return <ExamPlan plan={examPlan} save={saveExamPlan} />;
       default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} learningPreferences={learningPreferences} saveAdaptive={saveAdaptiveProfile} workflows={studyWorkflows} saveWorkflows={saveWorkflows} onCalendarSynced={reloadTasks} />;
     }
   })();
@@ -1007,7 +1185,7 @@ export default function CommandCenter() {
     <div className="workspace"><Topbar active={active} open={() => setMenu(true)} expanded={menu} profile={profile} /><div className="page-transition" key={active}>{content}</div></div>
     <nav className="bottom-nav" aria-label="Mobile navigation">{mobilePrimaryNav.map(([label, Icon]) => <button key={label} aria-label={label} aria-current={active === label ? "page" : undefined} className={active === label ? "active" : ""} onClick={() => navigate(label)}><Icon size={20} weight={active === label ? "fill" : "regular"} /><span>{label}</span></button>)}<button aria-label="More sections" aria-expanded={mobileMoreOpen} className={mobileMoreOpen ? "active" : ""} onClick={() => setMobileMoreOpen((open) => !open)}><Rows size={20} weight="bold" /><span>More</span></button></nav>
     {mobileMoreOpen && <><button className="mobile-more-scrim" onClick={() => setMobileMoreOpen(false)} aria-label="Close more sections" /><section className="mobile-more-menu" aria-label="More sections">{nav.filter(([label]) => !mobilePrimaryNav.some(([primary]) => primary === label)).map(([label, Icon]) => <button key={label} className={active === label ? "active" : ""} onClick={() => navigate(label)}><Icon size={18} weight={active === label ? "fill" : "regular"} /><span><strong>{label}</strong><small>Open section</small></span></button>)}</section></>}
-    {manualOpen && <ManualTaskModal close={() => { setManualOpen(false); setManualDate(undefined); }} save={addTask} defaultDate={manualDate} preferences={preferences} />}
+    {manualOpen && <ManualTaskModal close={() => { setManualOpen(false); setManualDate(undefined); }} save={addTask} defaultDate={manualDate} preferences={preferences} workflows={studyWorkflows} />}
     {journalTask && <JournalModal task={journalTask} close={() => setJournalTask(null)} save={save} />}
     {mockOpen && <MockResultModal close={() => setMockOpen(false)} save={saveMock} />}
     {revisionMistake && <RevisionModal mistake={revisionMistake} close={() => setRevisionMistake(null)} save={(outcome, note) => recordRevision(revisionMistake, outcome, note)} />}

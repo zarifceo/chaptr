@@ -163,6 +163,7 @@ export type Database = {
         Row: {
           chapter_id: string
           confidence: number
+          difficulty: number
           id: string
           last_studied: string | null
           next_review: string | null
@@ -176,6 +177,7 @@ export type Database = {
         Insert: {
           chapter_id: string
           confidence?: number
+          difficulty?: number
           id: string
           last_studied?: string | null
           next_review?: string | null
@@ -189,6 +191,7 @@ export type Database = {
         Update: {
           chapter_id?: string
           confidence?: number
+          difficulty?: number
           id?: string
           last_studied?: string | null
           next_review?: string | null
@@ -226,6 +229,63 @@ export type Database = {
           workflow_kind?: string
         }
         Relationships: []
+      }
+      maths_formulas: {
+        Row: {
+          chapter_id: string | null
+          created_at: string
+          division: string
+          explanation: string
+          expression: string
+          id: string
+          sort_order: number
+          subject_id: string
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          chapter_id?: string | null
+          created_at?: string
+          division: string
+          explanation: string
+          expression: string
+          id: string
+          sort_order?: number
+          subject_id: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          chapter_id?: string | null
+          created_at?: string
+          division?: string
+          explanation?: string
+          expression?: string
+          id?: string
+          sort_order?: number
+          subject_id?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maths_formulas_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maths_formulas_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       chapters: {
         Row: {
@@ -270,6 +330,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      exam_plan_phases: {
+        Row: {
+          ends_on: string
+          id: string
+          objective: string
+          phase_order: number
+          starts_on: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ends_on: string
+          id: string
+          objective?: string
+          phase_order?: number
+          starts_on: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ends_on?: string
+          id?: string
+          objective?: string
+          phase_order?: number
+          starts_on?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       exams: {
         Row: {
@@ -720,8 +813,10 @@ export type Database = {
           ended_at: string | null
           focused_seconds: number
           id: string
+          last_resumed_at: string | null
           mode: string
           pause_seconds: number
+          timer_state: string
           questions_attempted: number | null
           questions_correct: number | null
           started_at: string
@@ -736,8 +831,10 @@ export type Database = {
           ended_at?: string | null
           focused_seconds?: number
           id?: string
+          last_resumed_at?: string | null
           mode?: string
           pause_seconds?: number
+          timer_state?: string
           questions_attempted?: number | null
           questions_correct?: number | null
           started_at: string
@@ -752,8 +849,10 @@ export type Database = {
           ended_at?: string | null
           focused_seconds?: number
           id?: string
+          last_resumed_at?: string | null
           mode?: string
           pause_seconds?: number
+          timer_state?: string
           questions_attempted?: number | null
           questions_correct?: number | null
           started_at?: string
@@ -905,6 +1004,7 @@ export type Database = {
           subject_id: string
           study_method: string | null;
           workflow_phase: string | null;
+          workflow_steps: Json | null;
           title: string;
           updated_at: string
           user_id: string
@@ -927,6 +1027,7 @@ export type Database = {
           subject_id: string
           study_method?: string | null;
           workflow_phase?: string | null;
+          workflow_steps?: Json | null;
           title: string;
           updated_at?: string
           user_id: string
@@ -949,6 +1050,7 @@ export type Database = {
           subject_id?: string
           study_method?: string | null;
           workflow_phase?: string | null;
+          workflow_steps?: Json | null;
           title?: string;
           updated_at?: string
           user_id?: string

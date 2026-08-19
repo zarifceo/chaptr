@@ -54,13 +54,15 @@ export function scoreChapter(subject: Subject, chapter: Chapter, now = new Date(
   const hasOpenMistake = evidence.mistakes?.some((mistake) => mistake.chapterId === chapter.id && !mistake.resolved);
   const assessment = assessmentFor(subject.id, evidence.assessments);
   const personalDifficulty = (assessment?.difficulty ?? 3) * 20;
+  const chapterDifficulty = chapter.difficulty * 20;
+  const difficulty = Math.round((personalDifficulty + chapterDifficulty) / 2);
   const priority = (assessment?.priority ?? 3) * 20;
   const recentEvidence = Math.max(accuracyGap, mockGap, hasOpenMistake ? 100 : 0);
   const adjustment = feedbackAdjustment(subject.id, evidence.feedback);
-  const score = urgency * .18 + personalDifficulty * .22 + priority * .14 + masteryGap[chapter.status] * .20 + review * .14 + recentEvidence * .12 + adjustment;
+  const score = urgency * .18 + difficulty * .22 + priority * .14 + masteryGap[chapter.status] * .20 + review * .14 + recentEvidence * .12 + adjustment;
   const method = preferredMethod(assessment);
   const reasons = [
-    assessment?.startingPoint === "difficult" || (assessment?.difficulty ?? 3) >= 4 ? "your difficulty profile" : "balanced coverage",
+    chapter.difficulty >= 4 ? "chapter difficulty" : assessment?.startingPoint === "difficult" || (assessment?.difficulty ?? 3) >= 4 ? "your difficulty profile" : "balanced coverage",
     chapter.status === "not-started" ? "first coverage" : "mastery gap",
     hasOpenMistake ? "open mistake" : review >= 80 ? "review due" : latestMock ? "mock evidence" : "recent evidence",
     `fits ${methodLabels[method]}`,
@@ -68,7 +70,7 @@ export function scoreChapter(subject: Subject, chapter: Chapter, now = new Date(
   return {
     score: Math.max(0, Math.round(score)),
     explanation: reasons.join(" · "),
-    factors: { urgency: Math.round(urgency), difficulty: Math.round(personalDifficulty), priority: Math.round(priority), mastery: masteryGap[chapter.status], review: Math.round(review), evidence: Math.round(recentEvidence), feedback: adjustment },
+    factors: { urgency: Math.round(urgency), difficulty, priority: Math.round(priority), mastery: masteryGap[chapter.status], review: Math.round(review), evidence: Math.round(recentEvidence), feedback: adjustment },
     studyMethod: method,
   };
 }
@@ -79,7 +81,7 @@ export function recommendTasks(subjects: Subject[], chapters: Chapter[], evidenc
     const scored = scoreChapter(subject, chapter, new Date(), evidence);
     const assessment = assessmentFor(subject.id, evidence.assessments);
     const method = scored.studyMethod;
-    const duration = assessment?.difficulty && assessment.difficulty >= 4 ? 45 : 35;
+    const duration = Math.max(30, chapter.difficulty >= 4 ? 45 : assessment?.difficulty && assessment.difficulty >= 4 ? 45 : 35);
     return {
       id: `task-${chapter.id}`,
       subjectId: subject.id,

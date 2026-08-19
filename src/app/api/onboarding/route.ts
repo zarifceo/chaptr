@@ -30,6 +30,15 @@ const studyWorkflow = z.object({
   steps: z.array(z.string().trim().min(1).max(120)).min(1).max(8),
 });
 
+const examPlanPhase = z.object({
+  id: z.string().trim().min(1).max(80),
+  title: z.string().trim().min(1).max(120),
+  starts_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  ends_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  objective: z.string().trim().max(300),
+  phase_order: z.number().int().min(0).max(30),
+}).refine((phase) => phase.ends_on >= phase.starts_on, { message: "Exam plan phases must end on or after their start date" });
+
 const subjectAssessment = z.object({
   subject_id: z.string().min(1).max(80),
   difficulty: z.number().int().min(1).max(5).optional(),
@@ -48,11 +57,12 @@ const profilePatch = z.object({
   daily_target: z.number().int().min(15).max(600).optional(),
   main_start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   main_end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
-  onboarding_step: z.number().int().min(0).max(8).optional(),
+  onboarding_step: z.number().int().min(0).max(9).optional(),
   onboarding_completed: z.boolean().optional(),
   learning_preferences: learningPreferencesPatch.optional(),
   subject_assessments: z.array(subjectAssessment).max(30).optional(),
   study_workflows: z.array(studyWorkflow).max(4).optional(),
+  exam_plan_phases: z.array(examPlanPhase).max(30).optional(),
 });
 
 async function currentUserId() {
@@ -98,7 +108,7 @@ export async function POST(request: Request) {
   const parsed = profilePatch.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid onboarding profile" }, { status: 400 });
 
-  const { accept_policies: acceptPolicies, learning_preferences: learningPreferences, subject_assessments: subjectAssessments, study_workflows: studyWorkflows, ...profileData } = parsed.data;
+  const { accept_policies: acceptPolicies, learning_preferences: learningPreferences, subject_assessments: subjectAssessments, study_workflows: studyWorkflows, exam_plan_phases: examPlanPhases, ...profileData } = parsed.data;
   const consent = acceptPolicies ? {
     terms_accepted_at: new Date().toISOString(),
     privacy_accepted_at: new Date().toISOString(),
@@ -124,10 +134,17 @@ export async function POST(request: Request) {
     const { error: workflowError } = await supabase.from("study_workflows").upsert(studyWorkflows.map((workflow) => ({ user_id: userId, phase: workflow.phase, steps: workflow.steps, updated_at: new Date().toISOString() })), { onConflict: "user_id,phase" });
     if (workflowError) return NextResponse.json({ error: workflowError.message }, { status: 400 });
   }
-  const [{ data: savedPreferences }, { data: savedAssessments }, { data: savedWorkflows }] = await Promise.all([
+  if (examPlanPhases) {
+    const { error: deletePlanError } = await supabase.from("exam_plan_phases").delete().eq("user_id", userId);
+    if (deletePlanError) return NextResponse.json({ error: deletePlanError.message }, { status: 400 });
+    const { error: planError } = await supabase.from("exam_plan_phases").insert(examPlanPhases.map((phase) => ({ user_id: userId, ...phase, updated_at: new Date().toISOString() })));
+    if (planError) return NextResponse.json({ error: planError.message }, { status: 400 });
+  }
+  const [{ data: savedPreferences }, { data: savedAssessments }, { data: savedWorkflows }, { data: savedExamPlan }] = await Promise.all([
     supabase.from("learning_preferences").select("*").eq("user_id", userId).maybeSingle(),
     supabase.from("subject_assessments").select("*").eq("user_id", userId).order("subject_id"),
     supabase.from("study_workflows").select("*").eq("user_id", userId).order("phase"),
+    supabase.from("exam_plan_phases").select("*").eq("user_id", userId).order("phase_order"),
   ]);
-  return NextResponse.json({ profile: data, learning_preferences: savedPreferences, subject_assessments: savedAssessments ?? [], study_workflows: savedWorkflows ?? [] }, { headers: noStoreHeaders });
+  return NextResponse.json({ profile: data, learning_preferences: savedPreferences, subject_assessments: savedAssessments ?? [], study_workflows: savedWorkflows ?? [], exam_plan_phases: savedExamPlan ?? [] }, { headers: noStoreHeaders });
 }

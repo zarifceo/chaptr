@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 
-const payload = z.object({ table: z.enum(["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources", "exam_events", "planning_settings", "adaptive_plan_summaries"]), rows: z.array(z.record(z.string(), z.unknown())).max(500) });
+const payload = z.object({ table: z.enum(["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources", "exam_events", "exam_plan_phases", "planning_settings", "adaptive_plan_summaries"]), rows: z.array(z.record(z.string(), z.unknown())).max(500) });
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
 
 type SyncTable = z.infer<typeof payload>["table"];
@@ -56,6 +56,9 @@ export async function POST(request: Request) {
       break;
     case "exam_events":
       ({ error } = await supabase.from("exam_events").upsert(rows as InsertRow<"exam_events">[]));
+      break;
+    case "exam_plan_phases":
+      ({ error } = await supabase.from("exam_plan_phases").upsert(rows as InsertRow<"exam_plan_phases">[]));
       break;
     case "planning_settings":
       ({ error } = await supabase.from("planning_settings").upsert(rows as InsertRow<"planning_settings">[]));

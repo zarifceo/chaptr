@@ -63,8 +63,21 @@ const infer = (note?: string) => {
   return { status: "learning" as const, confidence: 3 as const };
 };
 
+const inferDifficulty = (note?: string): Chapter["difficulty"] => {
+  const value = note?.toLowerCase() ?? "";
+  if (value.includes("easiest")) return 1;
+  if (value.includes("easy")) return 2;
+  if (value.includes("extremely difficult") || value.includes("most difficult")) return 5;
+  if (value.includes("difficult") || value.includes("never touched")) return 4;
+  return 3;
+};
+
+export function orderChapters(items: Chapter[]) {
+  return [...items].sort((a, b) => (a.number ?? Number.MAX_SAFE_INTEGER) - (b.number ?? Number.MAX_SAFE_INTEGER) || a.title.localeCompare(b.title, "bn"));
+}
+
 export let chapters: Chapter[] = seed.map(([subjectId, title, number, division, note], index) => ({
-  id: `${subjectId}-${index + 1}`, subjectId, title, number, division, note, ...infer(note),
+  id: `${subjectId}-${index + 1}`, subjectId, title, number, division, note, ...infer(note), difficulty: inferDifficulty(note),
   formats: defaultFormats[subjectId] ?? ["MCQ", "Short", "Creative"], questionsAttempted: 0, questionsCorrect: 0,
 }));
 

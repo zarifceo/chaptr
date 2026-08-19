@@ -2745,3 +2745,630 @@ label {
     justify-self: start;
   }
 }
+
+
+/* Task-level workflow controls inside Add a study task. */
+.manual-task-form {
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+}
+
+.manual-task-form .modal-intro {
+  margin: -2px 0 16px;
+  color: var(--ink-3) !important;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.task-workflow-editor {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--stroke) !important;
+  border-radius: 16px;
+  background: var(--surface-2) !important;
+}
+
+.task-workflow-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-workflow-heading > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.task-workflow-heading strong {
+  color: var(--ink-1) !important;
+  font-size: 13px;
+}
+
+.task-workflow-heading small {
+  color: var(--ink-3) !important;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.task-workflow-heading > button,
+.task-workflow-add {
+  min-height: 38px;
+  padding: 9px 11px !important;
+  border: 1px solid var(--stroke-strong) !important;
+  border-radius: 10px !important;
+  background: var(--surface-1) !important;
+  color: var(--ink-2) !important;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.task-workflow-heading > button:hover,
+.task-workflow-add:hover:not(:disabled) {
+  border-color: #b9cdf8 !important;
+  background: var(--primary-soft) !important;
+  color: var(--brand) !important;
+}
+
+.task-workflow-tabs {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.task-workflow-tabs button {
+  min-height: 38px;
+  padding: 9px 11px !important;
+  border: 1px solid var(--stroke) !important;
+  border-radius: 10px !important;
+  background: var(--surface-1) !important;
+  color: var(--ink-2) !important;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.task-workflow-tabs button.active {
+  border-color: var(--brand) !important;
+  background: var(--brand) !important;
+  color: #ffffff !important;
+}
+
+.task-workflow-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.task-workflow-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 34px 34px 34px;
+  gap: 6px;
+  align-items: center;
+}
+
+.task-workflow-row > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--primary-soft);
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.task-workflow-row input {
+  min-width: 0;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 11px !important;
+  border: 1px solid var(--stroke-strong) !important;
+  border-radius: 10px !important;
+  background: var(--surface-1) !important;
+  color: var(--ink-1) !important;
+  font-size: 11px;
+}
+
+.task-workflow-row button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 !important;
+  border: 1px solid var(--stroke) !important;
+  border-radius: 9px !important;
+  background: var(--surface-1) !important;
+  color: var(--ink-3) !important;
+}
+
+.task-workflow-row button:hover:not(:disabled) {
+  border-color: #b9cdf8 !important;
+  background: var(--primary-soft) !important;
+  color: var(--brand) !important;
+}
+
+.task-workflow-row button:disabled,
+.task-workflow-add:disabled {
+  cursor: not-allowed;
+  opacity: .38;
+}
+
+.task-workflow-add {
+  justify-self: start;
+}
+
+@media (max-width: 640px) {
+  .task-workflow-heading {
+    flex-direction: column;
+  }
+
+  .task-workflow-heading > button {
+    width: 100%;
+  }
+
+  .task-workflow-tabs {
+    margin-inline: -3px;
+    padding-inline: 3px;
+  }
+
+  .task-workflow-row {
+    grid-template-columns: 26px minmax(0, 1fr) 32px 32px 32px;
+    gap: 5px;
+  }
+
+  .task-workflow-row > span {
+    width: 26px;
+    height: 26px;
+  }
+
+  .task-workflow-row button {
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+  }
+}
+
+
+/* Per-chapter difficulty control. */
+.difficulty-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 188px;
+}
+
+.difficulty-picker small {
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.difficulty-picker > span {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.difficulty-picker button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0 !important;
+  border: 1px solid var(--stroke) !important;
+  border-radius: 8px !important;
+  background: var(--surface-1) !important;
+  color: var(--ink-3) !important;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.difficulty-picker button:hover,
+.difficulty-picker button.active {
+  border-color: var(--brand) !important;
+  background: var(--primary-soft) !important;
+  color: var(--brand) !important;
+}
+
+.difficulty-picker em {
+  color: var(--ink-2);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 780px) {
+  .difficulty-picker {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+}
+
+
+.planner-feedback {
+  display: block;
+  max-width: 260px;
+  margin-top: 8px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.planner-feedback.success {
+  color: #087f5b;
+}
+
+.planner-feedback.error {
+  color: #b42318;
+}
+
+.adaptive-planner-actions button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+/* Prior completion calibration: a quiet, database-backed starting-point panel. */
+.prior-completion-panel {
+  margin: 0 0 16px;
+  padding: 18px !important;
+  border: 1px solid var(--stroke) !important;
+  border-radius: 18px !important;
+  background: var(--surface-1) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .045) !important;
+}
+.prior-completion-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.prior-completion-heading small {
+  color: var(--brand) !important;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.prior-completion-heading h3 {
+  margin: 6px 0 5px;
+  color: var(--ink-1);
+  font-size: 19px;
+  letter-spacing: -.025em;
+}
+.prior-completion-heading p {
+  max-width: 660px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.panel-close-button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--stroke-strong);
+  border-radius: 11px;
+  background: var(--surface-1);
+  color: var(--ink-3);
+}
+.panel-close-button:hover,
+.panel-close-button:focus-visible {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.prior-completion-subjects {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.prior-completion-subjects button {
+  min-width: 92px;
+  min-height: 54px;
+  display: grid;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  text-align: left;
+}
+.prior-completion-subjects button strong { font-size: 12px; }
+.prior-completion-subjects button small { color: var(--ink-3) !important; font-size: 10px; letter-spacing: 0; text-transform: none; }
+.prior-completion-subjects button.active { border-color: var(--brand); background: var(--primary-soft); color: var(--ink-1); }
+.prior-completion-subjects button.active small { color: var(--brand) !important; }
+.prior-completion-list {
+  overflow: hidden;
+  border: 1px solid var(--stroke);
+  border-radius: 13px;
+  background: var(--surface-2);
+}
+.prior-completion-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--stroke);
+}
+.prior-completion-list-heading strong { color: var(--ink-1); font-size: 12px; }
+.prior-completion-list-heading button,
+.prior-completion-footer button {
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid var(--stroke-strong);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+.prior-completion-list-heading button:hover,
+.prior-completion-list-heading button:focus-visible,
+.prior-completion-footer button:hover,
+.prior-completion-footer button:focus-visible { border-color: var(--brand); color: var(--brand); }
+.prior-completion-list > button {
+  width: 100%;
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--ink-1);
+  text-align: left;
+}
+.prior-completion-list > button:last-child { border-bottom: 0; }
+.prior-completion-list > button:hover,
+.prior-completion-list > button:focus-visible { background: var(--primary-soft); }
+.prior-completion-list > button.selected { background: #eff6ff; }
+.prior-completion-list > button > span { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--stroke-strong); border-radius: 8px; color: var(--brand); }
+.prior-completion-list > button.selected > span { border-color: var(--brand); background: var(--brand); color: #fff; }
+.prior-completion-list > button strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.prior-completion-list > button small { color: var(--ink-3); font-size: 10px; white-space: nowrap; }
+.prior-completion-empty { margin: 0; padding: 18px 14px; color: var(--ink-3); font-size: 12px; }
+.prior-completion-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.prior-completion-footer > span { color: var(--ink-3); font-size: 11px; }
+.prior-completion-footer > div { display: flex; gap: 8px; }
+.prior-completion-footer button.accent { border-color: var(--brand); background: var(--brand); color: #fff; }
+.prior-completion-footer button:disabled,
+.prior-completion-list-heading button:disabled { cursor: not-allowed; opacity: .5; }
+.prior-completion-message { margin: 10px 0 0; color: var(--brand); font-size: 11px; }
+@media (max-width: 760px) {
+  .prior-completion-panel { padding: 15px !important; }
+  .prior-completion-heading p { font-size: 11px; }
+  .prior-completion-list > button { grid-template-columns: 26px minmax(0, 1fr); }
+  .prior-completion-list > button small { grid-column: 2; }
+  .prior-completion-footer { align-items: stretch; flex-direction: column; }
+  .prior-completion-footer > div { display: grid; grid-template-columns: 1fr 1.5fr; }
+  .prior-completion-footer button { width: 100%; }
+}
+
+/* Maths Lab: formula-first workspace styles. */
+.maths-lab-thesis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 18px;
+  padding: 22px 24px;
+  border: 1px solid #cfe0ff;
+  border-radius: 18px;
+  background: linear-gradient(110deg, #eef5ff 0%, #ffffff 72%);
+}
+.maths-lab-thesis small,
+.formula-hub-heading small,
+.maths-quick-routine > small,
+.maths-repair-queue small {
+  color: var(--brand) !important;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.maths-lab-thesis h3 {
+  margin: 7px 0 5px;
+  color: var(--ink-1);
+  font-size: 22px;
+  letter-spacing: -.035em;
+}
+.maths-lab-thesis p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.maths-lab-thesis .solid-cta { flex: 0 0 auto; background: var(--brand); color: #fff; }
+.maths-lab-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+}
+.formula-hub,
+.maths-quick-routine,
+.maths-repair-queue {
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  background: var(--surface-1);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .045);
+}
+.formula-hub { min-width: 0; padding: 18px; }
+.formula-hub-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.formula-hub-heading h3,
+.maths-quick-routine h3,
+.maths-repair-queue h3 {
+  margin: 6px 0 0;
+  color: var(--ink-1);
+  font-size: 18px;
+  letter-spacing: -.025em;
+}
+.formula-search {
+  width: min(290px, 45%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 11px;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.formula-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink-1); font-size: 11px; }
+.formula-division-tabs,
+.formula-chapter-tabs {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 14px 0 2px;
+}
+.formula-division-tabs button,
+.formula-chapter-tabs button {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.formula-division-tabs button small { color: var(--ink-3) !important; font-size: 10px; letter-spacing: 0; }
+.formula-division-tabs button.active,
+.formula-chapter-tabs button.active { border-color: var(--brand); background: var(--primary-soft); color: var(--brand); }
+.formula-division-tabs button.active small { color: var(--brand) !important; }
+.formula-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.formula-card {
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: #fbfdff;
+}
+.formula-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.formula-card-meta span { overflow: hidden; color: var(--brand); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.formula-card-meta button { min-height: 32px; flex: 0 0 auto; padding: 6px 9px; border: 1px solid var(--stroke-strong); border-radius: 8px; background: var(--surface-1); color: var(--ink-2); font-size: 10px; font-weight: 700; }
+.formula-card h4 { margin: 15px 0 8px; color: var(--ink-1); font-size: 14px; }
+.formula-card pre { min-height: 56px; margin: 0; padding: 11px; overflow-x: auto; border: 1px solid #dce8fb; border-radius: 9px; background: #f5f8ff; color: #173a77; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+.formula-card p { margin: 10px 0 11px; color: var(--ink-3); font-size: 11px; line-height: 1.55; }
+.formula-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.formula-tags span { padding: 4px 7px; border-radius: 999px; background: var(--primary-soft); color: var(--brand); font-size: 9px; font-weight: 700; }
+.formula-empty { grid-column: 1 / -1; display: grid; place-items: center; gap: 6px; min-height: 180px; padding: 24px; text-align: center; }
+.formula-empty svg { width: 32px; height: 32px; color: var(--brand); }
+.formula-empty strong { color: var(--ink-1); font-size: 13px; }
+.formula-empty p { margin: 0; color: var(--ink-3); font-size: 11px; }
+.maths-lab-rail { display: grid; gap: 14px; }
+.maths-quick-routine,
+.maths-repair-queue { padding: 18px; }
+.maths-quick-routine h3 { font-size: 17px; }
+.maths-quick-routine ol { display: grid; gap: 10px; margin: 16px 0 18px; padding-left: 20px; color: var(--ink-2); font-size: 11px; line-height: 1.45; }
+.maths-quick-routine li::marker { color: var(--brand); font-weight: 800; }
+.maths-quick-routine > button { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 9px 11px; border: 1px solid var(--stroke-strong); border-radius: 10px; background: var(--surface-2); color: var(--brand); font-size: 11px; font-weight: 800; }
+.rail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.rail-heading > svg { color: var(--brand); }
+.maths-repair-queue > div:not(.rail-heading) { display: grid; gap: 8px; margin-top: 14px; }
+.maths-repair-queue > div:not(.rail-heading) > button { display: grid; gap: 4px; padding: 11px; border: 1px solid var(--stroke); border-radius: 11px; background: var(--surface-2); text-align: left; }
+.maths-repair-queue > div:not(.rail-heading) > button:hover,
+.maths-repair-queue > div:not(.rail-heading) > button:focus-visible { border-color: var(--brand); background: var(--primary-soft); }
+.maths-repair-queue > div:not(.rail-heading) span { color: var(--brand); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.maths-repair-queue > div:not(.rail-heading) strong { overflow: hidden; color: var(--ink-1); font-size: 11px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.maths-repair-queue > div:not(.rail-heading) small { display: flex; align-items: center; gap: 4px; color: var(--ink-3) !important; font-size: 10px; letter-spacing: 0; text-transform: none; }
+.maths-repair-queue > p { margin: 14px 0 0; color: var(--ink-3); font-size: 11px; line-height: 1.55; }
+@media (max-width: 900px) { .maths-lab-grid { grid-template-columns: 1fr; } .maths-lab-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .maths-lab-thesis { align-items: stretch; flex-direction: column; padding: 17px; } .maths-lab-thesis h3 { font-size: 19px; } .maths-lab-thesis .solid-cta { width: 100%; } .formula-hub { padding: 14px; } .formula-hub-heading { align-items: stretch; flex-direction: column; } .formula-search { width: 100%; } .formula-list { grid-template-columns: 1fr; } .maths-lab-rail { grid-template-columns: 1fr; } }
+
+/* Student-owned exam timeline editor. */
+.exam-plan-actions { display: flex; align-items: end; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.exam-plan-actions label,
+.exam-plan-date-row label,
+.onboarding-plan-toolbar label,
+.onboarding-plan-dates label { display: grid; gap: 5px; color: var(--ink-3); font-size: 10px; font-weight: 700; }
+.exam-plan-actions input,
+.exam-plan-phase-fields input,
+.exam-plan-phase-fields textarea,
+.onboarding-plan-toolbar input,
+.onboarding-plan-list input,
+.onboarding-plan-list textarea { min-height: 38px; padding: 9px 10px; border: 1px solid var(--stroke-strong); border-radius: 10px; background: var(--surface-1); color: var(--ink-1); outline: none; font-size: 11px; }
+.exam-plan-phase-fields textarea,
+.onboarding-plan-list textarea { min-height: 60px; resize: vertical; line-height: 1.45; }
+.exam-plan-actions > button,
+.onboarding-plan-toolbar > button,
+.exam-plan-phase-actions button,
+.exam-plan-add,
+.onboarding-plan-add { min-height: 38px; padding: 8px 11px; border: 1px solid var(--stroke-strong); border-radius: 10px; background: var(--surface-1); color: var(--ink-2); font-size: 11px; font-weight: 700; }
+.exam-plan-actions > button:hover,
+.exam-plan-actions > button:focus-visible,
+.onboarding-plan-toolbar > button:hover,
+.onboarding-plan-toolbar > button:focus-visible,
+.exam-plan-phase-actions button:hover,
+.exam-plan-phase-actions button:focus-visible,
+.exam-plan-add:hover,
+.exam-plan-add:focus-visible,
+.onboarding-plan-add:hover,
+.onboarding-plan-add:focus-visible { border-color: var(--brand); color: var(--brand); }
+.exam-plan-actions > button.accent { border-color: var(--brand); background: var(--brand); color: #fff; }
+.exam-plan-actions > button:disabled,
+.exam-plan-phase-actions button:disabled,
+.onboarding-plan-move button:disabled { cursor: not-allowed; opacity: .45; }
+.exam-plan-intro { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 16px; padding: 20px 22px; border: 1px solid #cfe0ff; border-radius: 18px; background: linear-gradient(110deg, #eef5ff 0%, #ffffff 74%); }
+.exam-plan-intro small,
+.exam-plan-intro > div > small { color: var(--brand) !important; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.exam-plan-intro h3 { margin: 7px 0 5px; color: var(--ink-1); font-size: 21px; letter-spacing: -.035em; }
+.exam-plan-intro p { max-width: 720px; margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.55; }
+.exam-plan-intro > span { min-width: 105px; padding: 12px; border-radius: 12px; background: var(--primary-soft); color: var(--brand); font-size: 20px; font-weight: 800; text-align: right; }
+.exam-plan-intro > span small { display: block; margin-top: 3px; letter-spacing: 0; text-transform: none; font-size: 10px; }
+.exam-plan-editor { display: grid; gap: 10px; }
+.exam-plan-phase { display: grid; grid-template-columns: 115px minmax(0, 1fr) auto; gap: 15px; align-items: start; padding: 18px; border: 1px solid var(--stroke); border-radius: 16px; background: var(--surface-1); box-shadow: 0 6px 18px rgba(15, 23, 42, .035); }
+.exam-plan-phase.current { border-color: #9cbaff; background: #fbfdff; box-shadow: 0 8px 22px rgba(49, 94, 251, .08); }
+.exam-plan-phase-index { display: grid; gap: 8px; justify-items: start; }
+.exam-plan-phase-index > span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: var(--primary-soft); color: var(--brand); font-size: 13px; font-weight: 800; }
+.exam-plan-phase.current .exam-plan-phase-index > span { background: var(--brand); color: #fff; }
+.exam-plan-phase-index small { color: var(--ink-3); font-size: 9px; line-height: 1.4; }
+.exam-plan-phase-fields { display: grid; gap: 10px; min-width: 0; }
+.exam-plan-phase-fields label { display: grid; gap: 5px; color: var(--ink-3); font-size: 10px; font-weight: 700; }
+.exam-plan-date-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.exam-plan-phase-actions { display: grid; grid-template-columns: repeat(2, 38px); gap: 6px; }
+.exam-plan-phase-actions button:last-child { grid-column: 1 / -1; }
+.exam-plan-add { display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; border-style: dashed; background: transparent; color: var(--brand); }
+.exam-plan-message { margin: 10px 0 0; color: var(--brand); font-size: 11px; }
+.onboarding-exam-plan { display: grid; gap: 12px; }
+.onboarding-plan-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 10px; }
+.onboarding-plan-list { display: grid; gap: 8px; }
+.onboarding-plan-list article { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 12px; border: 1px solid var(--stroke); border-radius: 13px; background: var(--surface-1); }
+.onboarding-plan-list article > span { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: var(--primary-soft); color: var(--brand); font-size: 11px; font-weight: 800; }
+.onboarding-plan-list article > div { display: grid; gap: 8px; min-width: 0; }
+.onboarding-plan-list article label { display: grid; gap: 5px; color: var(--ink-3); font-size: 10px; font-weight: 700; }
+.onboarding-plan-dates { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.onboarding-plan-move { display: grid; grid-template-columns: 34px; gap: 5px; }
+.onboarding-plan-move button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--stroke-strong); border-radius: 9px; background: var(--surface-1); color: var(--ink-3); }
+.onboarding-plan-add { margin-top: 2px; }
+@media (max-width: 800px) { .exam-plan-actions { justify-content: flex-start; } .exam-plan-intro { align-items: stretch; flex-direction: column; } .exam-plan-intro > span { text-align: left; } .exam-plan-phase { grid-template-columns: 44px minmax(0, 1fr); } .exam-plan-phase-actions { grid-column: 2; display: flex; } .exam-plan-phase-actions button:last-child { margin-left: auto; } }
+@media (max-width: 560px) { .exam-plan-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; } .exam-plan-actions label { grid-column: 1 / -1; } .exam-plan-actions > button { width: 100%; } .exam-plan-date-row, .onboarding-plan-dates { grid-template-columns: 1fr; } .onboarding-plan-toolbar { align-items: stretch; flex-direction: column; } .onboarding-plan-toolbar > button { width: 100%; } .onboarding-plan-list article { grid-template-columns: 30px minmax(0, 1fr); } .onboarding-plan-move { grid-column: 2; display: flex; } }

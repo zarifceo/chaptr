@@ -1,5 +1,6 @@
 export type StrengthLevel = "strongest" | "very-strong" | "moderate" | "toughest";
 export type MasteryStatus = "not-started" | "learning" | "practising" | "exam-ready" | "needs-revision";
+export type ChapterDifficulty = 1 | 2 | 3 | 4 | 5;
 export type WorkflowKind = "notebooklm" | "accounting" | "bangla-1" | "bangla-2" | "english" | "mathematics";
 
 export interface Subject {
@@ -21,6 +22,7 @@ export interface Chapter {
   note?: string;
   status: MasteryStatus;
   confidence: 1 | 2 | 3 | 4 | 5;
+  difficulty: ChapterDifficulty;
   formats: string[];
   lastStudied?: string;
   nextReview?: string;
@@ -34,6 +36,18 @@ export interface MarksDistribution {
   questionType: string;
   rule: string;
   marks: number;
+}
+
+export interface MathsFormula {
+  id: string;
+  subjectId: string;
+  chapterId?: string;
+  division: "Core basics" | "Algebra" | "Geometry" | "Trigonometry & Mensuration" | "Statistics";
+  title: string;
+  expression: string;
+  explanation: string;
+  tags: string[];
+  sortOrder: number;
 }
 
 export interface StudyTask {
@@ -55,6 +69,7 @@ export interface StudyTask {
   deferredUntil?: string;
   studyMethod?: LearningMethod;
   workflowPhase?: StudyPhase;
+  workflowSteps?: string[];
   recommendationFactors?: Record<string, number>;
 }
 
@@ -116,6 +131,8 @@ export interface StudySession {
   mode: "focus" | "exam";
   startedAt: string;
   endedAt?: string;
+  timerState?: "running" | "paused" | "completed";
+  lastResumedAt?: string;
   focusedSeconds: number;
   pauseSeconds: number;
   completed: boolean;
@@ -150,6 +167,15 @@ export interface ExamEvent {
   note?: string;
   locked?: boolean;
   archived?: boolean;
+}
+
+export interface ExamPlanPhase {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  objective: string;
+  order: number;
 }
 
 export interface ChapterEvidence {
