@@ -27,10 +27,16 @@ export function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptPolicies, setAcceptPolicies] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("error") === "callback" ? "The sign-in link could not be completed. Please try again." : "");
+  const [message, setMessage] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("verified") === "1" ? "Your email was verified successfully. Sign in with your credentials to continue." : "");
+  const [error, setError] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const params = new URLSearchParams(window.location.search);
+    return params.get("error") === "callback" && params.get("verified") !== "1" ? "The sign-in link could not be completed. Please try again." : "";
+  });
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("verified") || params.has("error")) window.history.replaceState({}, "", window.location.pathname);
     const client = createSupabaseClient();
     if (!client) return;
     const { data: listener } = client.auth.onAuthStateChange((event) => {
@@ -98,7 +104,7 @@ export function AuthScreen() {
         email: email.trim(),
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth?verified=1`,
           data: {
             display_name: displayName.trim(),
             policy_consent: true,

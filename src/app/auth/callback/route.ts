@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -20,14 +21,27 @@ function redirectWithNoStore(url: URL) {
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  const tokenHash = requestUrl.searchParams.get("token_hash");
   const requestedNext = requestUrl.searchParams.get("next") ?? "/";
   const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/";
-
-  if (!code) return redirectWithNoStore(new URL("/auth?error=callback", requestUrl.origin));
-
   const supabase = await createClient();
   if (!supabase) return redirectWithNoStore(new URL("/auth?error=callback", requestUrl.origin));
 
+  if (tokenHash) {
+    const requestedType = requestUrl.searchParams.get("type");
+    const allowedTypes: EmailOtpType[] = ["signup", "invite", "magiclink", "recovery", "email_change", "email"];
+    if (!requestedType || !allowedTypes.includes(requestedType as EmailOtpType)) {
+      return redirectWithNoStore(new URL("/auth?error=callback", requestUrl.origin));
+    }
+    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: requestedType as EmailOtpType });
+    if (error) return redirectWithNoStore(new URL("/auth?error=callback", requestUrl.origin));
+    if (next === "/auth/reset-password") return redirectWithNoStore(new URL("/auth/reset-password", requestUrl.origin));
+    const verifiedUrl = new URL("/auth", requestUrl.origin);
+    verifiedUrl.searchParams.set("verified", "1");
+    return redirectWithNoStore(verifiedUrl);
+  }
+
+  if (!code) return redirectWithNoStore(new URL("/auth?error=callback", requestUrl.origin));
   const { data: exchange, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error || !exchange.session) return redirectWithNoStore(new URL("/auth?error=callback", requestUrl.origin));
 

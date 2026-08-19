@@ -749,14 +749,78 @@ export type Database = {
           },
         ]
       }
+      curated_textbooks: {
+        Row: {
+          academic_year: number
+          active: boolean
+          alternate_url: string | null
+          board: string
+          created_at: string
+          id: string
+          note: string | null
+          sort_order: number
+          source_label: string
+          source_page: string
+          subject_id: string
+          title: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          academic_year: number
+          active?: boolean
+          alternate_url?: string | null
+          board?: string
+          created_at?: string
+          id: string
+          note?: string | null
+          sort_order?: number
+          source_label?: string
+          source_page: string
+          subject_id: string
+          title: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          academic_year?: number
+          active?: boolean
+          alternate_url?: string | null
+          board?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          sort_order?: number
+          source_label?: string
+          source_page?: string
+          subject_id?: string
+          title?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "curated_textbooks_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       study_resources: {
         Row: {
           archived: boolean
           chapter_id: string
           created_at: string
+          file_name: string | null
+          file_size: number | null
           id: string
           kind: string
+          mime_type: string | null
           note: string | null
+          source: string
+          storage_path: string | null
           subject_id: string
           title: string
           updated_at: string
@@ -767,9 +831,14 @@ export type Database = {
           archived?: boolean
           chapter_id: string
           created_at?: string
+          file_name?: string | null
+          file_size?: number | null
           id: string
           kind?: string
+          mime_type?: string | null
           note?: string | null
+          source?: string
+          storage_path?: string | null
           subject_id: string
           title: string
           updated_at?: string
@@ -780,9 +849,14 @@ export type Database = {
           archived?: boolean
           chapter_id?: string
           created_at?: string
+          file_name?: string | null
+          file_size?: number | null
           id?: string
           kind?: string
+          mime_type?: string | null
           note?: string | null
+          source?: string
+          storage_path?: string | null
           subject_id?: string
           title?: string
           updated_at?: string
