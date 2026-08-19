@@ -622,7 +622,7 @@ function WorkflowEditor({ workflows, save }: { workflows: CustomStudyWorkflow[];
   return <article className="settings-editor workflow-editor"><span className="blue"><ListChecks /></span><div className="workflow-editor-body"><p><strong>Choose your study steps</strong><small>SSC recommends a starting flow for each kind of work. You can edit, remove, reorder, or add steps without changing the recommendation logic.</small></p><div className="workflow-tabs" role="tablist" aria-label="Study phase"><span>{studyPhases.map((item) => <button type="button" key={item.id} className={phase === item.id ? "active" : ""} onClick={() => selectPhase(item.id)}>{item.label}</button>)}</span></div><div className="workflow-editor-heading"><div><strong>{studyPhases.find((item) => item.id === phase)?.label}</strong><small>{studyPhases.find((item) => item.id === phase)?.detail}</small></div><button type="button" onClick={reset}>Use recommended</button></div><div className="workflow-step-editor">{draft.map((step, index) => <div className="workflow-step-row" key={`${phase}-${index}`}><span>{index + 1}</span><input value={step} onChange={(event) => updateStep(index, event.target.value)} aria-label={`Step ${index + 1}`} /><button type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label="Move step up"><CaretUp /></button><button type="button" onClick={() => moveStep(index, 1)} disabled={index === draft.length - 1} aria-label="Move step down"><CaretDown /></button><button type="button" onClick={() => removeStep(index)} disabled={draft.length <= 1} aria-label="Remove step"><X /></button></div>)}</div><div className="workflow-editor-actions"><button type="button" onClick={() => draft.length < 8 && setDraft((current) => [...current, "New step"])} disabled={draft.length >= 8}><Plus />Add step</button><button type="button" className="accent" onClick={saveDraft}>Save workflow</button></div>{status && <small className="settings-message" role="status">{status}</small>}</div></article>;
 }
 
-function Settings({ planning, setPlanning, profile, saveProfile, learningPreferences, saveAdaptive, workflows, saveWorkflows, onCalendarSynced }: { planning: PlanningSettings; setPlanning: (value: PlanningSettings) => void; profile: UserProfile; saveProfile: (patch: Partial<UserProfile>) => Promise<void>; learningPreferences: LearningPreferences; saveAdaptive: (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => Promise<void>; workflows: CustomStudyWorkflow[]; saveWorkflows: (workflows: CustomStudyWorkflow[]) => Promise<void>; onCalendarSynced?: () => Promise<void> }) {
+function Settings({ planning, setPlanning, profile, saveProfile, learningPreferences, saveAdaptive, workflows, saveWorkflows, onCalendarSynced, onSignOut }: { planning: PlanningSettings; setPlanning: (value: PlanningSettings) => void; profile: UserProfile; saveProfile: (patch: Partial<UserProfile>) => Promise<void>; learningPreferences: LearningPreferences; saveAdaptive: (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => Promise<void>; workflows: CustomStudyWorkflow[]; saveWorkflows: (workflows: CustomStudyWorkflow[]) => Promise<void>; onCalendarSynced?: () => Promise<void>; onSignOut: () => Promise<void> }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -658,7 +658,6 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
       await onCalendarSyncedRef.current?.();
     }).catch(() => setMessage("Calendar connected, but the first sync could not be completed. Try Sync now."));
   }, []);
-  const signOut = async () => { const client = createSupabaseClient(); await client?.auth.signOut(); setEmail(null); };
   const updateProfile = async () => { try { await saveProfile({ displayName: displayName.trim() || undefined }); setMessage("Profile updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Profile update failed."); } };
   const updateAdaptive = async () => { try { await saveAdaptive({ guidanceMode, planStrictness, sessionLengthMinutes: sessionLength }); setMessage("Your planning preferences were updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update planning preferences."); } };
   const restartOnboarding = async () => { try { await saveProfile({ onboardingStep: 0, onboardingCompleted: false }); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not restart setup."); } };
@@ -683,7 +682,7 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
     setMessage(permission === "granted" ? "Reminders enabled. Calendar reminders remain the reliable option when the app is closed." : "Notification permission was not granted.");
   };
   return <main id="main-content" tabIndex={-1} className="page"><SectionTitle kicker="PRIVATE BY DEFAULT" title="Planning settings" /><section className="settings">
-    <article className="auth-card account-card"><span className="lilac"><CloudCheck /></span><div><p><strong>{email ? "Cloud account connected" : "Cloud account"}</strong><small>{email ?? "Your account email"}</small></p><label>Display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name" /></label><div className="settings-actions"><button onClick={updateProfile}>Save profile</button><button onClick={restartOnboarding}>Restart setup</button><button onClick={signOut}><SignOut />Sign out</button></div></div></article>
+    <article className="auth-card account-card"><span className="lilac"><CloudCheck /></span><div><p><strong>{email ? "Cloud account connected" : "Cloud account"}</strong><small>{email ?? "Your account email"}</small></p><label>Display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name" /></label><div className="settings-actions"><button onClick={updateProfile}>Save profile</button><button onClick={restartOnboarding}>Restart setup</button><button type="button" onClick={() => void onSignOut()}><SignOut />Sign out</button></div></div></article>
     <article className="settings-editor adaptive-settings"><span className="blue"><Brain /></span><p><strong>How SSC plans for you</strong><small>Current methods: {learningPreferences.preferredMethods.join(", ") || "Choose methods in setup"}. The planner learns from your feedback.</small></p><div className="inline-fields"><label>Guidance<select value={guidanceMode} onChange={(event) => setGuidanceMode(event.target.value as LearningPreferences["guidanceMode"])}><option value="guided">Guide me</option><option value="balanced">Balanced</option><option value="quiet">Quiet queue</option></select></label><label>Plan style<select value={planStrictness} onChange={(event) => setPlanStrictness(event.target.value as LearningPreferences["planStrictness"])}><option value="flexible">Flexible</option><option value="balanced">Balanced</option><option value="strict">Strict</option></select></label><label>Session length<select value={sessionLength} onChange={(event) => setSessionLength(Number(event.target.value))}><option value="25">25 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="90">90 min</option></select></label></div><div className="settings-actions adaptive-actions"><button type="button" className="accent" onClick={updateAdaptive}>Save planning preferences</button><button type="button" onClick={restartOnboarding}>Run calibration again</button></div></article>
     <WorkflowEditor workflows={workflows} save={saveWorkflows} />
     <article><span className="lilac"><CalendarBlank /></span><p><strong>{health?.connected ? "Google Calendar connected" : "Google Calendar"}</strong><small>{health?.connected ? `${health.linkedEvents ?? 0} linked study blocks. Unrelated events stay untouched.` : health?.configured ? "Ready to connect app-owned study blocks." : health?.missing?.length ? `Setup missing: ${health.missing.join(", ")}` : "Sync only app-owned study blocks. Unrelated events stay untouched."}</small></p><div className="settings-actions"><button className={health?.connected ? "connected" : ""} onClick={calendar}>{health?.connected ? "Reconnect" : "Connect"}</button><button onClick={syncNow}>Sync now</button></div></article>
@@ -829,6 +828,41 @@ export default function CommandCenter() {
   const [databaseStatus, setDatabaseStatus] = useState<"loading" | "ready" | "auth-required" | "error">("loading");
   const [databaseError, setDatabaseError] = useState("");
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const clearWorkspaceState = () => {
+    setTasks([]);
+    setChapterList([]);
+    setEntries([]);
+    setMistakes([]);
+    setMocks([]);
+    setSessions([]);
+    setResources([]);
+    setCuratedTextbooks([]);
+    setExamPlan([]);
+    setExamEvents([]);
+    setPreferences([]);
+    setSubjectAssessments([]);
+    setRecommendationFeedback([]);
+    setStudyWorkflows([]);
+    setJournalTask(null);
+    setManualOpen(false);
+    setMockOpen(false);
+    setFocusTaskId(null);
+    setResourceChapterId(undefined);
+    setRevisionMistake(null);
+    setPlanSummary(null);
+    setPlannerState("idle");
+    setPlannerMessage("");
+    setProfile(null);
+    setDatabaseError("");
+    setDatabaseStatus("auth-required");
+  };
+  const signOut = async () => {
+    const client = createSupabaseClient();
+    const request = client?.auth.signOut();
+    clearWorkspaceState();
+    router.replace("/auth");
+    await request?.catch(() => undefined);
+  };
   const reloadTasks = async () => {
     const response = await fetch("/api/sync/bootstrap", { cache: "no-store", headers: { "cache-control": "no-cache", "x-ssc-bootstrap-reason": "calendar-sync" } }).catch(() => null);
     if (!response?.ok) return;
@@ -1228,7 +1262,7 @@ export default function CommandCenter() {
       case "Resources": return <ResourceLibrary resources={resources.filter((resource) => !resource.archived)} curatedTextbooks={curatedTextbooks} chapters={chapterList} initialChapterId={resourceChapterId} save={saveResource} remove={removeResource} upload={uploadResource} open={openResource} />;
       case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => navigate("Home")} />;
       case "Exam Plan": return <ExamPlan plan={examPlan} save={saveExamPlan} />;
-      default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} learningPreferences={learningPreferences} saveAdaptive={saveAdaptiveProfile} workflows={studyWorkflows} saveWorkflows={saveWorkflows} onCalendarSynced={reloadTasks} />;
+      default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} learningPreferences={learningPreferences} saveAdaptive={saveAdaptiveProfile} workflows={studyWorkflows} saveWorkflows={saveWorkflows} onCalendarSynced={reloadTasks} onSignOut={signOut} />;
     }
   })();
 
