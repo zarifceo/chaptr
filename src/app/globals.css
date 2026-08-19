@@ -3543,16 +3543,48 @@ label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  min-width: 0;
-  min-height: 33px;
-  padding: 0 9px;
+  gap: 6px;
+  min-width: 78px;
+  min-height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--line) !important;
-  border-radius: 9px !important;
+  border-radius: 11px !important;
   background: var(--surface) !important;
   color: var(--muted-strong) !important;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+  transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out), color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+
+.chapter-row-details .chapter-actions button:hover {
+  border-color: #bfd0f7 !important;
+  background: var(--surface-soft) !important;
+  color: var(--brand) !important;
+  transform: translateY(-1px);
+}
+
+.chapter-row-details .chapter-actions button:focus-visible {
+  outline: 3px solid rgb(37 99 235 / .2);
+  outline-offset: 2px;
+}
+
+.chapter-row-details .chapter-actions button:active {
+  transform: scale(.97);
+}
+
+.chapter-row-details .chapter-actions .chapter-action-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+}
+
+.chapter-row-details .chapter-actions .chapter-action-icon svg {
+  width: 15px;
+  height: 15px;
 }
 
 .chapter-row-details .chapter-actions button.selected {
@@ -3562,6 +3594,7 @@ label {
 }
 
 .chapter-row-details .chapter-actions button.danger {
+  min-width: 94px;
   color: #64748b !important;
 }
 
@@ -3684,6 +3717,15 @@ label {
   .chapter-row-details .chapter-actions {
     width: 100%;
     margin-right: 0;
+    gap: 8px;
+  }
+
+  .chapter-row-details .chapter-actions button {
+    flex: 0 1 auto;
+  }
+
+  .chapter-row-details .chapter-actions button.danger {
+    min-width: 94px;
   }
 
   .chapter-row-details .difficulty-picker {
