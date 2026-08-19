@@ -13,7 +13,6 @@ import {
 } from "@/lib/academic-data";
 import { queueCloudSync } from "@/lib/offline-sync";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { recommendTasks } from "@/lib/recommendations";
 import { buildAdaptivePlan, revisionDelayDays } from "@/lib/adaptive-planner";
 import { workflowForTask, type CustomStudyWorkflow, type StudyPhase, recommendedWorkflow, studyPhases } from "@/lib/study-workflows";
@@ -694,24 +693,53 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
   </section></main>;
 }
 
-const timeOptions = Array.from({ length: 96 }, (_, index) => `${String(Math.floor(index / 4)).padStart(2, "0")}:${String((index % 4) * 15).padStart(2, "0")}`);
+const pickerHours = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const pickerMinutes = ["00", "15", "30", "45"] as const;
+const pickerPeriods = ["AM", "PM"] as const;
+type PickerPeriod = (typeof pickerPeriods)[number];
 
 function TimePicker({ value, onChange, invalid }: { value: string; onChange: (value: string) => void; invalid?: boolean }) {
-  return <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <button type="button" className={`time-picker-trigger${invalid ? " invalid" : ""}`} aria-label={`Planned time: ${displayTime(value)}`}>
-        <Clock aria-hidden="true" />
-        <span>{displayTime(value)}</span>
-        <CaretDown aria-hidden="true" />
-      </button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="start" sideOffset={8} className="time-picker-menu">
-      <DropdownMenuLabel>Choose a planned time</DropdownMenuLabel>
-      <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
-        {timeOptions.map((option) => <DropdownMenuRadioItem key={option} value={option}>{displayTime(option)}</DropdownMenuRadioItem>)}
-      </DropdownMenuRadioGroup>
-    </DropdownMenuContent>
-  </DropdownMenu>;
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const parsedHour = Number(value.slice(0, 2));
+  const hour = String(parsedHour % 12 || 12);
+  const minute = value.slice(3, 5) || "00";
+  const period: PickerPeriod = parsedHour >= 12 ? "PM" : "AM";
+  const updateTime = (nextHour: string, nextMinute: string, nextPeriod: PickerPeriod) => {
+    const hour24 = Number(nextHour) % 12 + (nextPeriod === "PM" ? 12 : 0);
+    onChange(`${String(hour24).padStart(2, "0")}:${nextMinute}`);
+  };
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+  return <div ref={rootRef} className="time-picker">
+    <button type="button" className={`time-picker-trigger${invalid ? " invalid" : ""}`} aria-haspopup="dialog" aria-expanded={open} aria-label={`Planned time: ${displayTime(value)}`} onClick={() => setOpen((current) => !current)}>
+      <Clock aria-hidden="true" />
+      <span>{displayTime(value)}</span>
+      <CaretDown aria-hidden="true" />
+    </button>
+    {open && <div className="time-picker-popover" role="dialog" aria-label="Choose a planned time">
+      <div className="time-picker-heading"><div><small>SET A TIME</small><strong>{displayTime(value)}</strong></div><button type="button" className="time-picker-close" onClick={() => setOpen(false)} aria-label="Close time picker"><X /></button></div>
+      <div className="time-picker-columns">
+        <div className="time-picker-column"><span>Hour</span><div className="time-picker-options">{pickerHours.map((option) => <button type="button" key={option} className={hour === option ? "selected" : ""} onClick={() => updateTime(option, minute, period)} aria-pressed={hour === option}>{option}</button>)}</div></div>
+        <div className="time-picker-column"><span>Minute</span><div className="time-picker-options">{pickerMinutes.map((option) => <button type="button" key={option} className={minute === option ? "selected" : ""} onClick={() => updateTime(hour, option, period)} aria-pressed={minute === option}>{option}</button>)}</div></div>
+        <div className="time-picker-column"><span>Period</span><div className="time-picker-options period">{pickerPeriods.map((option) => <button type="button" key={option} className={period === option ? "selected" : ""} onClick={() => updateTime(hour, minute, option)} aria-pressed={period === option}>{option}</button>)}</div></div>
+      </div>
+      <button type="button" className="time-picker-done" onClick={() => setOpen(false)}>Done</button>
+    </div>}
+  </div>;
 }
 
 function ManualTaskModal({ close, save, defaultDate, preferences, workflows }: { close: () => void; save: (task: StudyTask) => void; defaultDate?: string; preferences: ChapterPreference[]; workflows: CustomStudyWorkflow[] }) {
