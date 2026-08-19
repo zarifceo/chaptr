@@ -49,6 +49,7 @@ export function recommendedWorkflow(phase: StudyPhase, method?: LearningMethod) 
 
 export function workflowForTask(task: StudyTask, custom: CustomStudyWorkflow[] = []) {
   const phase = phaseForTask(task);
+  if (task.workflowSteps?.length) return { phase, steps: task.workflowSteps };
   const saved = custom.find((workflow) => workflow.phase === phase);
   return { phase, steps: saved?.steps.length ? saved.steps : recommendedWorkflow(phase, task.studyMethod) };
 }
