@@ -821,7 +821,8 @@ function MockResultModal({ close, save }: { close: () => void; save: (result: Mo
 
 function DatabaseGate({ status, error }: { status: "loading" | "auth-required" | "error"; error: string }) {
   if (status === "auth-required") return <AuthScreen />;
-  return <main className="database-gate" aria-live="polite"><section className="panel"><CloudCheck size={42} weight="fill" /><small>SUPABASE WORKSPACE</small><h1>{status === "loading" ? "Loading your study workspace" : "Database connection required"}</h1><p>{status === "loading" ? "Fetching your syllabus, goals, tasks, evidence, and resources from the database…" : error}</p>{status === "error" && <Button size="lg" className="solid-cta" onClick={() => location.reload()}><ArrowCounterClockwise />Retry database connection</Button>}</section></main>;
+  if (status === "loading") return <main className="workspace-transition" aria-live="polite" aria-busy="true"><span className="sr-only">Preparing your Chaptr workspace</span></main>;
+  return <main className="database-gate" aria-live="polite"><section className="panel"><CloudCheck size={42} weight="fill" /><small>SUPABASE WORKSPACE</small><h1>Database connection required</h1><p>{error}</p><Button size="lg" className="solid-cta" onClick={() => location.reload()}><ArrowCounterClockwise />Retry database connection</Button></section></main>;
 }
 
 export default function CommandCenter() {
@@ -829,6 +830,12 @@ export default function CommandCenter() {
   const pathname = usePathname();
   const pathSection = routeSections[pathname?.split("/")[1] ?? "home"] ?? "Home";
   const active = pathSection;
+  useEffect(() => {
+    window.history.scrollRestoration = "manual";
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [pathname]);
   const [menu, setMenu] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const navigate = (value: string) => {
