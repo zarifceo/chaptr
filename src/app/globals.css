@@ -4981,3 +4981,400 @@ label {
     box-shadow: 0 8px 18px rgb(22 126 250 / 0.18);
   }
 }
+
+
+/* Final mobile usability pass: viewport containment, safe-area navigation, and consistent workspace rhythm. */
+@media (max-width: 780px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden !important;
+  }
+
+  .app-shell,
+  .workspace,
+  .page-transition,
+  .page,
+  .home-page,
+  .syllabus-page,
+  .goals-page,
+  .calendar-page,
+  .journal-page,
+  .progress-page,
+  .focus-page,
+  .resources-page,
+  .exam-countdown-page,
+  .exam-plan-page,
+  .settings-page {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .workspace {
+    width: 100%;
+  }
+
+  .bottom-nav {
+    box-sizing: border-box !important;
+    width: auto !important;
+    max-width: calc(100vw - 20px) !important;
+    right: 10px !important;
+    left: 10px !important;
+    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    padding: 6px !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 3px !important;
+    overflow: hidden;
+    transform: translateZ(0);
+  }
+
+  .bottom-nav button {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 52px;
+    overflow: hidden;
+  }
+
+  .bottom-nav button span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .page,
+  .home-page,
+  .focus-page,
+  .exam-countdown-page {
+    padding-bottom: 122px !important;
+  }
+
+  .section-title,
+  .feature-heading,
+  .calendar-actions,
+  .exam-plan-actions,
+  .prior-completion-heading,
+  .countdown-event-row,
+  .countdown-detail > header,
+  .countdown-guidance > header {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .section-title > div,
+  .feature-heading > div,
+  .countdown-event-row > div,
+  .prior-completion-heading > div {
+    min-width: 0;
+  }
+
+  .section-title h2,
+  .section-title h3,
+  .feature-heading h3,
+  .countdown-event-row strong,
+  .countdown-event-row p,
+  .countdown-detail h3,
+  .countdown-guidance h3 {
+    overflow-wrap: anywhere;
+  }
+
+  .daily-loop-grid,
+  .calendar-layout,
+  .progress-layout,
+  .countdown-layout,
+  .analytics-grid,
+  .settings,
+  .settings-editor,
+  .journal-grid,
+  .resource-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .metrics,
+  .goal-metrics,
+  .analytics-stat-grid,
+  .countdown-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .form-row,
+  .inline-fields,
+  .journal-subject-fields,
+  .goal-controls,
+  .resource-controls {
+    grid-template-columns: 1fr !important;
+  }
+
+  .resource-controls {
+    display: grid !important;
+    width: 100%;
+    align-items: stretch;
+    gap: 9px;
+  }
+
+  .resource-controls label,
+  .resource-controls select,
+  .resource-controls > span {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .resource-controls > span {
+    margin: 0;
+  }
+
+  .curated-textbook-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .month-grid {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .weekday-row,
+  .day-grid {
+    min-width: 640px;
+  }
+
+  .calendar-page .calendar-layout > * {
+    min-width: 0;
+  }
+
+  .calendar-page .calendar-actions,
+  .calendar-page .calendar-actions > * {
+    max-width: 100%;
+  }
+
+  .calendar-page .calendar-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .calendar-page .calendar-actions button,
+  .calendar-page .calendar-actions a {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .exam-countdown-page .countdown-command-hero {
+    grid-template-columns: 1fr !important;
+    gap: 18px;
+  }
+
+  .exam-countdown-page .countdown-hero-number {
+    text-align: left;
+  }
+
+  .exam-countdown-page .countdown-stats article {
+    min-width: 0;
+  }
+
+  .exam-countdown-page .countdown-event-row {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+
+  .exam-countdown-page .event-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .exam-plan-phase {
+    grid-template-columns: 36px minmax(0, 1fr) !important;
+    gap: 10px;
+  }
+
+  .exam-plan-phase-actions {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .exam-plan-phase-actions button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .exam-plan-phase-actions button:last-child {
+    margin-left: 0;
+    grid-column: auto;
+  }
+
+  .settings article,
+  .settings-editor.adaptive-settings {
+    min-width: 0;
+  }
+
+  .settings article > .inline-fields,
+  .settings article > .settings-actions,
+  .settings article > button,
+  .settings-editor.adaptive-settings > .adaptive-actions {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .settings article button,
+  .settings article select,
+  .settings article input,
+  .settings-editor.adaptive-settings > .adaptive-actions button {
+    min-height: 44px;
+  }
+
+  .chapter-row-main,
+  .chapter-row-details,
+  .chapter-status-actions,
+  .goal-row,
+  .goal-row-actions,
+  .subject-group-actions,
+  .prior-completion-footer,
+  .workflow-preset-library,
+  .workflow-preset-fields,
+  .time-picker-columns {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .chapter-row-main > p strong,
+  .chapter-row-main > p small,
+  .goal-row-main p strong,
+  .resource-card h3,
+  .resource-card p,
+  .curated-textbook-card h4,
+  .curated-textbook-card p {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .chapter-status-actions,
+  .chapter-row-details .chapter-actions,
+  .goal-row-actions,
+  .subject-group-actions,
+  .prior-completion-footer > div,
+  .workflow-preset-list,
+  .resource-card .resource-actions,
+  .curated-textbook-card .resource-actions {
+    flex-wrap: wrap;
+  }
+
+  .chapter-row-details .chapter-actions button,
+  .goal-row-actions button,
+  .subject-group-actions button,
+  .resource-card .resource-actions button,
+  .curated-textbook-card .resource-actions a,
+  .prior-completion-footer button {
+    min-height: 44px;
+  }
+
+  .task-workflow-row {
+    grid-template-columns: 28px minmax(0, 1fr) 38px 38px 38px;
+    gap: 6px;
+  }
+
+  .task-workflow-row button,
+  .task-workflow-row input,
+  .task-workflow-add,
+  .task-workflow-tabs button,
+  .task-workflow-heading > button {
+    min-height: 44px;
+  }
+
+  .workflow-preset-library {
+    display: grid;
+  }
+
+  .workflow-preset-library > button,
+  .workflow-preset-list button {
+    width: 100%;
+    max-width: none;
+    min-height: 44px;
+  }
+
+  .time-picker-popover {
+    position: fixed;
+    z-index: 120;
+    top: auto;
+    right: 12px;
+    bottom: calc(92px + max(10px, env(safe-area-inset-bottom)));
+    left: 12px;
+    width: auto;
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
+    transform: none;
+  }
+
+  .time-picker-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .time-picker-column:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .time-picker-options.period {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .page {
+    padding-inline: 12px !important;
+  }
+
+  .bottom-nav {
+    right: 8px !important;
+    left: 8px !important;
+    max-width: calc(100vw - 16px) !important;
+    padding: 5px !important;
+    gap: 2px !important;
+    border-radius: 16px !important;
+  }
+
+  .bottom-nav button {
+    min-height: 50px;
+    padding-inline: 2px !important;
+    font-size: 8px;
+  }
+
+  .bottom-nav button svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .metrics,
+  .goal-metrics,
+  .analytics-stat-grid,
+  .countdown-stats {
+    gap: 8px;
+  }
+
+  .goal-row-actions,
+  .chapter-row-details .chapter-actions,
+  .resource-card .resource-actions,
+  .curated-textbook-card .resource-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .goal-row-actions > *,
+  .chapter-row-details .chapter-actions > *,
+  .resource-card .resource-actions > *,
+  .curated-textbook-card .resource-actions > * {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav,
+  .mobile-more-menu {
+    transform: none;
+  }
+}
