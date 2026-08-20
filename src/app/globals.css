@@ -4816,3 +4816,30 @@ label {
 .task-workflow-context small {
   display: none;
 }
+/* Chaptr identity: use the selected black symbol without the retired color-badge treatment. */
+.brand > img,
+.app-loading img,
+.auth-mark img {
+  object-fit: contain;
+}
+
+.brand > img {
+  background: transparent;
+}
+
+.app-loading img {
+  box-shadow: none;
+  background: transparent;
+}
+
+.auth-mark {
+  padding: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.auth-mark img {
+  width: 42px;
+  height: 42px;
+}

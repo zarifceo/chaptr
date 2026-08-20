@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
 type LegalSection = {
@@ -20,14 +21,14 @@ export function LegalPage({ eyebrow, title, intro, updated, sections }: LegalPag
       <div className="legal-shell">
         <Link className="legal-back" href="/auth"><ArrowLeft />Back to sign in</Link>
         <header className="legal-header">
-          <div className="auth-mark">SSC</div>
+          <div className="auth-mark"><Image src="/chaptr-logo.png" width={64} height={64} alt="Chaptr" /></div>
           <p className="eyebrow">{eyebrow}</p>
           <h1>{title}</h1>
           <p className="legal-intro">{intro}</p>
           <p className="legal-updated">Last updated: {updated}</p>
         </header>
         <div className="legal-draft-notice">
-          Working draft for the SSC Command Center product. A qualified attorney should review these policies before they are relied on as formal legal documents.
+          Working draft for the Chaptr product. A qualified attorney should review these policies before they are relied on as formal legal documents.
         </div>
         <article className="legal-content">
           {sections.map((section) => (
@@ -40,7 +41,7 @@ export function LegalPage({ eyebrow, title, intro, updated, sections }: LegalPag
         <footer className="legal-footer">
           <Link href="/terms">Terms of Service</Link>
           <Link href="/privacy">Privacy Policy</Link>
-          <span>SSC Command Center</span>
+          <span>Chaptr</span>
         </footer>
       </div>
     </main>
