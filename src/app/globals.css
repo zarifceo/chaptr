@@ -4843,3 +4843,72 @@ label {
   width: 42px;
   height: 42px;
 }
+
+
+/* Chaptr auth refinement: balanced composition, quiet fields, and text-first secondary actions. */
+.auth-screen {
+  width: min(100%, 1180px);
+  margin-inline: auto;
+  grid-template-columns: minmax(0, 520px) minmax(360px, 420px);
+  gap: clamp(64px, 7vw, 110px);
+  justify-content: center;
+  align-items: center;
+}
+
+.auth-brand {
+  align-self: center;
+}
+
+.auth-screen .auth-card {
+  width: 100%;
+  max-width: 420px;
+}
+
+.auth-input {
+  box-shadow: none;
+}
+
+.auth-input:focus-within {
+  box-shadow: 0 0 0 3px rgb(22 126 250 / .12);
+}
+
+.auth-input svg {
+  width: 18px;
+  height: 18px;
+  color: var(--muted-strong);
+}
+
+.auth-input input,
+.auth-input input:focus,
+.auth-input input:hover {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+.auth-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.auth-links a:hover,
+.auth-links a:focus-visible {
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .auth-screen {
+    width: min(100%, 620px);
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}

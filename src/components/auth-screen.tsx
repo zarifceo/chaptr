@@ -10,6 +10,10 @@ import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 
 type AuthMode = "sign-in" | "sign-up" | "forgot" | "reset";
 
+type AuthScreenProps = {
+  initialMode?: AuthMode;
+};
+
 const POLICY_VERSION = "2026-08-17";
 
 function friendlyError(message: string) {
@@ -19,9 +23,13 @@ function friendlyError(message: string) {
   return message;
 }
 
-export function AuthScreen() {
+export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
   const router = useRouter();
-  const [mode, setMode] = useState<AuthMode>(() => typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("auth") === "reset" || window.location.pathname === "/auth/reset-password") ? "reset" : "sign-in");
+  const [mode, setMode] = useState<AuthMode>(() => {
+    if (initialMode !== "sign-in") return initialMode;
+    if (typeof window !== "undefined" && (new URLSearchParams(window.location.search).get("auth") === "reset" || window.location.pathname === "/auth/reset-password")) return "reset";
+    return "sign-in";
+  });
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,15 +53,6 @@ export function AuthScreen() {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
-
-  const changeMode = (next: AuthMode) => {
-    setMode(next);
-    setMessage("");
-    setError("");
-    setPassword("");
-    setConfirmPassword("");
-    if (next !== "sign-up") setAcceptPolicies(false);
-  };
 
   const persistSignupProfile = async () => {
     const response = await fetch("/api/onboarding", {
@@ -181,10 +180,10 @@ export function AuthScreen() {
           <Button className="solid-cta auth-submit" size="lg" disabled={busy}>{mode === "sign-in" ? <SignIn /> : mode === "sign-up" ? <UserPlus /> : mode === "forgot" ? <ArrowRight /> : <CheckCircle />}{busy ? "Please wait…" : mode === "sign-in" ? "Sign in" : mode === "sign-up" ? "Create account" : mode === "forgot" ? "Send reset link" : "Update password"}</Button>
         </form>
         <div className="auth-links">
-          {mode === "sign-in" && <><button type="button" onClick={() => changeMode("forgot")}>Forgot password?</button><button type="button" onClick={() => changeMode("sign-up")}>Create a new account</button></>}
-          {mode === "sign-up" && <button type="button" onClick={() => changeMode("sign-in")}>Already have an account? Sign in</button>}
-          {mode === "forgot" && <button type="button" onClick={() => changeMode("sign-in")}>Back to sign in</button>}
-          {mode === "reset" && <button type="button" onClick={() => changeMode("sign-in")}>Cancel</button>}
+          {mode === "sign-in" && <><Link href="/reset-password">Forgot password?</Link><Link href="/create-new">Create a new account</Link></>}
+          {mode === "sign-up" && <Link href="/auth">Already have an account? Sign in</Link>}
+          {mode === "forgot" && <Link href="/auth">Back to sign in</Link>}
+          {mode === "reset" && <Link href="/auth">Cancel</Link>}
         </div>
         <p className="auth-legal-footer">By using Chaptr, you agree to our <Link href="/terms">Terms</Link> and acknowledge our <Link href="/privacy">Privacy Policy</Link>.</p>
       </section>
