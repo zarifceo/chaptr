@@ -2,22 +2,22 @@ import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy · SSC Command Center",
-  description: "Privacy Policy for SSC Command Center.",
+  title: "Privacy Policy · Chaptr",
+  description: "Privacy Policy for Chaptr.",
 };
 
 export default function PrivacyPage() {
   return (
     <LegalPage
-      eyebrow="SSC COMMAND CENTER · DATA PRACTICES"
+      eyebrow="CHAPTR · DATA PRACTICES"
       title="Privacy Policy"
-      intro="This policy explains what SSC Command Center stores for your private study workspace and the controls available to you."
+      intro="This policy explains what Chaptr stores for your private study workspace and the controls available to you."
       updated="17 August 2026"
       sections={[
         {
           title: "1. What this policy covers",
           paragraphs: [
-            "This policy applies to the SSC Command Center web application and the account and study information you enter into it. It does not cover third-party websites, question banks, calendar providers, or links that you choose to open from the application.",
+            "This policy applies to the Chaptr web application and the account and study information you enter into it. It does not cover third-party websites, question banks, calendar providers, or links that you choose to open from the application.",
           ],
         },
         {
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
         {
           title: "4. Storage and service providers",
           paragraphs: [
-            "SSC Command Center is designed as a database-backed application. Authentication and application data are stored and processed through the configured Supabase project, while the web application is hosted through the configured deployment provider. These providers may process data as necessary to host, secure, authenticate, back up, and deliver the service.",
+            "Chaptr is designed as a database-backed application. Authentication and application data are stored and processed through the configured Supabase project, while the web application is hosted through the configured deployment provider. These providers may process data as necessary to host, secure, authenticate, back up, and deliver the service.",
             "Access controls and row-level security are used to keep user-owned records associated with the authenticated account. No privacy or security measure can guarantee absolute protection, so you should use a strong unique password and protect access to your email account.",
           ],
         },

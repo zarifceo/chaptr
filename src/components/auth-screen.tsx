@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle, EnvelopeSimple, LockKey, SignIn, UserPlus, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -149,8 +150,8 @@ export function AuthScreen() {
   return (
     <main className="auth-screen">
       <section className="auth-brand">
-        <div className="auth-mark">SSC</div>
-        <p className="eyebrow">SSC 2027 · PRIVATE STUDY WORKSPACE</p>
+        <div className="auth-mark"><Image src="/chaptr-logo.png" width={58} height={58} alt="Chaptr" /></div>
+        <p className="eyebrow">CHAPTR · SSC 2027 STUDY WORKSPACE</p>
         <h1>Turn the syllabus into a plan you can follow.</h1>
         <p>Track chapters, focused sessions, mistakes, evidence, and deadlines in one private workspace.</p>
         <div className="auth-points">
@@ -185,7 +186,7 @@ export function AuthScreen() {
           {mode === "forgot" && <button type="button" onClick={() => changeMode("sign-in")}>Back to sign in</button>}
           {mode === "reset" && <button type="button" onClick={() => changeMode("sign-in")}>Cancel</button>}
         </div>
-        <p className="auth-legal-footer">By using SSC Command Center, you agree to our <Link href="/terms">Terms</Link> and acknowledge our <Link href="/privacy">Privacy Policy</Link>.</p>
+        <p className="auth-legal-footer">By using Chaptr, you agree to our <Link href="/terms">Terms</Link> and acknowledge our <Link href="/privacy">Privacy Policy</Link>.</p>
       </section>
     </main>
   );

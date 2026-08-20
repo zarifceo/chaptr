@@ -2,22 +2,22 @@ import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
 
 export const metadata: Metadata = {
-  title: "Terms of Service · SSC Command Center",
-  description: "Terms of Service for SSC Command Center.",
+  title: "Terms of Service · Chaptr",
+  description: "Terms of Service for Chaptr.",
 };
 
 export default function TermsPage() {
   return (
     <LegalPage
-      eyebrow="SSC COMMAND CENTER · ACCOUNT TERMS"
+      eyebrow="CHAPTR · ACCOUNT TERMS"
       title="Terms of Service"
-      intro="These terms explain how SSC Command Center may be used as a private study-planning workspace for SSC 2027 preparation."
+      intro="These terms explain how Chaptr may be used as a private study-planning workspace for SSC 2027 preparation."
       updated="17 August 2026"
       sections={[
         {
           title: "1. The service",
           paragraphs: [
-            "SSC Command Center is a personal study-planning and progress-tracking tool. It helps you organize subjects, chapters, study sessions, tasks, journal entries, mistakes, resources, exam events, and related planning information.",
+            "Chaptr is a personal study-planning and progress-tracking tool. It helps you organize subjects, chapters, study sessions, tasks, journal entries, mistakes, resources, exam events, and related planning information.",
             "The service is not an official examination authority, coaching provider, textbook publisher, or substitute for the instructions issued by your school, education board, or examination authority.",
           ],
         },

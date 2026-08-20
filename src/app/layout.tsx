@@ -11,8 +11,12 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  title: "SSC Command Center",
-  description: "Zarif's private, weakness-first SSC 2027 study system.",
+  title: "Chaptr · Your syllabus, made manageable",
+  description: "Chaptr turns the SSC syllabus into a clear, personalized study plan.",
+  icons: {
+    icon: "/chaptr-icon-192.png",
+    apple: "/chaptr-icon-192.png",
+  },
 };
 
 export const viewport: Viewport = { themeColor: "#f7f9fc", colorScheme: "light" };

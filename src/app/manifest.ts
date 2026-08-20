@@ -2,16 +2,16 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "SSC Command Center",
-    short_name: "SSC Command",
-    description: "Zarif's private SSC 2027 study planner and progress command center.",
+    name: "Chaptr",
+    short_name: "Chaptr",
+    description: "Your syllabus, made manageable.",
     start_url: "/",
     display: "standalone",
-    background_color: "#050a14",
-    theme_color: "#050a14",
+    background_color: "#f7f9fc",
+    theme_color: "#f7f9fc",
     icons: [
-      { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/chaptr-icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/chaptr-icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
     ],
   };
 }

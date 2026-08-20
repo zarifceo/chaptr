@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   ArrowCounterClockwise, ArrowRight, BookOpen, Books, Brain, CalendarBlank, CalendarPlus, CaretDown, CaretLeft, CaretRight, CaretUp,
   ChartBar, Check, CheckCircle, Clock, CloudCheck, Exam, Headphones, House,
@@ -221,8 +222,8 @@ function Sidebar({ active, setActive, open, close }: { active: string; setActive
   return <aside id="app-navigation" className={`sidebar ${open ? "is-open" : ""}`} aria-label="Primary navigation">
     <button className="close-menu" onClick={close} aria-label="Close navigation"><X /></button>
     <button className="brand" onClick={() => { setActive("Home"); close(); }}>
-      <span className="brand-mark" aria-hidden="true">S</span>
-      <div><strong>SSC</strong><small>Command Center</small></div>
+      <Image src="/chaptr-logo.png" width={42} height={42} alt="" aria-hidden="true" />
+      <div><strong>Chaptr</strong><small>Study workspace</small></div>
     </button>
     <nav>{nav.map(([label, Icon]) => <Button key={label} variant={active === label ? "secondary" : "ghost"} size="sm" className={`sidebar-nav-button ${active === label ? "active" : ""}`} aria-current={active === label ? "page" : undefined} onClick={() => { setActive(label); close(); }}><Icon size={21} weight={active === label ? "fill" : "regular"} /><span>{label}</span></Button>)}</nav>
   </aside>;
