@@ -361,10 +361,10 @@ function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, 
   const latestEntry = todayEntries[0];
   const [expanded, setExpanded] = useState(focusTaskId ?? doNow?.id ?? "");
   useEffect(() => {
-    const target = focusTaskId ?? doNow?.id;
-    if (!target) return;
-    window.requestAnimationFrame(() => document.getElementById(`study-task-${target}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
-  }, [doNow?.id, focusTaskId]);
+    if (!focusTaskId) return;
+    const frame = window.requestAnimationFrame(() => document.getElementById(`study-task-${focusTaskId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusTaskId]);
   const completedMinutes = todayEntries.reduce((sum, entry) => sum + entry.minutes, 0);
   const plannedMinutes = visible.reduce((sum, task) => sum + task.duration, 0);
   return <section id="daily-loop" className="today-page home-section" tabIndex={-1}>
