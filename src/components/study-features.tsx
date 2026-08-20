@@ -139,7 +139,7 @@ export function StudyAnalytics({ sessions, entries, tasks }: { sessions: StudySe
     const mine = evidence.filter((record) => record.subjectId === subject.id);
     return { subject, seconds: mine.reduce((sum, record) => sum + record.focusedSeconds, 0), sessions: mine.length };
   }).filter((row) => row.seconds || row.sessions).sort((a, b) => b.seconds - a.seconds);
-  const chartConfig = { minutes: { label: "Recorded minutes", color: "#315efb" } } satisfies ChartConfig;
+  const chartConfig = { minutes: { label: "Recorded minutes", color: "#167EFA" } } satisfies ChartConfig;
   const statCards = [
     { label: "Recorded study time", value: formatDuration(focusedSeconds), detail: `${evidence.length} evidence block${evidence.length === 1 ? "" : "s"} · timer + journal`, tone: "blue" },
     { label: "Average study block", value: evidence.length ? formatDuration(Math.round(focusedSeconds / evidence.length)) : "0m", detail: pauseSeconds ? `${Math.round(pauseSeconds / 60)}m paused` : "No pause data yet", tone: "violet" },
