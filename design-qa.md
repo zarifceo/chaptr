@@ -24,6 +24,6 @@
 | Check | Status | Requirement |
 |---|---|---|
 | Supabase persistence and RLS | Ready for live verification | Add the project environment values and run the included migration. |
-| Google Calendar two-way sync | Ready for live verification | Add Google OAuth credentials and token encryption key, then authorize Calendar in Settings. |
+| In-app study calendar | Ready for live verification | Verify task creation, date placement, month navigation, and opening scheduled tasks from the calendar. |
 | Vercel production URL | Ready to deploy | Link this local project to the connected Vercel project and supply the same environment values. |
 

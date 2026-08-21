@@ -517,30 +517,10 @@ function Goals({ list, preferences, updatePreference, updatePreferences, complet
   </main>;
 }
 
-type CalendarHealth = { authenticated: boolean; configured: boolean; connected: boolean; lastSuccessfulSync?: string | null; linkedEvents?: number; missing?: string[] };
-
-function StudyCalendar({ tasks, preferences, update, add, openTask, onSynced }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; add: (date?: string) => void; openTask: (task: StudyTask) => void; onSynced?: () => Promise<void> }) {
-  const router = useRouter();
+function StudyCalendar({ tasks, preferences, update, add, openTask }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; add: (date?: string) => void; openTask: (task: StudyTask) => void }) {
   const [month, setMonth] = useState(currentMonthKey());
-  const [health, setHealth] = useState<CalendarHealth | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState("");
   const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
   const activeTasks = tasks.filter((task) => !excluded.has(task.chapterId) && task.status !== "skipped");
-  const refreshHealth = async () => {
-    const response = await fetch("/api/calendar/status").catch(() => null);
-    const next = response?.ok ? await response.json().catch(() => null) as CalendarHealth | null : null;
-    setHealth(next);
-    return next;
-  };
-  useEffect(() => {
-    let cancelled = false;
-    void fetch("/api/calendar/status")
-      .then((response) => response.ok ? response.json() : null)
-      .then((next: CalendarHealth | null) => { if (!cancelled) setHealth(next); })
-      .catch(() => { if (!cancelled) setHealth(null); });
-    return () => { cancelled = true; };
-  }, []);
   const first = new Date(`${month}T00:00:00+06:00`);
   const year = first.getFullYear();
   const monthIndex = first.getMonth();
@@ -549,20 +529,10 @@ function StudyCalendar({ tasks, preferences, update, add, openTask, onSynced }: 
   const cells = [...Array(blanks).fill(null), ...Array.from({ length: days }, (_, index) => index + 1)];
   const moveMonth = (offset: number) => setMonth(new Date(year, monthIndex + offset, 1).toLocaleDateString("en-CA", { year: "numeric", month: "2-digit" }) + "-01");
   const unscheduled = activeTasks.filter((task) => task.status !== "completed" && !plannedDate(task));
-  const syncCalendar = async () => {
-    setSyncing(true);
-    setSyncMessage("");
-    const response = await fetch("/api/calendar/sync", { method: "POST", cache: "no-store", headers: { "cache-control": "no-cache" } }).catch(() => null);
-    const body = response ? await response.json().catch(() => null) as { synced?: number; error?: string } | null : null;
-    await refreshHealth();
-    await onSynced?.();
-    setSyncing(false);
-    setSyncMessage(response?.ok ? `Synced ${body?.synced ?? 0} app-owned change${body?.synced === 1 ? "" : "s"}.` : body?.error ?? "Calendar sync failed. Your local plan is unchanged.");
-  };
   return <main id="main-content" tabIndex={-1} className="page calendar-page">
     <SectionTitle kicker="APP-OWNED STUDY BLOCKS ONLY" title="Study calendar"><div className="calendar-actions"><button onClick={() => moveMonth(-1)} aria-label="Previous month"><CaretLeft /></button><strong>{monthLabel(month)}</strong><button onClick={() => moveMonth(1)} aria-label="Next month"><CaretRight /></button><button className="accent" onClick={() => add()}><Plus />Add task</button></div></SectionTitle>
-    <section className={`calendar-health ${health?.connected ? "ok" : "warn"}`}><CalendarBlank weight="fill" /><p><strong>{health?.connected ? "Google Calendar connected" : health?.authenticated ? health?.configured ? "Google Calendar is ready to connect" : "Calendar configuration is incomplete" : "Sign in to enable Google Calendar"}</strong><small>{health?.connected ? `${health.linkedEvents ?? 0} linked app event${health.linkedEvents === 1 ? "" : "s"}${health.lastSuccessfulSync ? ` · last sync ${new Date(health.lastSuccessfulSync).toLocaleString("en-GB")}` : ""}` : health?.missing?.length ? `Missing: ${health.missing.join(", ")}` : "Your in-app calendar works locally; cloud sync requires authentication."}</small></p><button disabled={syncing} onClick={health?.connected ? syncCalendar : () => router.push("/api/calendar/connect")}>{health?.connected ? syncing ? "Syncing…" : "Sync now" : "Connect"}</button>{syncMessage && <small className="calendar-sync-message" role="status">{syncMessage}</small>}</section>
-    <section className="calendar-layout"><div className="month-grid"><div className="weekday-row">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}</div><div className="day-grid">{cells.map((day, index) => { if (!day) return <div className="day empty-cell" key={`blank-${index}`} />; const date = `${month.slice(0, 8)}${String(day).padStart(2, "0")}`; const items = activeTasks.filter((task) => plannedDate(task) === date); return <article className="day" key={date}><button className="day-number" onClick={() => add(date)}>{day}<Plus /></button>{items.slice(0, 3).map((task) => <button className={`calendar-task ${bySubject(task.subjectId).accent}`} key={task.id} onClick={() => openTask(task)} aria-label={`Open ${task.title} in today's timeline`}><strong>{task.plannedTime}</strong><span>{bySubject(task.subjectId).shortName}</span></button>)}{items.length > 3 && <small>+{items.length - 3} more</small>}</article>; })}</div></div><aside className="panel unscheduled"><SectionTitle kicker="NEEDS A DATE" title={`${unscheduled.length} unscheduled`} />{unscheduled.slice(0, 12).map((task) => <div key={task.id}><p><strong>{task.title}</strong><small>{bySubject(task.subjectId).shortName} · {task.duration} min</small></p><input type="date" aria-label={`Schedule ${task.title}`} onChange={(event) => event.target.value && update(scheduleOn(task, event.target.value))} /></div>)}{!unscheduled.length && <div className="empty compact"><CheckCircle /><h3>Everything is placed.</h3><p>Move a task in Google Calendar, then sync to bring the change back.</p></div>}</aside></section>
+    <section className="calendar-health ok"><CalendarBlank weight="fill" /><p><strong>Your in-app study calendar</strong><small>Add, move, and manage study tasks here. This calendar is the source of truth for your plan.</small></p><span className="calendar-local-badge">In-app only</span></section>
+    <section className="calendar-layout"><div className="month-grid"><div className="weekday-row">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}</div><div className="day-grid">{cells.map((day, index) => { if (!day) return <div className="day empty-cell" key={`blank-${index}`} />; const date = `${month.slice(0, 8)}${String(day).padStart(2, "0")}`; const items = activeTasks.filter((task) => plannedDate(task) === date); return <article className="day" key={date}><button className="day-number" onClick={() => add(date)}>{day}<Plus /></button>{items.slice(0, 3).map((task) => <button className={`calendar-task ${bySubject(task.subjectId).accent}`} key={task.id} onClick={() => openTask(task)} aria-label={`Open ${task.title} in today's timeline`}><strong>{task.plannedTime}</strong><span>{bySubject(task.subjectId).shortName}</span></button>)}{items.length > 3 && <small>+{items.length - 3} more</small>}</article>; })}</div></div><aside className="panel unscheduled"><SectionTitle kicker="NEEDS A DATE" title={`${unscheduled.length} unscheduled`} />{unscheduled.slice(0, 12).map((task) => <div key={task.id}><p><strong>{task.title}</strong><small>{bySubject(task.subjectId).shortName} · {task.duration} min</small></p><input type="date" aria-label={`Schedule ${task.title}`} onChange={(event) => event.target.value && update(scheduleOn(task, event.target.value))} /></div>)}{!unscheduled.length && <div className="empty compact"><CheckCircle /><h3>Everything is placed.</h3><p>Use the date controls or add a task directly in this calendar to keep your study plan up to date.</p></div>}</aside></section>
   </main>;
 }
 
@@ -646,20 +616,16 @@ function WorkflowPresetEditor({ presets, save }: { presets: WorkflowPreset[]; sa
   return <article className="settings-editor workflow-editor"><span className="blue"><ListChecks /></span><div className="workflow-editor-body"><p><strong>Build reusable study presets</strong><small>Choose a realistic sequence for the subject type, edit every instruction, and save it for reuse when you create future tasks.</small></p><div className="workflow-preset-library"><div><small>YOUR PRESETS FOR THIS FLOW</small><div className="workflow-preset-list">{visiblePresets.length ? visiblePresets.map((preset) => <button type="button" key={preset.id} className={selectedId === preset.id ? "active" : ""} onClick={() => loadPreset(preset)}><strong>{preset.name}</strong><span>{preset.id.startsWith("builtin-") ? "SSC starting point" : "Your reusable preset"}</span></button>) : <small>No saved presets for this flow yet.</small>}</div></div><button type="button" onClick={reset}><Plus />New preset</button></div><div className="workflow-preset-fields"><label>Preset name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Tutor + textbook + board questions" /></label><label>Workflow type<select value={subjectType} onChange={(event) => chooseContext(phase, event.target.value as WorkflowPreset["subjectType"])}><option value="theory">Theoretical subjects</option><option value="mathematical">Maths, Accounting, Higher Mathematics</option><option value="custom">My own mixed method</option></select></label><label className="wide">What is this for?<textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} placeholder="Describe when you use this sequence." /></label></div><div className="workflow-tabs" role="tablist" aria-label="Study phase"><span>{studyPhases.map((item) => <button type="button" key={item.id} className={phase === item.id ? "active" : ""} onClick={() => chooseContext(item.id, subjectType)}>{item.label}</button>)}</span></div><div className="workflow-editor-heading"><div><strong>{studyPhases.find((item) => item.id === phase)?.label} · {subjectType === "mathematical" ? "Mathematical" : subjectType === "theory" ? "Theoretical" : "Custom"}</strong><small>{studyPhases.find((item) => item.id === phase)?.detail}</small></div><button type="button" onClick={reset}>Use practical starting flow</button></div><div className="workflow-step-editor">{draft.map((step, index) => <div className="workflow-step-row" key={`${selectedId || "draft"}-${index}`}><span>{index + 1}</span><input value={step} onChange={(event) => updateStep(index, event.target.value)} aria-label={`Step ${index + 1}`} /><button type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label="Move step up"><CaretUp /></button><button type="button" onClick={() => moveStep(index, 1)} disabled={index === draft.length - 1} aria-label="Move step down"><CaretDown /></button><button type="button" onClick={() => removeStep(index)} disabled={draft.length <= 1} aria-label="Remove step"><X /></button></div>)}</div><div className="workflow-editor-actions"><button type="button" onClick={() => draft.length < 8 && setDraft((current) => [...current, "Add a concrete action"])} disabled={draft.length >= 8}><Plus />Add step</button><button type="button" className="accent" onClick={saveDraft}>Save as reusable preset</button>{selectedId && !selectedId.startsWith("builtin-") && <button type="button" onClick={() => void deletePreset()}>Delete preset</button>}</div>{status && <small className="settings-message" role="status">{status}</small>}</div></article>;
 }
 
-function Settings({ planning, setPlanning, profile, saveProfile, learningPreferences, saveAdaptive, workflowPresets, saveWorkflowPresets, onCalendarSynced, onSignOut }: { planning: PlanningSettings; setPlanning: (value: PlanningSettings) => void; profile: UserProfile; saveProfile: (patch: Partial<UserProfile>) => Promise<void>; learningPreferences: LearningPreferences; saveAdaptive: (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => Promise<void>; workflowPresets: WorkflowPreset[]; saveWorkflowPresets: (presets: WorkflowPreset[]) => Promise<void>; onCalendarSynced?: () => Promise<void>; onSignOut: () => Promise<void> }) {
+function Settings({ planning, setPlanning, profile, saveProfile, learningPreferences, saveAdaptive, workflowPresets, saveWorkflowPresets, onSignOut }: { planning: PlanningSettings; setPlanning: (value: PlanningSettings) => void; profile: UserProfile; saveProfile: (patch: Partial<UserProfile>) => Promise<void>; learningPreferences: LearningPreferences; saveAdaptive: (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => Promise<void>; workflowPresets: WorkflowPreset[]; saveWorkflowPresets: (presets: WorkflowPreset[]) => Promise<void>; onSignOut: () => Promise<void> }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const onCalendarSyncedRef = useRef(onCalendarSynced);
-  useEffect(() => { onCalendarSyncedRef.current = onCalendarSynced; }, [onCalendarSynced]);
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [guidanceMode, setGuidanceMode] = useState(learningPreferences.guidanceMode);
   const [planStrictness, setPlanStrictness] = useState(learningPreferences.planStrictness);
   const [sessionLength, setSessionLength] = useState(learningPreferences.sessionLengthMinutes);
   const [mostDifficultSubjectId, setMostDifficultSubjectId] = useState(profile.mostDifficultSubjectId ?? "");
   const [subjectStrengths, setSubjectStrengths] = useState<Record<string, StrengthLevel>>(profile.subjectStrengths ?? {});
-  const [health, setHealth] = useState<CalendarHealth | null>(null);
-  const refreshHealth = () => void fetch("/api/calendar/status", { cache: "no-store", headers: { "cache-control": "no-cache" } }).then((response) => response.json()).then(setHealth).catch(() => setHealth(null));
   useEffect(() => {
     const client = createSupabaseClient();
     if (!client) return;
@@ -667,42 +633,11 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
     const { data } = client.auth.onAuthStateChange((_event, session) => setEmail(session?.user.email ?? null));
     return () => data.subscription.unsubscribe();
   }, []);
-  useEffect(() => {
-    refreshHealth();
-    const status = new URLSearchParams(location.search).get("calendar");
-    if (!status) return;
-    history.replaceState(null, "", location.pathname);
-    if (status !== "connected") {
-      window.setTimeout(() => setMessage("Google Calendar connection did not complete. Check the OAuth configuration and try again."), 0);
-      return;
-    }
-    window.setTimeout(() => setMessage("Google Calendar connected. Checking your app-owned study blocks…"), 0);
-    void fetch("/api/calendar/sync", { method: "POST", cache: "no-store", headers: { "cache-control": "no-cache" } }).then(async (response) => {
-      const body = await response.json().catch(() => null) as { synced?: number; error?: string } | null;
-      setMessage(response.ok ? `Calendar connected and checked ${body?.synced ?? 0} app-owned event${body?.synced === 1 ? "" : "s"}.` : body?.error ?? "Calendar connected, but the first sync failed.");
-      refreshHealth();
-      await onCalendarSyncedRef.current?.();
-    }).catch(() => setMessage("Calendar connected, but the first sync could not be completed. Try Sync now."));
-  }, []);
   const updateProfile = async () => { try { await saveProfile({ displayName: displayName.trim() || undefined }); setMessage("Profile updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Profile update failed."); } };
   const updateAdaptive = async () => { try { await saveAdaptive({ guidanceMode, planStrictness, sessionLengthMinutes: sessionLength }); setMessage("Your planning preferences were updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update planning preferences."); } };
   const updateMostDifficult = async () => { try { await saveProfile({ mostDifficultSubjectId: mostDifficultSubjectId || undefined }); setMessage("Your personal difficulty signal was updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update your difficulty signal."); } };
   const updateSubjectStrengths = async () => { try { await saveProfile({ subjectStrengths }); setMessage("Your subject strengths were updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update your subject strengths."); } };
   const restartOnboarding = async () => { try { await saveProfile({ onboardingStep: 0, onboardingCompleted: false }); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not restart setup."); } };
-  const calendar = () => {
-    if (!email) return setMessage("Sign in first, then connect Calendar.");
-    if (!health?.configured) return setMessage(`Calendar setup is incomplete${health?.missing?.length ? `: ${health.missing.join(", ")}` : ""}. Add the missing server variables, then try again.`);
-    router.push("/api/calendar/connect");
-  };
-  const syncNow = async () => {
-    if (!email) return setMessage("Sign in first to synchronize calendar events.");
-    setMessage("Checking connected Google Calendar…");
-    const response = await fetch("/api/calendar/sync", { method: "POST", cache: "no-store", headers: { "cache-control": "no-cache" } }).catch(() => null);
-    const body = response ? await response.json().catch(() => null) as { synced?: number; error?: string } | null : null;
-    setMessage(response?.ok ? `Calendar checked ${body?.synced ?? 0} app-owned event${body?.synced === 1 ? "" : "s"}.` : body?.error ?? "Calendar is not connected yet.");
-    refreshHealth();
-    await onCalendarSyncedRef.current?.();
-  };
   const enableReminders = async () => {
     if (!("Notification" in window)) return setMessage("This browser does not support notifications.");
     const permission = await Notification.requestPermission();
@@ -715,10 +650,10 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
     <article className="settings-editor personal-difficulty-settings"><span className="yellow"><Target /></span><p><strong>Your subject strengths</strong><small>Rate each selected subject from Strongest to Toughest. These labels personalize your Syllabus and gently shape planning priorities.</small></p><div className="settings-strength-list">{subjects.filter((subject) => profile.selectedSubjects.includes(subject.id)).map((subject) => <label key={subject.id}><span>{subject.name}</span><select aria-label={`${subject.name} strength`} value={subjectStrengths[subject.id] ?? ""} onChange={(event) => setSubjectStrengths((current) => ({ ...current, [subject.id]: event.target.value as StrengthLevel }))}><option value="">Choose level</option>{strengthLevels.map((level) => <option key={level} value={level}>{strengthLabels[level]}</option>)}</select></label>)}</div><div className="settings-actions"><button type="button" className="accent" onClick={updateSubjectStrengths}>Save subject strengths</button></div></article>
     <article className="settings-editor personal-difficulty-settings"><span className="yellow"><Target /></span><p><strong>Your most difficult subject</strong><small>This optional signal gives one subject a little extra protection in your daily plan.</small></p><div className="inline-fields"><label>Subject<select value={mostDifficultSubjectId} onChange={(event) => setMostDifficultSubjectId(event.target.value)}><option value="">I do not have one right now</option>{subjects.filter((subject) => profile.selectedSubjects.includes(subject.id)).map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label></div><div className="settings-actions"><button type="button" className="accent" onClick={updateMostDifficult}>Save difficulty signal</button></div></article>
     <WorkflowPresetEditor presets={workflowPresets} save={saveWorkflowPresets} />
-    <article><span className="lilac"><CalendarBlank /></span><p><strong>{health?.connected ? "Google Calendar connected" : "Google Calendar"}</strong><small>{health?.connected ? `${health.linkedEvents ?? 0} linked study blocks. Unrelated events stay untouched.` : health?.configured ? "Ready to connect app-owned study blocks." : health?.missing?.length ? `Setup missing: ${health.missing.join(", ")}` : "Sync only app-owned study blocks. Unrelated events stay untouched."}</small></p><div className="settings-actions"><button className={health?.connected ? "connected" : ""} onClick={calendar}>{health?.connected ? "Reconnect" : "Connect"}</button><button onClick={syncNow}>Sync now</button></div></article>
+
     <article className="settings-editor"><span className="mint"><Clock /></span><p><strong>Study windows</strong><small>These guide planning without locking every day into a rigid routine.</small></p><div className="inline-fields"><label>Main starts<input type="time" value={planning.mainStart} onChange={(event) => setPlanning({ ...planning, mainStart: event.target.value })} /></label><label>Main ends<input type="time" value={planning.mainEnd} onChange={(event) => setPlanning({ ...planning, mainEnd: event.target.value })} /></label><label>Maths starts<input type="time" value={planning.mathStart} onChange={(event) => setPlanning({ ...planning, mathStart: event.target.value })} /></label><label>Maths ends<input type="time" value={planning.mathEnd} onChange={(event) => setPlanning({ ...planning, mathEnd: event.target.value })} /></label></div></article>
     <article className="settings-editor"><span className="yellow"><Brain /></span><p><strong>Recommendation control</strong><small>Weakness-first rules stay explainable; manual pins still override them.</small></p><div className="inline-fields"><label>Daily target<input type="number" min="60" max="600" value={planning.dailyTarget} onChange={(event) => setPlanning({ ...planning, dailyTarget: Number(event.target.value) })} /><em>min</em></label><label>Maths<input type="number" min="1" max="7" value={planning.mathDaysPerWeek} onChange={(event) => setPlanning({ ...planning, mathDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label><label>Agriculture<input type="number" min="1" max="7" value={planning.agricultureDaysPerWeek} onChange={(event) => setPlanning({ ...planning, agricultureDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label></div></article>
-    <article><span className="pink"><CloudCheck /></span><p><strong>Database storage</strong><small>Study data is stored directly in Supabase. Offline queues and local fallbacks are disabled.</small></p><button onClick={syncNow}>Check connection</button></article>
+    <article><span className="pink"><CloudCheck /></span><p><strong>Database storage</strong><small>Study data is stored directly in Supabase. Connection status is checked automatically while you use the app.</small></p></article>
     <article><span className="blue"><Warning /></span><p><strong>Study reminders</strong><small>{planning.remindersEnabled ? "Browser permission granted." : "Optional browser and install reminders."}</small></p><button onClick={enableReminders}>{planning.remindersEnabled ? "Enabled" : "Enable"}</button></article>
     <article className="settings-editor settings-privacy-link"><span className="pink"><Headphones /></span><p><strong>Support and account privacy</strong><small>Search help, send a private support request, or request deletion of your Chaptr account.</small></p><button type="button" onClick={() => router.push("/support")}>Open Support <ArrowRight /></button></article>
     {message && <p className="settings-message">{message}</p>}
@@ -931,13 +866,6 @@ export default function CommandCenter() {
     clearWorkspaceState();
     router.replace("/auth");
     await request?.catch(() => undefined);
-  };
-  const reloadTasks = async () => {
-    const response = await fetch("/api/sync/bootstrap", { cache: "no-store", headers: { "cache-control": "no-cache", "x-ssc-bootstrap-reason": "calendar-sync" } }).catch(() => null);
-    if (!response?.ok) return;
-    const payload = await response.json().catch(() => null) as { mode?: string; data?: { study_tasks?: BootstrapRow[] } } | null;
-    if (payload?.mode !== "cloud" || !payload.data) return;
-    setTasks((payload.data.study_tasks ?? []).map(studyTaskFromRow));
   };
   useEffect(() => {
     let cancelled = false;
@@ -1338,7 +1266,7 @@ export default function CommandCenter() {
       case "Today": return home;
       case "Syllabus": return <Syllabus list={chapterList} setList={setChapterList} preferences={preferences} updatePreference={updatePreference} completeChapter={completeChapter} uncompleteChapter={uncompleteChapter} persistProgress={(chapter) => persist("chapter_progress", [chapterRow(chapter)])} saveCompletedChapters={saveCompletedChapters} goGoals={() => navigate("Goals")} sessions={sessions} entries={entries} mistakes={mistakes} resources={resources} subjectStrengths={profile.subjectStrengths} goResources={(chapterId) => { setResourceChapterId(chapterId); navigate("Resources"); }} />;
       case "Goals": return <Goals list={chapterList} preferences={preferences} updatePreference={updatePreference} updatePreferences={updatePreferences} completeChapter={completeChapter} uncompleteChapter={uncompleteChapter} setDifficulty={setChapterDifficulty} buildQueue={buildGoalQueue} />;
-      case "Calendar": return <StudyCalendar tasks={tasks} preferences={preferences} update={updateTask} add={openManual} openTask={(task) => { setFocusTaskId(task.id); navigate("Home"); }} onSynced={reloadTasks} />;
+      case "Calendar": return <StudyCalendar tasks={tasks} preferences={preferences} update={updateTask} add={openManual} openTask={(task) => { setFocusTaskId(task.id); navigate("Home"); }} />;
       case "Journal": return <Journal entries={entries} add={() => openJournalEntry()} />;
       case "Progress": return <Progress entries={entries} list={chapterList} mocks={mocks} addMock={() => setMockOpen(true)} sessions={sessions} tasks={tasks} />;
       case "Exam Mode": return <ExamModeFocus tasks={tasks} activeTaskId={focusTaskId} onClose={() => navigate("Home")} onSaveSession={saveSession} onUpdateTask={updateTask} />;
@@ -1346,7 +1274,7 @@ export default function CommandCenter() {
       case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => navigate("Home")} />;
       case "Exam Plan": return <ExamPlan plan={examPlan} save={saveExamPlan} />;
       case "Support": return <SupportPage />;
-      default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} learningPreferences={learningPreferences} saveAdaptive={saveAdaptiveProfile} workflowPresets={workflowPresets} saveWorkflowPresets={saveWorkflowPresets} onCalendarSynced={reloadTasks} onSignOut={signOut} />;
+      default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} learningPreferences={learningPreferences} saveAdaptive={saveAdaptiveProfile} workflowPresets={workflowPresets} saveWorkflowPresets={saveWorkflowPresets} onSignOut={signOut} />;
     }
   })();
 
