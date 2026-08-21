@@ -14,7 +14,7 @@ type AuthScreenProps = {
   initialMode?: AuthMode;
 };
 
-const POLICY_VERSION = "2026-08-17";
+const POLICY_VERSION = "2026-08-22";
 
 function friendlyError(message: string) {
   if (/invalid login credentials/i.test(message)) return "That email or password is not correct.";

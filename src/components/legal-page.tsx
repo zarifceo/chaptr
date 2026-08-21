@@ -27,9 +27,6 @@ export function LegalPage({ eyebrow, title, intro, updated, sections }: LegalPag
           <p className="legal-intro">{intro}</p>
           <p className="legal-updated">Last updated: {updated}</p>
         </header>
-        <div className="legal-draft-notice">
-          Working draft for the Chaptr product. A qualified attorney should review these policies before they are relied on as formal legal documents.
-        </div>
         <article className="legal-content">
           {sections.map((section) => (
             <section key={section.title}>
