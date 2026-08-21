@@ -1021,6 +1021,10 @@ export default function CommandCenter() {
     setProfile({ userId: String(row.user_id), displayName: row.display_name ? String(row.display_name) : undefined, board: String(row.board), examYear: Number(row.exam_year), selectedSubjects: Array.isArray(row.selected_subjects) ? row.selected_subjects.map(String) : [], subjectStrengths: subjectStrengthsFromRow(row.subject_strengths), mostDifficultSubjectId: row.most_difficult_subject_id ? String(row.most_difficult_subject_id) : undefined, studyGroup: row.study_group as UserProfile["studyGroup"], religionSubject: row.religion_subject_id as UserProfile["religionSubject"], fourthSubject: row.fourth_subject_id as UserProfile["fourthSubject"], academicYear: Number(row.academic_year ?? 2026), bookLanguage: "bn", academicProfileCompleted: Boolean(row.academic_profile_completed), dailyTarget: Number(row.daily_target), mainStart: String(row.main_start), mainEnd: String(row.main_end), onboardingStep: Number(row.onboarding_step), onboardingCompleted: Boolean(row.onboarding_completed), quickStartStatus: row.quick_start_status === "dismissed" || row.quick_start_status === "completed" ? row.quick_start_status : "active", createdAt: String(row.created_at), updatedAt: String(row.updated_at) });
   };
 
+  const updateQuickStartStatus = async (status: QuickStartStatus) => {
+    await saveProfile({ quickStartStatus: status });
+  };
+
   const saveCompletedChapters = async (chapterIds: string[]) => {
     const completed = new Set(chapterIds);
     const now = new Date().toISOString();
