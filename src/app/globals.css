@@ -7579,3 +7579,63 @@ label {
   .policy-consent-heading { margin-top: 28px; }
   .policy-consent-footer { align-items: flex-start; flex-direction: column; }
 }
+
+/* Compact, full-row support diagnostics control. This must follow the broad form-input rule above. */
+.support-request-form label.support-checkbox {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px !important;
+  min-height: 44px;
+  padding: 11px 12px;
+  border: 1px solid #d9e2ed;
+  border-radius: 10px;
+  background: #fbfdff;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease;
+}
+.support-request-form label.support-checkbox:hover,
+.support-request-form label.support-checkbox:focus-within {
+  border-color: rgba(22,126,250,.48);
+  background: #f7fbff;
+}
+.support-request-form label.support-checkbox > input[type="checkbox"] {
+  appearance: none;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  flex: 0 0 18px;
+  margin: 2px 0 0 !important;
+  padding: 0 !important;
+  border: 1.5px solid #aebfd3;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: none !important;
+  cursor: pointer;
+  position: relative;
+}
+.support-request-form label.support-checkbox > input[type="checkbox"]:checked {
+  border-color: var(--brand,#167EFA);
+  background: var(--brand,#167EFA);
+}
+.support-request-form label.support-checkbox > input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.support-request-form label.support-checkbox > input[type="checkbox"]:focus-visible {
+  outline: 3px solid rgba(22,126,250,.2);
+  outline-offset: 2px;
+}
+.support-request-form label.support-checkbox > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
