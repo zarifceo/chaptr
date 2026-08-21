@@ -22,7 +22,7 @@ const categoryExamples: Record<SupportCategory, string> = {
   "getting-started": "First setup, subjects, completed chapters",
   "tasks-study-flow": "Tasks, steps, focus timer, journal loop",
   "syllabus-goals": "Chapter status, goals, difficulty, exclusions",
-  calendar: "Dates, Google Calendar, sync",
+  calendar: "Dates, tasks, and the in-app study plan",
   resources: "Textbooks, links, uploads",
   "account-privacy": "Sign-in, profile, privacy, deletion",
   "planning-recommendations": "Adaptive plan, preferences, recommendations",
