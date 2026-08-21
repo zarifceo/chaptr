@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
-const POLICY_VERSION = "2026-08-17";
 const SSC_EXAM_YEAR = 2027;
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
 
@@ -60,7 +59,6 @@ const subjectAssessment = z.object({
 
 const profilePatch = z.object({
   display_name: z.string().trim().max(80).nullable().optional(),
-  accept_policies: z.literal(true).optional(),
   board: z.string().trim().min(1).max(40).optional(),
   exam_year: z.literal(SSC_EXAM_YEAR).optional(),
   selected_subjects: z.array(z.string().min(1).max(80)).max(30).optional(),
@@ -128,16 +126,10 @@ export async function POST(request: Request) {
   const parsed = profilePatch.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid onboarding profile" }, { status: 400 });
 
-  const { accept_policies: acceptPolicies, learning_preferences: learningPreferences, subject_assessments: subjectAssessments, study_workflows: studyWorkflows, study_workflow_presets: studyWorkflowPresets, exam_plan_phases: examPlanPhases, ...profileData } = parsed.data;
-  const consent = acceptPolicies ? {
-    terms_accepted_at: new Date().toISOString(),
-    privacy_accepted_at: new Date().toISOString(),
-    terms_version: POLICY_VERSION,
-    privacy_version: POLICY_VERSION,
-  } : {};
+  const { learning_preferences: learningPreferences, subject_assessments: subjectAssessments, study_workflows: studyWorkflows, study_workflow_presets: studyWorkflowPresets, exam_plan_phases: examPlanPhases, ...profileData } = parsed.data;
   const { data, error } = await supabase
     .from("user_profiles")
-    .upsert({ user_id: userId, ...profileData, exam_year: SSC_EXAM_YEAR, ...consent, updated_at: new Date().toISOString() })
+    .upsert({ user_id: userId, ...profileData, exam_year: SSC_EXAM_YEAR, updated_at: new Date().toISOString() })
     .select("*")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

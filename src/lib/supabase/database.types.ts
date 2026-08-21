@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      policy_acceptance_logs: {
+        Row: {
+          id: string
+          user_id: string
+          terms_version: string
+          privacy_version: string
+          accepted_at: string
+          source: "signup" | "reacceptance" | "legacy_profile_backfill"
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          terms_version: string
+          privacy_version: string
+          accepted_at?: string
+          source: "signup" | "reacceptance" | "legacy_profile_backfill"
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          terms_version?: string
+          privacy_version?: string
+          accepted_at?: string
+          source?: "signup" | "reacceptance" | "legacy_profile_backfill"
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           academic_profile_completed: boolean
@@ -1427,7 +1454,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      accept_current_policy_versions: {
+        Args: {
+          p_terms_version: string
+          p_privacy_version: string
+          p_source?: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       mastery_status:

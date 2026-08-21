@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
+import { POLICY_PUBLISHED_DATE } from "@/lib/policy-config";
 
 export const metadata: Metadata = {
   title: "Terms of Service · Chaptr",
@@ -12,7 +13,7 @@ export default function TermsPage() {
       eyebrow="CHAPTR · ACCOUNT TERMS"
       title="Terms of Service"
       intro="These Terms of Service govern your use of Chaptr, a private study-planning workspace for SSC 2027 preparation."
-      updated="22 August 2026"
+      updated={POLICY_PUBLISHED_DATE}
       sections={[
         {
           title: "1. About Chaptr",
