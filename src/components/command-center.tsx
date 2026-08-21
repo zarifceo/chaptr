@@ -1061,9 +1061,9 @@ export default function CommandCenter() {
     persist("exam_events", [...next, ...archived].map(examEventRow));
   };
 
-  const saveResource = (resource: StudyResource) => {
+  const saveResource = async (resource: StudyResource) => {
+    await queueCloudSync("study_resources", [resourceRow(resource)]);
     setResources([resource, ...resources.filter((item) => item.id !== resource.id)]);
-    persist("study_resources", [resourceRow(resource)]);
   };
 
   const removeResource = (resource: StudyResource) => {
