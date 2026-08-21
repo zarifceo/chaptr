@@ -295,6 +295,7 @@ export interface UserProfile {
   board: string;
   examYear: number;
   selectedSubjects: string[];
+  subjectStrengths: Record<string, StrengthLevel>;
   mostDifficultSubjectId?: string;
   studyGroup?: StudyGroup;
   religionSubject?: ReligionSubject;

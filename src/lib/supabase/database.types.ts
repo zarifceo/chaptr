@@ -34,6 +34,7 @@ export type Database = {
           privacy_version: string | null
           religion_subject_id: string | null
           selected_subjects: string[]
+          subject_strengths: Json
           study_group: string | null
           terms_accepted_at: string | null
           terms_version: string | null
@@ -59,6 +60,7 @@ export type Database = {
           privacy_version?: string | null
           religion_subject_id?: string | null
           selected_subjects?: string[]
+          subject_strengths?: Json
           study_group?: string | null
           terms_accepted_at?: string | null
           terms_version?: string | null
@@ -84,6 +86,7 @@ export type Database = {
           privacy_version?: string | null
           religion_subject_id?: string | null
           selected_subjects?: string[]
+          subject_strengths?: Json
           study_group?: string | null
           terms_accepted_at?: string | null
           terms_version?: string | null
