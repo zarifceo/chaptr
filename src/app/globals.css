@@ -5378,3 +5378,73 @@ label {
     transform: none;
   }
 }
+
+
+/* Mobile navigation motion: make route changes feel responsive without adding visual noise. */
+@media (max-width: 780px) {
+  .page-transition {
+    animation: mobile-page-enter 220ms var(--ease-out) both;
+  }
+
+  .bottom-nav button {
+    position: relative;
+    isolation: isolate;
+    transition: background-color 180ms var(--ease-out), color 180ms var(--ease-out), box-shadow 180ms var(--ease-out), transform 180ms var(--ease-out);
+    will-change: transform;
+  }
+
+  .bottom-nav button svg,
+  .bottom-nav button span {
+    position: relative;
+    z-index: 1;
+    transition: transform 180ms var(--ease-out), opacity 180ms var(--ease-out);
+  }
+
+  .bottom-nav button.active {
+    animation: mobile-nav-select 220ms var(--ease-out) both;
+    box-shadow: 0 7px 16px rgb(22 126 250 / .22);
+  }
+
+  .bottom-nav button.active svg {
+    transform: translateY(-1px) scale(1.08);
+  }
+
+  .bottom-nav button.active span {
+    transform: translateY(1px);
+  }
+
+  .bottom-nav button:not(.active):hover {
+    background: var(--brand-soft) !important;
+    color: var(--brand) !important;
+  }
+
+  .bottom-nav button:active {
+    transform: scale(.94);
+  }
+
+  .bottom-nav button:focus-visible {
+    outline: 3px solid rgb(22 126 250 / .22);
+    outline-offset: -2px;
+  }
+}
+
+@keyframes mobile-nav-select {
+  0% { opacity: .72; transform: translateY(4px) scale(.94); }
+  65% { opacity: 1; transform: translateY(-2px) scale(1.025); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes mobile-page-enter {
+  0% { opacity: .72; transform: translateY(7px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition,
+  .bottom-nav button,
+  .bottom-nav button svg,
+  .bottom-nav button span {
+    animation: none !important;
+    transition: none !important;
+  }
+}
