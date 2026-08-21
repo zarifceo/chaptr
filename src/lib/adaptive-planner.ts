@@ -14,6 +14,7 @@ type AdaptivePlanInput = {
   learningPreferences?: LearningPreferences;
   assessments?: SubjectAssessment[];
   feedback?: RecommendationFeedback[];
+  mostDifficultSubjectId?: string;
   now?: Date;
 };
 
@@ -76,12 +77,10 @@ export function revisionDelayDays(attempts: number) {
   return 7;
 }
 
-function protectedSubjectBonus(subjectId: string, dayOfWeek: number, settings: PlanningSettings) {
-  const mathDays = Math.max(1, Math.min(7, settings.mathDaysPerWeek));
+function protectedSubjectBonus(subjectId: string, dayOfWeek: number, settings: PlanningSettings, mostDifficultSubjectId?: string) {
   const agricultureDays = Math.max(1, Math.min(7, settings.agricultureDaysPerWeek));
-  const mathActive = dayOfWeek !== 0 || mathDays === 7;
   const agricultureActive = [1, 2, 4, 6].includes(dayOfWeek) && agricultureDays >= 4;
-  if (subjectId === "mathematics" && mathActive) return 14;
+  if (mostDifficultSubjectId === subjectId) return 14;
   if (subjectId === "agriculture" && agricultureActive) return 10;
   return 0;
 }
@@ -110,7 +109,7 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     const chapter = chapters.get(task.chapterId);
     const subject = input.subjects.find((item) => item.id === task.subjectId);
     if (!chapter || !subject) continue;
-    const bonus = protectedSubjectBonus(task.subjectId, now.getDay(), input.settings);
+    const bonus = protectedSubjectBonus(task.subjectId, now.getDay(), input.settings, input.mostDifficultSubjectId);
     candidates.push({ task, score: task.priorityScore + (task.pinned ? 70 : 0) + bonus, rationale: task.pinned ? "Pinned unfinished work" : `Continue unfinished ${subject.shortName} work`, source: "existing" });
   }
 
@@ -143,7 +142,7 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     candidates.push({ task: revisionTask, score: revisionTask.priorityScore, rationale: `Repair ${subject.shortName}: ${mistake.errorType}`, source: "revision" });
   }
 
-  const recommendations = recommendTasks(input.subjects, input.chapters.filter((chapter) => !excluded.has(chapter.id)), { mistakes: input.mistakes, mocks: input.mocks, assessments: input.assessments, feedback: input.feedback });
+  const recommendations = recommendTasks(input.subjects, input.chapters.filter((chapter) => !excluded.has(chapter.id)), { mistakes: input.mistakes, mocks: input.mocks, assessments: input.assessments, feedback: input.feedback, mostDifficultSubjectId: input.mostDifficultSubjectId });
   for (const task of recommendations) {
     const chapter = chapters.get(task.chapterId);
     const subject = input.subjects.find((item) => item.id === task.subjectId);
@@ -151,7 +150,7 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     const preference = preferences.get(chapter.id);
     const assessment = input.assessments?.find((item) => item.subjectId === task.subjectId);
     const methodBonus = input.learningPreferences?.preferredMethods.includes(task.studyMethod ?? "textbook") ? 8 : 0;
-    const score = task.priorityScore + protectedSubjectBonus(task.subjectId, now.getDay(), input.settings) + (preference?.priority ?? 3) * 3 + (assessment?.priority ?? 3) * 2 + methodBonus;
+    const score = task.priorityScore + protectedSubjectBonus(task.subjectId, now.getDay(), input.settings, input.mostDifficultSubjectId) + (preference?.priority ?? 3) * 3 + (assessment?.priority ?? 3) * 2 + methodBonus;
     candidates.push({       task: { ...task, id: `adaptive-${task.chapterId}-${dateKey}` }, score, rationale: `Adaptive recommendation · ${task.reason}`, source: "recommendation" });
   }
 

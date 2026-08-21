@@ -63,6 +63,7 @@ const profilePatch = z.object({
   board: z.string().trim().min(1).max(40).optional(),
   exam_year: z.number().int().min(2025).max(2035).optional(),
   selected_subjects: z.array(z.string().min(1).max(80)).max(30).optional(),
+  most_difficult_subject_id: z.string().min(1).max(80).nullable().optional(),
   study_group: z.enum(["science", "commerce", "humanities"]).nullable().optional(),
   religion_subject_id: z.enum(["islam", "hinduism", "buddhism", "christianity"]).nullable().optional(),
   fourth_subject_id: z.enum(["higher-mathematics", "agriculture", "home-science"]).nullable().optional(),

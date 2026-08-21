@@ -27,6 +27,7 @@ export type Database = {
           fourth_subject_id: string | null
           main_end: string
           main_start: string
+          most_difficult_subject_id: string | null
           onboarding_completed: boolean
           onboarding_step: number
           privacy_accepted_at: string | null
@@ -51,6 +52,7 @@ export type Database = {
           fourth_subject_id?: string | null
           main_end?: string
           main_start?: string
+          most_difficult_subject_id?: string | null
           onboarding_completed?: boolean
           onboarding_step?: number
           privacy_accepted_at?: string | null
@@ -75,6 +77,7 @@ export type Database = {
           fourth_subject_id?: string | null
           main_end?: string
           main_start?: string
+          most_difficult_subject_id?: string | null
           onboarding_completed?: boolean
           onboarding_step?: number
           privacy_accepted_at?: string | null
