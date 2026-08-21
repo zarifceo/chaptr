@@ -78,7 +78,7 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
     setBusy(true);
     const { error: authError } = await client.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=/`, scopes: "openid email profile" },
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=%2F&policy_signup=1`, scopes: "openid email profile" },
     });
     if (authError) { setError(friendlyError(authError.message)); setBusy(false); }
   };
@@ -106,7 +106,7 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
         email: email.trim(),
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth?verified=1`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=%2Fauth%3Fverified%3D1%26policy_signup%3D1`,
           data: {
             display_name: displayName.trim(),
             policy_consent: true,
