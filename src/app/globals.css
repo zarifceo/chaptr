@@ -7017,3 +7017,6 @@ label {
   .support-verification-row > button { width:100%; }
   .support-delete-confirm .support-flow-actions { margin-top:12px; }
 }
+
+.support-provider-note { display:flex; align-items:flex-start; gap:8px; max-width:620px; padding:11px 12px; margin:0 0 14px!important; color:#2c5f8f!important; background:var(--brand-soft,#eaf3ff); border-radius:10px; font-size:.82rem!important; line-height:1.45; }
+.support-provider-note svg { flex:0 0 auto; margin-top:1px; color:var(--brand,#167EFA); }
