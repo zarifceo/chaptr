@@ -92,6 +92,87 @@ export type Database = {
         }
         Relationships: []
       }
+      support_requests: {
+        Row: {
+          id: string
+          reference_code: string
+          user_id: string
+          category: string
+          page_context: string | null
+          description: string
+          expected_behavior: string | null
+          diagnostic_details: Json | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          reference_code?: string
+          user_id: string
+          category: string
+          page_context?: string | null
+          description: string
+          expected_behavior?: string | null
+          diagnostic_details?: Json | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          reference_code?: string
+          user_id?: string
+          category?: string
+          page_context?: string | null
+          description?: string
+          expected_behavior?: string | null
+          diagnostic_details?: Json | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      account_deletion_requests: {
+        Row: {
+          id: string
+          reference_code: string
+          user_id: string
+          status: string
+          requested_at: string
+          confirmed_at: string
+          scheduled_for: string | null
+          completed_at: string | null
+          cancelled_at: string | null
+          audit_metadata: Json
+        }
+        Insert: {
+          id?: string
+          reference_code?: string
+          user_id: string
+          status?: string
+          requested_at?: string
+          confirmed_at?: string
+          scheduled_for?: string | null
+          completed_at?: string | null
+          cancelled_at?: string | null
+          audit_metadata?: Json
+        }
+        Update: {
+          id?: string
+          reference_code?: string
+          user_id?: string
+          status?: string
+          requested_at?: string
+          confirmed_at?: string
+          scheduled_for?: string | null
+          completed_at?: string | null
+          cancelled_at?: string | null
+          audit_metadata?: Json
+        }
+        Relationships: []
+      }
       calendar_links: {
         Row: {
           calendar_id: string
