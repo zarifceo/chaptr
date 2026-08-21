@@ -6116,3 +6116,181 @@ label {
     letter-spacing: -0.06em;
   }
 }
+
+
+/* Exam Plan mobile hierarchy: one clear column for dates, actions, summary, and phase editing. */
+@media (max-width: 640px) {
+  .exam-plan-page {
+    padding-inline: 12px !important;
+  }
+
+  .exam-plan-page > .section-title {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .exam-plan-page > .section-title h2 {
+    font-size: 28px;
+  }
+
+  .exam-plan-page .exam-plan-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .exam-plan-page .exam-plan-actions label {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    color: var(--muted-strong);
+    font-size: 11px;
+  }
+
+  .exam-plan-page .exam-plan-actions input,
+  .exam-plan-page .exam-plan-actions > button {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+  }
+
+  .exam-plan-page .exam-plan-actions input {
+    padding-inline: 12px;
+  }
+
+  .exam-plan-page .exam-plan-actions > button {
+    justify-content: center;
+    padding-inline: 8px !important;
+    font-size: 10px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+
+  .exam-plan-page .exam-plan-intro {
+    align-items: stretch;
+    gap: 14px;
+    margin-bottom: 12px;
+    padding: 16px !important;
+    border-radius: 16px !important;
+  }
+
+  .exam-plan-page .exam-plan-intro h3 {
+    margin-top: 7px;
+    font-size: 20px;
+    line-height: 1.3;
+  }
+
+  .exam-plan-page .exam-plan-intro p {
+    font-size: 11px;
+    line-height: 1.55;
+  }
+
+  .exam-plan-page .exam-plan-intro > span {
+    min-width: 0;
+    padding: 12px;
+    text-align: left;
+    font-size: 22px;
+  }
+
+  .exam-plan-page .exam-plan-editor {
+    gap: 10px;
+  }
+
+  .exam-plan-page .exam-plan-phase {
+    grid-template-columns: 36px minmax(0, 1fr) !important;
+    gap: 10px;
+    min-width: 0;
+    padding: 14px !important;
+    border-radius: 16px !important;
+  }
+
+  .exam-plan-page .exam-plan-phase-index {
+    min-width: 0;
+    gap: 7px;
+  }
+
+  .exam-plan-page .exam-plan-phase-index > span {
+    width: 32px;
+    height: 32px;
+  }
+
+  .exam-plan-page .exam-plan-phase-index small {
+    max-width: 36px;
+    overflow-wrap: anywhere;
+    font-size: 8px;
+  }
+
+  .exam-plan-page .exam-plan-phase-fields {
+    min-width: 0;
+    width: 100%;
+    gap: 9px;
+  }
+
+  .exam-plan-page .exam-plan-phase-fields label {
+    min-width: 0;
+    font-size: 10px;
+  }
+
+  .exam-plan-page .exam-plan-phase-fields input,
+  .exam-plan-page .exam-plan-phase-fields textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    padding-inline: 11px;
+  }
+
+  .exam-plan-page .exam-plan-date-row {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .exam-plan-page .exam-plan-phase-actions {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    margin-top: 2px;
+  }
+
+  .exam-plan-page .exam-plan-phase-actions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding-inline: 5px !important;
+    font-size: 9px;
+  }
+
+  .exam-plan-page .exam-plan-phase-actions button:last-child {
+    grid-column: auto;
+    margin-left: 0;
+  }
+
+  .exam-plan-page .exam-plan-add {
+    width: 100%;
+    min-height: 46px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .exam-plan-page .exam-plan-actions > button {
+    font-size: 9px;
+  }
+
+  .exam-plan-page .exam-plan-intro h3 {
+    font-size: 18px;
+  }
+
+  .exam-plan-page .exam-plan-phase {
+    padding: 12px !important;
+  }
+}
