@@ -30,6 +30,7 @@ export type Database = {
           most_difficult_subject_id: string | null
           onboarding_completed: boolean
           onboarding_step: number
+          quick_start_status: string | null
           privacy_accepted_at: string | null
           privacy_version: string | null
           religion_subject_id: string | null
@@ -56,6 +57,7 @@ export type Database = {
           most_difficult_subject_id?: string | null
           onboarding_completed?: boolean
           onboarding_step?: number
+          quick_start_status?: string | null
           privacy_accepted_at?: string | null
           privacy_version?: string | null
           religion_subject_id?: string | null
@@ -82,6 +84,7 @@ export type Database = {
           most_difficult_subject_id?: string | null
           onboarding_completed?: boolean
           onboarding_step?: number
+          quick_start_status?: string | null
           privacy_accepted_at?: string | null
           privacy_version?: string | null
           religion_subject_id?: string | null

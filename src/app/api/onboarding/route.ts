@@ -76,6 +76,7 @@ const profilePatch = z.object({
   main_end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   onboarding_step: z.number().int().min(0).max(11).optional(),
   onboarding_completed: z.boolean().optional(),
+  quick_start_status: z.enum(["active", "dismissed", "completed"]).optional(),
   learning_preferences: learningPreferencesPatch.optional(),
   subject_assessments: z.array(subjectAssessment).max(30).optional(),
   study_workflows: z.array(studyWorkflow).max(4).optional(),

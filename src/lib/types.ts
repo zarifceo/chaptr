@@ -308,6 +308,7 @@ export interface UserProfile {
   mainEnd: string;
   onboardingStep: number;
   onboardingCompleted: boolean;
+  quickStartStatus?: "active" | "dismissed" | "completed";
   termsAcceptedAt?: string;
   privacyAcceptedAt?: string;
   termsVersion?: string;
