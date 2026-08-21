@@ -10,7 +10,7 @@ export const supportCategories = [
 
 export type SupportCategory = (typeof supportCategories)[number]["id"];
 export type SupportRequestStatus = "open" | "in_review" | "resolved" | "closed";
-export type DeletionRequestStatus = "requested" | "pending_review" | "completed" | "cancelled";
+export type DeletionRequestStatus = "requested" | "pending_review" | "processing" | "completed" | "cancelled";
 
 export type SupportBlock =
   | { type: "paragraph"; text: string }
@@ -171,9 +171,9 @@ export const supportArticles: SupportArticle[] = [
     readingMinutes: 2,
     updatedAt: "2026-08-21",
     body: [
-      { type: "paragraph", text: "You can request account deletion from Support or Settings. The first release records a verified request for review; it does not claim that your account has already been deleted." },
-      { type: "steps", items: ["Open Account and privacy, then choose Request account deletion.", "Read the data-impact summary and confirm the signed-in email shown on screen.", "Type DELETE MY ACCOUNT exactly.", "Choose Request deletion once. The system blocks duplicate active requests and gives you a reference code." ] },
-      { type: "note", text: "Do not enter a password, token, calendar credential, or other secret in a support or deletion request." },
+      { type: "paragraph", text: "A verified deletion request starts a 14-day grace period. If you sign in again during that window, the pending request is cancelled automatically and your account and Chaptr data are preserved." },
+      { type: "steps", items: ["Open Account and privacy, then choose Request account deletion.", "Read the data-impact summary and confirm the signed-in email shown on screen.", "Type DELETE MY ACCOUNT exactly.", "Choose Request deletion once. The system blocks duplicate active requests and gives you a reference code.", "If you change your mind, sign in during the 14-day window or use Cancel deletion request from Support." ] },
+      { type: "note", text: "After the grace period ends, the system removes your Chaptr account and owned data automatically. Do not enter a password, token, calendar credential, or other secret in a support or deletion request." },
     ],
   },
   {
@@ -261,4 +261,4 @@ export function deletionRequestFromRow(row: DeletionRequestRow): AccountDeletion
   };
 }
 
-export const ACTIVE_DELETION_STATUSES: DeletionRequestStatus[] = ["requested", "pending_review"];
+export const ACTIVE_DELETION_STATUSES: DeletionRequestStatus[] = ["requested", "pending_review", "processing"];

@@ -7020,3 +7020,18 @@ label {
 
 .support-provider-note { display:flex; align-items:flex-start; gap:8px; max-width:620px; padding:11px 12px; margin:0 0 14px!important; color:#2c5f8f!important; background:var(--brand-soft,#eaf3ff); border-radius:10px; font-size:.82rem!important; line-height:1.45; }
 .support-provider-note svg { flex:0 0 auto; margin-top:1px; color:var(--brand,#167EFA); }
+
+/* Automatic account deletion grace-period controls */
+.support-deletion-existing { flex-wrap:wrap; }
+.support-deletion-existing p { flex:1 1 250px; min-width:0; }
+.support-deletion-existing p small { color:#3c7258; font-size:.78rem; line-height:1.45; }
+.support-deletion-existing > .support-secondary-button { margin-left:auto; white-space:nowrap; }
+.support-check-email { min-height:42px; white-space:nowrap; }
+@media (max-width:780px) {
+  .support-deletion-existing { align-items:flex-start; }
+  .support-deletion-existing > .support-secondary-button { width:100%; margin-left:0; }
+  .support-verification-row { align-items:stretch; flex-wrap:wrap; }
+  .support-verification-row > .support-grow { flex-basis:100%; }
+  .support-verification-row > button { flex:1 1 140px; min-width:0; }
+  .support-check-email { flex:1 1 100%; }
+}
