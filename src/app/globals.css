@@ -6294,3 +6294,277 @@ label {
     padding: 12px !important;
   }
 }
+
+
+/* Settings page system: align every card to one content column with predictable actions. */
+.settings-page .settings {
+  align-items: start;
+  grid-auto-rows: min-content;
+}
+
+.settings-page .settings > article {
+  min-width: 0;
+  align-items: start;
+}
+
+.settings-page .settings > article > span {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.settings-page .settings > article > p,
+.settings-page .settings > article > div,
+.settings-page .settings > article > .workflow-editor-body {
+  min-width: 0;
+}
+
+.settings-page .settings > article > p {
+  grid-column: 2;
+  margin: 0;
+}
+
+.settings-page .settings > article > .settings-actions,
+.settings-page .settings > article > .inline-fields,
+.settings-page .settings > article > button,
+.settings-page .settings > article > .workflow-editor-body {
+  grid-column: 2 / -1;
+  min-width: 0;
+  width: 100%;
+}
+
+.settings-page .settings > article > .settings-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.settings-page .settings > article > .settings-actions button,
+.settings-page .settings > article > button {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  justify-content: center;
+  padding-inline: 10px !important;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+.settings-page .settings > article > .inline-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  align-items: end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.settings-page .settings > article > .inline-fields label {
+  min-width: 0;
+}
+
+.settings-page .settings > article > .inline-fields input,
+.settings-page .settings > article > .inline-fields select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-page .settings > article > .settings-actions + .settings-message,
+.settings-page .settings > .settings-message {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.settings-page .settings > .workflow-editor {
+  grid-column: 1 / -1;
+}
+
+.settings-page .workflow-editor .workflow-editor-body {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-page .workflow-editor .workflow-preset-library,
+.settings-page .workflow-editor .workflow-preset-fields,
+.settings-page .workflow-editor .workflow-tabs,
+.settings-page .workflow-editor .workflow-editor-heading,
+.settings-page .workflow-editor .workflow-step-editor,
+.settings-page .workflow-editor .workflow-editor-actions {
+  min-width: 0;
+  width: 100%;
+}
+
+.settings-page .workflow-editor .workflow-preset-library {
+  align-items: stretch;
+}
+
+.settings-page .workflow-editor .workflow-preset-library > button {
+  min-width: 120px;
+  min-height: 42px;
+}
+
+.settings-page .workflow-editor .workflow-editor-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 8px;
+}
+
+.settings-page .workflow-editor .workflow-editor-actions button {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  white-space: normal;
+}
+
+@media (max-width: 780px) {
+  .settings-page {
+    padding-inline: 12px !important;
+  }
+
+  .settings-page > .section-title {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .settings-page > .section-title h2 {
+    font-size: 28px;
+  }
+
+  .settings-page .settings {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  .settings-page .settings > article,
+  .settings-page .settings > .workflow-editor {
+    grid-column: 1;
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+    gap: 10px;
+    min-width: 0;
+    padding: 14px !important;
+    border-radius: 16px !important;
+  }
+
+  .settings-page .settings > article > span {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 10px !important;
+  }
+
+  .settings-page .settings > article > p,
+  .settings-page .settings > article > div,
+  .settings-page .settings > article > .workflow-editor-body {
+    grid-column: 2;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .settings-page .settings > article > p strong,
+  .settings-page .settings > article > p small {
+    overflow-wrap: anywhere;
+  }
+
+  .settings-page .settings > article > .settings-actions,
+  .settings-page .settings > article > .inline-fields,
+  .settings-page .settings > article > button,
+  .settings-page .settings > article > .workflow-editor-body {
+    grid-column: 2;
+    width: 100%;
+  }
+
+  .settings-page .settings > article > .settings-actions {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    margin-top: 9px;
+  }
+
+  .settings-page .settings > article > .settings-actions button,
+  .settings-page .settings > article > button {
+    min-height: 42px;
+  }
+
+  .settings-page .settings > article > .inline-fields {
+    grid-template-columns: 1fr;
+    gap: 9px;
+    margin-top: 10px;
+  }
+
+  .settings-page .settings > article > .inline-fields label {
+    display: grid;
+    gap: 5px;
+  }
+
+  .settings-page .settings > article > .inline-fields input,
+  .settings-page .settings > article > .inline-fields select {
+    min-height: 44px;
+  }
+
+  .settings-page .settings > .workflow-editor {
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+  }
+
+  .settings-page .workflow-editor .workflow-editor-body {
+    grid-column: 2;
+    gap: 12px;
+  }
+
+  .settings-page .workflow-editor .workflow-preset-library {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .settings-page .workflow-editor .workflow-preset-library > button,
+  .settings-page .workflow-editor .workflow-preset-list button {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .settings-page .workflow-editor .workflow-preset-fields {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .settings-page .workflow-editor .workflow-preset-fields label.wide {
+    grid-column: auto;
+  }
+
+  .settings-page .workflow-editor .workflow-tabs > span {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .settings-page .workflow-editor .workflow-tabs button {
+    min-width: 0;
+    padding-inline: 4px;
+    white-space: normal;
+  }
+
+  .settings-page .workflow-editor .workflow-editor-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-page .workflow-editor .workflow-editor-heading > button {
+    width: 100%;
+    min-height: 42px;
+  }
+
+  .settings-page .workflow-editor .workflow-editor-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-page .workflow-editor .workflow-editor-actions button {
+    min-height: 44px;
+  }
+
+  .settings-page .settings > .settings-message {
+    grid-column: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
