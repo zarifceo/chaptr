@@ -10,6 +10,7 @@ const sections = [
   "resources",
   "countdown",
   "exam-plan",
+  "support",
   "settings",
 ] as const;
 

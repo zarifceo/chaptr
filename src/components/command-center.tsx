@@ -21,6 +21,7 @@ import { StudyAnalytics, SyllabusEvidenceMap, ExamModeFocus, ResourceLibrary, su
 import { AuthScreen } from "@/components/auth-screen";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { ExamCountdownCenter } from "@/components/exam-countdown";
+import { SupportPage } from "@/components/support-page";
 import { recommendedExamPlan, phaseDateLabel } from "@/lib/exam-plan";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import type { AdaptivePlanSummary, Chapter, ChapterPreference, CuratedTextbook, ExamEvent, ExamPlanPhase, JournalEntry, LearningMethod, LearningPreferences, MarksDistribution, Mistake, MockResult, PlanningSettings, RecommendationFeedback, StudyResource, StudySession, StudyTask, Subject, SubjectAssessment, UserProfile, WorkflowPreset, ChapterDifficulty } from "@/lib/types";
@@ -28,12 +29,12 @@ import type { AdaptivePlanSummary, Chapter, ChapterPreference, CuratedTextbook, 
 const nav = [
   ["Home", House], ["Syllabus", Books],
   ["Goals", Target], ["Calendar", CalendarPlus], ["Journal", NotePencil], ["Progress", ChartBar],
-  ["Exam Mode", Exam], ["Resources", BookOpen], ["Countdown", Timer], ["Exam Plan", Exam], ["Settings", SlidersHorizontal],
+  ["Exam Mode", Exam], ["Resources", BookOpen], ["Countdown", Timer], ["Exam Plan", Exam], ["Support", Headphones], ["Settings", SlidersHorizontal],
 ] as const;
 
 const sectionRoutes: Record<string, string> = {
   Home: "/home", Syllabus: "/syllabus", Goals: "/goals", Calendar: "/calendar", Journal: "/journal", Progress: "/progress",
-"Exam Mode": "/exam-mode", Resources: "/resources", Countdown: "/countdown", "Exam Plan": "/exam-plan", Settings: "/settings",
+"Exam Mode": "/exam-mode", Resources: "/resources", Countdown: "/countdown", "Exam Plan": "/exam-plan", Support: "/support", Settings: "/settings",
 };
 const routeSections: Record<string, string> = Object.fromEntries(Object.entries(sectionRoutes).map(([label, path]) => [path.slice(1), label]));
 const mobilePrimaryNav = [["Home", House], ["Syllabus", Books], ["Goals", Target], ["Calendar", CalendarPlus]] as const;
@@ -707,6 +708,7 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
     <article className="settings-editor"><span className="yellow"><Brain /></span><p><strong>Recommendation control</strong><small>Weakness-first rules stay explainable; manual pins still override them.</small></p><div className="inline-fields"><label>Daily target<input type="number" min="60" max="600" value={planning.dailyTarget} onChange={(event) => setPlanning({ ...planning, dailyTarget: Number(event.target.value) })} /><em>min</em></label><label>Maths<input type="number" min="1" max="7" value={planning.mathDaysPerWeek} onChange={(event) => setPlanning({ ...planning, mathDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label><label>Agriculture<input type="number" min="1" max="7" value={planning.agricultureDaysPerWeek} onChange={(event) => setPlanning({ ...planning, agricultureDaysPerWeek: Number(event.target.value) })} /><em>days/week</em></label></div></article>
     <article><span className="pink"><CloudCheck /></span><p><strong>Database storage</strong><small>Study data is stored directly in Supabase. Offline queues and local fallbacks are disabled.</small></p><button onClick={syncNow}>Check connection</button></article>
     <article><span className="blue"><Warning /></span><p><strong>Study reminders</strong><small>{planning.remindersEnabled ? "Browser permission granted." : "Optional browser and install reminders."}</small></p><button onClick={enableReminders}>{planning.remindersEnabled ? "Enabled" : "Enable"}</button></article>
+    <article className="settings-editor settings-privacy-link"><span className="pink"><Headphones /></span><p><strong>Support and account privacy</strong><small>Search help, send a private support request, or request deletion of your Chaptr account.</small></p><button type="button" onClick={() => router.push("/support")}>Open Support <ArrowRight /></button></article>
     {message && <p className="settings-message">{message}</p>}
   </section></main>;
 }
@@ -1325,6 +1327,7 @@ export default function CommandCenter() {
       case "Resources": return <ResourceLibrary resources={resources.filter((resource) => !resource.archived)} curatedTextbooks={curatedTextbooks} chapters={chapterList} initialChapterId={resourceChapterId} save={saveResource} remove={removeResource} upload={uploadResource} open={openResource} />;
       case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => navigate("Home")} />;
       case "Exam Plan": return <ExamPlan plan={examPlan} save={saveExamPlan} />;
+      case "Support": return <SupportPage />;
       default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} learningPreferences={learningPreferences} saveAdaptive={saveAdaptiveProfile} workflowPresets={workflowPresets} saveWorkflowPresets={saveWorkflowPresets} onCalendarSynced={reloadTasks} onSignOut={signOut} />;
     }
   })();
