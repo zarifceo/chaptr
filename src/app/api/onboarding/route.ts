@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
 const POLICY_VERSION = "2026-08-17";
+const SSC_EXAM_YEAR = 2027;
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
 
 export const dynamic = "force-dynamic";
@@ -61,7 +62,7 @@ const profilePatch = z.object({
   display_name: z.string().trim().max(80).nullable().optional(),
   accept_policies: z.literal(true).optional(),
   board: z.string().trim().min(1).max(40).optional(),
-  exam_year: z.number().int().min(2025).max(2035).optional(),
+  exam_year: z.literal(SSC_EXAM_YEAR).optional(),
   selected_subjects: z.array(z.string().min(1).max(80)).max(30).optional(),
   subject_strengths: z.record(z.string().min(1).max(80), z.enum(["strongest", "very-strong", "moderate", "toughest"])).optional(),
   most_difficult_subject_id: z.string().min(1).max(80).nullable().optional(),
@@ -102,15 +103,15 @@ export async function GET() {
     .eq("user_id", userId)
     .maybeSingle();
   if (readError) return NextResponse.json({ error: readError.message }, { status: 400 });
-  if (existing)   return NextResponse.json({ profile: existing }, { headers: noStoreHeaders });
+  if (existing) return NextResponse.json({ profile: { ...existing, exam_year: SSC_EXAM_YEAR } }, { headers: noStoreHeaders });
 
   const { data: created, error: createError } = await supabase
     .from("user_profiles")
-    .insert({ user_id: userId })
+    .insert({ user_id: userId, exam_year: SSC_EXAM_YEAR })
     .select("*")
     .single();
   if (createError) return NextResponse.json({ error: createError.message }, { status: 400 });
-  return NextResponse.json({ profile: created }, { headers: noStoreHeaders });
+  return NextResponse.json({ profile: { ...created, exam_year: SSC_EXAM_YEAR } }, { headers: noStoreHeaders });
 }
 
 export async function POST(request: Request) {
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
   } : {};
   const { data, error } = await supabase
     .from("user_profiles")
-    .upsert({ user_id: userId, ...profileData, ...consent, updated_at: new Date().toISOString() })
+    .upsert({ user_id: userId, ...profileData, exam_year: SSC_EXAM_YEAR, ...consent, updated_at: new Date().toISOString() })
     .select("*")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -174,5 +175,5 @@ export async function POST(request: Request) {
     supabase.from("study_workflow_presets").select("*").eq("user_id", userId).order("created_at"),
     supabase.from("exam_plan_phases").select("*").eq("user_id", userId).order("phase_order"),
   ]);
-  return NextResponse.json({ profile: data, learning_preferences: savedPreferences, subject_assessments: savedAssessments ?? [], study_workflows: savedWorkflows ?? [], study_workflow_presets: savedPresets ?? [], exam_plan_phases: savedExamPlan ?? [] }, { headers: noStoreHeaders });
+  return NextResponse.json({ profile: { ...data, exam_year: SSC_EXAM_YEAR }, learning_preferences: savedPreferences, subject_assessments: savedAssessments ?? [], study_workflows: savedWorkflows ?? [], study_workflow_presets: savedPresets ?? [], exam_plan_phases: savedExamPlan ?? [] }, { headers: noStoreHeaders });
 }

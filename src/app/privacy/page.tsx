@@ -23,14 +23,14 @@ export default function PrivacyPage() {
         {
           title: "2. Information you provide",
           paragraphs: [
-            "When you create an account, the service may receive your email address, display name, authentication identifiers, and policy-consent records. During onboarding and normal use, you may choose to provide board, exam year, selected subjects, study targets, study windows, chapter progress, tasks, sessions, journal entries, mistakes, mock results, study resources, exam events, planning settings, and calendar-link information.",
+            "When you create an account, the service may receive your email address, display name, authentication identifiers, and policy-consent records. During onboarding and normal use, you may provide board, selected subjects, study targets, study windows, chapter progress, tasks, sessions, journal entries, mistakes, mock results, study resources, exam events, and planning settings. Chaptr currently supports the SSC 2027 cohort, so the exam year is fixed to 2027 rather than being user-configurable.",
             "You should avoid entering sensitive information that is not necessary for study planning, including passwords in notes, financial information, government identification numbers, or another person’s private information.",
           ],
         },
         {
           title: "3. How the information is used",
           paragraphs: [
-            "The service uses account and study information to authenticate you, provide your private workspace, save and restore your study state, generate planning views, show analytics, support onboarding, and operate requested integrations such as calendar synchronization.",
+            "The service uses account and study information to authenticate you, provide your private workspace, save and restore your study state, generate planning views, show analytics, and support onboarding.",
             "The service is not designed to sell your study records or use them for advertising. Any future material change to this purpose should be reflected in an updated policy and, where required, a new consent choice.",
           ],
         },

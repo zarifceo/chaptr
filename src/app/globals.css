@@ -2212,26 +2212,41 @@ select:focus,
   opacity: .86;
 }
 
+.focus-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  width: min(100%, 620px);
+  gap: 12px;
+}
+.focus-actions button,
+.focus-actions .finish,
+.focus-actions .solid-cta,
+.focus-actions .accent {
+  width: 100%;
+  min-width: 0;
+  min-height: 50px;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+.focus-actions button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
 @media (max-width: 780px) {
   .focus-topbar > button {
     width: auto;
   }
-
   .focus-task-select {
     min-width: 100%;
   }
-
   .focus-actions {
-    display: grid;
     grid-template-columns: 1fr;
     width: min(100%, 360px);
     margin-inline: auto;
   }
-
-  .focus-actions button {
-    width: 100%;
-  }
 }
+
 
 
 /* Final control polish: generous touch targets, clear type, and intentional rounded-square geometry. */
@@ -3377,6 +3392,118 @@ label {
   margin-bottom: 4px;
   padding-bottom: 12px !important;
 }
+.syllabus-page .subject-card {
+  flex: 0 0 164px;
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+.syllabus-page .subject-card:hover {
+  border-color: #bfd0f7;
+  background: var(--surface-soft);
+  transform: translateY(-1px);
+}
+.syllabus-page .subject-card.active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  box-shadow: inset 0 0 0 1px var(--brand);
+}
+.syllabus-page .subject-card-select {
+  min-width: 0;
+  min-height: 70px;
+  display: grid;
+  gap: 4px;
+  padding: 2px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.syllabus-page .subject-card-select:hover {
+  border-color: transparent;
+  background: transparent;
+  transform: none;
+}
+.syllabus-page .subject-card-select:focus-visible,
+.syllabus-page .subject-priority select:focus-visible {
+  outline: 3px solid rgb(22 126 250 / .2);
+  outline-offset: 2px;
+}
+.syllabus-page .subject-card-select > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface-muted);
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 800;
+}
+.syllabus-page .subject-card.active .subject-card-select > span {
+  background: var(--brand);
+  color: #fff;
+}
+.syllabus-page .subject-card-select strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.syllabus-page .subject-card-select small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 9px;
+}
+.syllabus-page .subject-priority {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.syllabus-page .subject-priority select {
+  min-width: 0;
+  min-height: 32px;
+  width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.syllabus-page .subject-priority select:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+.syllabus-page .subject-priority small {
+  color: var(--brand);
+  font-size: 9px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.syllabus-priority-error {
+  margin: 0 0 12px;
+  color: #be123c;
+  font-size: 11px;
+}
 
 .syllabus-page .section-title {
   align-items: flex-end;
@@ -3693,6 +3820,9 @@ label {
     text-overflow: ellipsis;
   }
 
+  .syllabus-page .subject-card {
+    flex-basis: 150px;
+  }
   .chapter-row-main {
     grid-template-columns: 34px minmax(0, 1fr);
     align-items: start;
@@ -7102,4 +7232,277 @@ label {
 }
 @media (prefers-reduced-motion:reduce) {
   .quick-start-dismiss, .quick-start-step, .quick-start-primary, .quick-start-progress-track span { transition: none; }
+}
+
+/* Final Goals chapter-row alignment polish. */
+.goals-page .goal-row {
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 14px;
+  padding-inline: 20px !important;
+}
+.goals-page .goal-row-actions {
+  align-items: center;
+}
+.goals-page .complete-inline,
+.goals-page .remove-goal {
+  height: 44px;
+  min-height: 44px;
+  line-height: 1;
+  text-align: center;
+}
+.goals-page .complete-inline {
+  min-width: 172px;
+  justify-content: center;
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+.goals-page .remove-goal {
+  display: inline-flex;
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px !important;
+  padding: 0;
+  justify-content: center;
+}
+.goals-page .complete-inline svg,
+.goals-page .remove-goal svg {
+  flex: 0 0 auto;
+}
+@media (max-width: 640px) {
+  .goals-page .goal-row {
+    grid-template-columns: 38px minmax(0, 1fr) !important;
+    column-gap: 12px;
+    padding-inline: 16px !important;
+  }
+  .goals-page .goal-row-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 44px !important;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+  .goals-page .complete-inline {
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
+    padding-inline: 10px;
+    justify-content: center;
+  }
+  .goals-page .remove-goal {
+    grid-column: 2;
+    align-self: stretch;
+    width: 44px;
+    min-width: 44px !important;
+  }
+}
+
+/* Subject-strength onboarding step: keep every control inside the mobile viewport. */
+@media (max-width: 720px) {
+  .adaptive-onboarding .adaptive-step,
+  .adaptive-onboarding .adaptive-subject-list,
+  .adaptive-onboarding .adaptive-subject-row {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .adaptive-onboarding .adaptive-step {
+    overflow-x: hidden;
+  }
+
+  .adaptive-onboarding .adaptive-subject-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .adaptive-onboarding .adaptive-subject-row .subject-toggle,
+  .adaptive-onboarding .adaptive-subject-row .strength-select,
+  .adaptive-onboarding .adaptive-subject-row > label {
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .adaptive-onboarding .adaptive-subject-row select,
+  .adaptive-onboarding .adaptive-subject-row input {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .adaptive-onboarding .adaptive-subject-row .subject-toggle strong,
+  .adaptive-onboarding .adaptive-subject-row small,
+  .adaptive-onboarding .adaptive-subject-row label {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Make the saved chapter priority explicit and readable. */
+.goals-page .priority-control {
+  display: inline-grid;
+  grid-template-columns: auto 28px 44px;
+  align-items: center;
+  gap: 8px;
+}
+.goals-page .priority-control > span {
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 800;
+}
+.goals-page .priority-control .priority-value {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--ink-1);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
+}
+.goals-page .priority-control select {
+  width: 44px;
+  min-width: 44px;
+  min-height: 36px;
+  padding: 5px 16px 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--ink-1) !important;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+@media (max-width: 640px) {
+  .goals-page .priority-control {
+    grid-template-columns: minmax(0, 1fr) 28px 44px;
+    gap: 8px;
+  }
+}
+
+/* Exam Plan phase controls: square, prominent movement actions. */
+.exam-plan-page .exam-plan-phase-actions {
+  display: grid;
+  grid-template-columns: 48px 48px minmax(112px, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.exam-plan-page .exam-plan-phase-actions button:first-child,
+.exam-plan-page .exam-plan-phase-actions button:nth-child(2) {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  min-width: 48px !important;
+  min-height: 48px !important;
+  padding: 0 !important;
+  border: 1px solid var(--brand) !important;
+  border-radius: 12px !important;
+  background: var(--brand-soft) !important;
+  color: var(--brand) !important;
+  font-size: 18px;
+  font-weight: 850;
+  line-height: 1;
+}
+.exam-plan-page .exam-plan-phase-actions button:first-child:hover:not(:disabled),
+.exam-plan-page .exam-plan-phase-actions button:nth-child(2):hover:not(:disabled) {
+  background: var(--brand) !important;
+  color: #ffffff !important;
+}
+.exam-plan-page .exam-plan-phase-actions button:first-child:disabled,
+.exam-plan-page .exam-plan-phase-actions button:nth-child(2):disabled {
+  border-color: var(--line) !important;
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  opacity: 0.65;
+}
+.exam-plan-page .exam-plan-phase-actions button:last-child {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px !important;
+  justify-content: center;
+  margin: 0 !important;
+}
+.exam-plan-page .exam-plan-phase-actions button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+@media (max-width: 640px) {
+  .exam-plan-page .exam-plan-phase-actions {
+    grid-template-columns: 48px 48px minmax(0, 1fr);
+  }
+}
+
+/* Home dashboard hierarchy: summaries first, task work next, insight sections last. */
+.home-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.home-summary-cards .mini-card {
+  min-width: 0;
+  margin: 0;
+}
+.home-countdown-card h3 {
+  margin: 6px 0 4px;
+  color: var(--text);
+  font-size: clamp(17px, 2.4vw, 24px);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.home-countdown-card > strong {
+  display: block;
+  color: var(--brand);
+  font-size: 20px;
+  line-height: 1.1;
+}
+.home-countdown-card > span {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.home-countdown-card.official {
+  border-color: #c9d7f5;
+  background: linear-gradient(145deg, var(--brand-soft), var(--surface));
+}
+.home-countdown-card.test {
+  border-color: #cce7df;
+  background: linear-gradient(145deg, #effcf8, var(--surface));
+}
+@media (max-width: 780px) {
+  .home-page {
+    display: flex;
+    flex-direction: column;
+  }
+  .home-page > .home-summary-cards {
+    order: 1;
+  }
+  .home-page > .quick-start-panel,
+  .home-page > .quick-start-reopen {
+    order: 2;
+  }
+  .home-page > .today-page {
+    order: 3;
+  }
+  .home-page > .dashboard-page {
+    order: 4;
+  }
+  .home-summary-cards {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .home-summary-cards .mini-card {
+    padding: 16px;
+  }
+  .home-countdown-card h3 {
+    font-size: 20px;
+  }
 }

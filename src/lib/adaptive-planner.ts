@@ -1,6 +1,7 @@
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import type { Chapter, ChapterPreference, Mistake, MockResult, PlanningSettings, StudyTask, Subject, LearningPreferences, SubjectAssessment, RecommendationFeedback, StrengthLevel } from "./types";
 import { recommendTasks } from "./recommendations";
+import { isBangladeshWeekend } from "./week-schedule";
 
 type AdaptivePlanInput = {
   tasks: StudyTask[];
@@ -78,6 +79,10 @@ export function revisionDelayDays(attempts: number) {
   return 7;
 }
 
+function priorityBonus(priority?: number) {
+  return Math.max(0, ((priority ?? 3) - 1) * 4);
+}
+
 function protectedSubjectBonus(subjectId: string, dayOfWeek: number, settings: PlanningSettings, mostDifficultSubjectId?: string, subjectStrengths?: Record<string, StrengthLevel>) {
   const agricultureDays = Math.max(1, Math.min(7, settings.agricultureDaysPerWeek));
   const agricultureActive = [1, 2, 4, 6].includes(dayOfWeek) && agricultureDays >= 4;
@@ -97,10 +102,11 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
   const now = input.now ?? new Date();
   const dateKey = dhakaDateKey(now);
   const tomorrowKey = format(addDays(new Date(`${dateKey}T00:00:00+06:00`), 1), "yyyy-MM-dd");
-  const profileBudget = input.learningPreferences ? (now.getDay() === 0 || now.getDay() === 6 ? input.learningPreferences.weekendMinutes : input.learningPreferences.weekdayMinutes) : input.availableMinutes;
+  const profileBudget = input.learningPreferences ? (isBangladeshWeekend(now.getDay()) ? input.learningPreferences.weekendMinutes : input.learningPreferences.weekdayMinutes) : input.availableMinutes;
   const budget = Math.max(15, Math.min(600, Math.round(input.availableMinutes || profileBudget)));
   const chapters = chapterMap(input.chapters);
   const preferences = preferenceMap(input.preferences);
+  const assessmentsBySubject = new Map((input.assessments ?? []).map((assessment) => [assessment.subjectId, assessment]));
   const excluded = new Set(input.preferences.filter((preference) => preference.excluded).map((preference) => preference.chapterId));
   const openTasks = input.tasks.filter((task) => !excluded.has(task.chapterId) && isOpenTask(task, now));
   const openChapterIds = new Set(openTasks.map((task) => task.chapterId));
@@ -111,7 +117,7 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     const chapter = chapters.get(task.chapterId);
     const subject = input.subjects.find((item) => item.id === task.subjectId);
     if (!chapter || !subject) continue;
-    const bonus = protectedSubjectBonus(task.subjectId, now.getDay(), input.settings, input.mostDifficultSubjectId, input.subjectStrengths);
+    const bonus = protectedSubjectBonus(task.subjectId, now.getDay(), input.settings, input.mostDifficultSubjectId, input.subjectStrengths) + priorityBonus(assessmentsBySubject.get(task.subjectId)?.priority);
     candidates.push({ task, score: task.priorityScore + (task.pinned ? 70 : 0) + bonus, rationale: task.pinned ? "Pinned unfinished work" : `Continue unfinished ${subject.shortName} work`, source: "existing" });
   }
 
