@@ -5448,3 +5448,246 @@ label {
     transition: none !important;
   }
 }
+
+
+/* Goals mobile hierarchy: compact chapter cards with controls that stay readable and tappable. */
+@media (max-width: 640px) {
+  .goals-page {
+    padding-inline: 12px !important;
+  }
+
+  .goals-page .goal-intro {
+    gap: 14px;
+    padding: 16px !important;
+    border-radius: 16px !important;
+  }
+
+  .goals-page .goal-intro h3 {
+    font-size: 18px;
+  }
+
+  .goals-page .goal-intro p {
+    font-size: 11px;
+  }
+
+  .goals-page .goal-bulk-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .goals-page .goal-bulk-actions button {
+    min-height: 42px;
+    min-width: 0;
+    padding-inline: 7px;
+    font-size: 10px;
+    white-space: normal;
+  }
+
+  .goals-page .goal-controls {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .goals-page .goal-controls .segmented {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    overflow: visible;
+  }
+
+  .goals-page .goal-controls .segmented button {
+    min-height: 40px;
+    padding-inline: 4px;
+    font-size: 10px;
+    white-space: normal;
+  }
+
+  .goals-page .goal-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px;
+  }
+
+  .goals-page .goal-metrics article {
+    min-height: 78px;
+    padding: 12px;
+  }
+
+  .goals-page .goal-metrics article.wide {
+    grid-column: 1 / -1;
+    min-height: 64px;
+  }
+
+  .goals-page .goal-metrics article strong {
+    font-size: 22px;
+  }
+
+  .goals-page .goal-selected,
+  .goals-page .goal-picker {
+    padding: 14px !important;
+    border-radius: 16px !important;
+  }
+
+  .goals-page .goal-selected .section-title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .goals-page .goal-selected .section-title > button {
+    width: 100%;
+    min-height: 42px;
+  }
+
+  .goals-page .goal-selected-subject > header {
+    padding: 12px 0;
+  }
+
+  .goals-page .goal-row {
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+    gap: 0 10px !important;
+    padding: 14px 0 !important;
+  }
+
+  .goals-page .goal-row > .number {
+    grid-row: 1;
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .goals-page .goal-row-main {
+    grid-column: 2;
+    gap: 4px;
+  }
+
+  .goals-page .goal-row-main p strong {
+    font-size: 13px;
+  }
+
+  .goals-page .goal-row-main p small {
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  .goals-page .goal-row-summary {
+    grid-column: 2;
+    font-size: 10px;
+  }
+
+  .goals-page .goal-row-actions {
+    display: grid !important;
+    grid-column: 2;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 8px;
+    align-items: stretch;
+    padding-top: 10px;
+  }
+
+  .goals-page .priority-control {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) 54px;
+    align-items: center;
+    min-height: 44px;
+    width: 100%;
+    padding-inline: 10px;
+  }
+
+  .goals-page .priority-control select {
+    width: 54px;
+    min-width: 54px;
+    min-height: 36px;
+    padding: 5px 18px 5px 8px;
+  }
+
+  .goals-page .goal-difficulty {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 52px;
+    width: 100%;
+    padding: 8px 10px;
+  }
+
+  .goals-page .goal-difficulty > small {
+    font-size: 9px;
+  }
+
+  .goals-page .goal-difficulty .difficulty-picker {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .goals-page .goal-difficulty .difficulty-picker > small,
+  .goals-page .goal-difficulty .difficulty-picker > em {
+    display: none;
+  }
+
+  .goals-page .goal-difficulty .difficulty-picker > span {
+    gap: 3px;
+  }
+
+  .goals-page .goal-difficulty .difficulty-picker button {
+    width: 32px;
+    height: 36px;
+    border-radius: 10px !important;
+  }
+
+  .goals-page .complete-inline {
+    grid-column: 1;
+    width: 100%;
+    min-height: 44px;
+    padding-inline: 9px;
+    font-size: 10px;
+  }
+
+  .goals-page .remove-goal {
+    grid-column: 2;
+    width: 44px;
+    min-width: 44px !important;
+    min-height: 44px;
+    border-radius: 11px;
+  }
+
+  .goals-page .goal-subject-section > header {
+    gap: 10px;
+    padding: 12px 0;
+  }
+
+  .goals-page .goal-subject-section > header > div:first-child {
+    min-width: 0;
+  }
+
+  .goals-page .subject-group-actions {
+    width: auto;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .goals-page .subject-group-actions button {
+    min-height: 40px;
+    padding-inline: 8px;
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 420px) {
+  .goals-page .goal-bulk-actions button {
+    font-size: 9px;
+  }
+
+  .goals-page .goal-difficulty .difficulty-picker button {
+    width: 29px;
+    height: 34px;
+  }
+
+  .goals-page .complete-inline {
+    font-size: 9px;
+  }
+}
