@@ -5932,3 +5932,139 @@ label {
     width: 100%;
   }
 }
+
+
+/* Resource form mobile alignment: labels sit above full-width, consistently sized controls. */
+@media (max-width: 640px) {
+  .resources-page .resource-form {
+    width: 100%;
+    padding: 16px !important;
+    overflow: hidden;
+    border-radius: 18px !important;
+  }
+
+  .resources-page .resource-form .feature-heading {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .resources-page .resource-form .feature-heading h3 {
+    font-size: 18px;
+  }
+
+  .resources-page .resource-form .feature-heading p {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .resources-page .resource-form .resource-source-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 4px;
+    margin: 16px 0;
+  }
+
+  .resources-page .resource-form .resource-source-tabs button {
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+
+  .resources-page .resource-form .form-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+    width: 100%;
+    min-width: 0;
+    margin: 0 0 12px;
+  }
+
+  .resources-page .resource-form .form-row > label,
+  .resources-page .resource-form .form-row > .resource-dropzone {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .resources-page .resource-form .form-row > label {
+    display: grid;
+    gap: 6px;
+    align-items: start;
+    min-width: 0;
+    margin: 0;
+    font-size: 11px;
+  }
+
+  .resources-page .resource-form .form-row > label > input,
+  .resources-page .resource-form .form-row > label > select {
+    box-sizing: border-box;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 48px;
+    min-height: 48px;
+    margin: 0;
+    padding: 0 14px !important;
+    border-radius: 12px !important;
+    font-size: 13px;
+    line-height: 1.2;
+  }
+
+  .resources-page .resource-form .form-row > label > input::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+  }
+
+  .resources-page .resource-form .form-row > .resource-dropzone {
+    min-height: 98px;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .resources-page .resource-form .form-row > .resource-dropzone strong,
+  .resources-page .resource-form .form-row > .resource-dropzone small {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+
+  .resources-page .resource-form .resource-form-error {
+    margin: 0 0 10px;
+    line-height: 1.45;
+  }
+
+  .resources-page .resource-form > .solid-cta {
+    width: 100%;
+    min-height: 48px;
+    justify-content: center;
+    margin-top: 2px;
+  }
+
+  .resources-page .resource-controls {
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100%;
+  }
+
+  .resources-page .resource-controls label,
+  .resources-page .resource-controls select {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .resources-page .resource-form {
+    padding: 14px !important;
+  }
+
+  .resources-page .resource-form .form-row > label > input,
+  .resources-page .resource-form .form-row > label > select {
+    height: 46px;
+    min-height: 46px;
+    padding-inline: 12px !important;
+    font-size: 12px;
+  }
+}
