@@ -1,5 +1,5 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
-import type { Chapter, Mistake, MockResult, RecommendationFeedback, StudyTask, Subject, SubjectAssessment, LearningMethod } from "./types";
+import type { Chapter, Mistake, MockResult, RecommendationFeedback, StudyTask, Subject, SubjectAssessment, LearningMethod, StrengthLevel } from "./types";
 
 const masteryGap = { "not-started": 100, learning: 72, practising: 42, "needs-revision": 78, "exam-ready": 8 } as const;
 
@@ -9,6 +9,7 @@ type RecommendationEvidence = {
   assessments?: SubjectAssessment[];
   feedback?: RecommendationFeedback[];
   mostDifficultSubjectId?: string;
+  subjectStrengths?: Record<string, StrengthLevel>;
   examDate?: string;
   targetGrade?: string;
 };
@@ -56,15 +57,17 @@ export function scoreChapter(subject: Subject, chapter: Chapter, now = new Date(
   const assessment = assessmentFor(subject.id, evidence.assessments);
   const personalDifficulty = (assessment?.difficulty ?? 3) * 20;
   const chapterDifficulty = chapter.difficulty * 20;
+  const strength = evidence.subjectStrengths?.[subject.id];
+  const strengthDifficulty = strength === "toughest" ? 12 : strength === "moderate" ? 8 : strength === "very-strong" ? 4 : 0;
   const personalSubjectSignal = evidence.mostDifficultSubjectId === subject.id ? 15 : 0;
-  const difficulty = Math.min(100, Math.round((personalDifficulty + chapterDifficulty) / 2) + personalSubjectSignal);
+  const difficulty = Math.min(100, Math.round((personalDifficulty + chapterDifficulty) / 2) + strengthDifficulty + personalSubjectSignal);
   const priority = (assessment?.priority ?? 3) * 20;
   const recentEvidence = Math.max(accuracyGap, mockGap, hasOpenMistake ? 100 : 0);
   const adjustment = feedbackAdjustment(subject.id, evidence.feedback);
   const score = urgency * .18 + difficulty * .22 + priority * .14 + masteryGap[chapter.status] * .20 + review * .14 + recentEvidence * .12 + adjustment;
   const method = preferredMethod(assessment);
   const reasons = [
-    evidence.mostDifficultSubjectId === subject.id ? "your selected difficult subject" : chapter.difficulty >= 4 ? "chapter difficulty" : assessment?.startingPoint === "difficult" || (assessment?.difficulty ?? 3) >= 4 ? "your difficulty profile" : "balanced coverage",
+    evidence.mostDifficultSubjectId === subject.id ? "your selected difficult subject" : strength ? `your ${strength.replace("-", " ")} self-rating` : chapter.difficulty >= 4 ? "chapter difficulty" : assessment?.startingPoint === "difficult" || (assessment?.difficulty ?? 3) >= 4 ? "your difficulty profile" : "balanced coverage",
     chapter.status === "not-started" ? "first coverage" : "mastery gap",
     hasOpenMistake ? "open mistake" : review >= 80 ? "review due" : latestMock ? "mock evidence" : "recent evidence",
     `fits ${methodLabels[method]}`,
