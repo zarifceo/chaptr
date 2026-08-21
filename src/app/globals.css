@@ -6754,3 +6754,29 @@ label {
     height: 40px;
   }
 }
+
+
+/* Completed chapters remain reversible: make the undo action visible but secondary to normal completion. */
+.complete-chapter.undo-complete,
+.complete-inline.undo-complete {
+  border-color: #bfd0f7 !important;
+  background: var(--brand-soft) !important;
+  color: var(--brand) !important;
+}
+
+.complete-chapter.undo-complete:hover,
+.complete-inline.undo-complete:hover {
+  border-color: var(--brand) !important;
+  background: #dbeafe !important;
+  color: var(--brand-hover) !important;
+}
+
+@media (max-width: 640px) {
+  .chapter-status-actions .undo-complete,
+  .goal-row-actions .undo-complete {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+}
