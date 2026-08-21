@@ -146,6 +146,10 @@ export type Database = {
           completed_at: string | null
           cancelled_at: string | null
           audit_metadata: Json
+          grace_period_days: number
+          processing_started_at: string | null
+          last_failure_at: string | null
+          last_error: string | null
         }
         Insert: {
           id?: string
@@ -158,6 +162,10 @@ export type Database = {
           completed_at?: string | null
           cancelled_at?: string | null
           audit_metadata?: Json
+          grace_period_days?: number
+          processing_started_at?: string | null
+          last_failure_at?: string | null
+          last_error?: string | null
         }
         Update: {
           id?: string
@@ -170,6 +178,10 @@ export type Database = {
           completed_at?: string | null
           cancelled_at?: string | null
           audit_metadata?: Json
+          grace_period_days?: number
+          processing_started_at?: string | null
+          last_failure_at?: string | null
+          last_error?: string | null
         }
         Relationships: []
       }
