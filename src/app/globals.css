@@ -6068,3 +6068,51 @@ label {
     font-size: 12px;
   }
 }
+
+
+/* Countdown mobile metrics: long values stay inside their cards instead of forcing viewport overflow. */
+@media (max-width: 640px) {
+  .exam-countdown-page .countdown-stats article {
+    display: grid;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    align-content: start;
+    padding: 16px !important;
+  }
+
+  .exam-countdown-page .countdown-stats article > small,
+  .exam-countdown-page .countdown-stats article > strong,
+  .exam-countdown-page .countdown-stats article > span {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    word-break: normal;
+  }
+
+  .exam-countdown-page .countdown-stats article > small {
+    line-height: 1.35;
+  }
+
+  .exam-countdown-page .countdown-stats article > strong {
+    font-size: clamp(22px, 7vw, 34px) !important;
+    line-height: 1.1;
+    letter-spacing: -0.07em;
+  }
+
+  .exam-countdown-page .countdown-stats article > span {
+    line-height: 1.45;
+  }
+}
+
+@media (max-width: 420px) {
+  .exam-countdown-page .countdown-stats article {
+    padding: 13px !important;
+  }
+
+  .exam-countdown-page .countdown-stats article > strong {
+    font-size: clamp(20px, 6.8vw, 29px) !important;
+    letter-spacing: -0.06em;
+  }
+}
