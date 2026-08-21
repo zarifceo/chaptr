@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
+import { policyRequiredResponse } from "@/lib/policy-server";
 
 const payload = z.object({ table: z.enum(["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources", "exam_events", "exam_plan_phases", "planning_settings", "adaptive_plan_summaries"]), rows: z.array(z.record(z.string(), z.unknown())).max(500) });
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
@@ -27,6 +28,8 @@ export async function POST(request: Request) {
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims?.sub;
   if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: noStoreHeaders });
+  const consentResponse = await policyRequiredResponse(supabase, userId, "/home");
+  if (consentResponse) return consentResponse;
   const rows = parsed.data.rows.map(row => ({ ...row, user_id: userId, updated_at: new Date().toISOString() }));
   let error: { message: string } | null;
   switch (parsed.data.table) {

@@ -7,14 +7,13 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle, EnvelopeSimple, LockKey, SignIn, UserPlus, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+import { POLICY_VERSIONS } from "@/lib/policy-config";
 
 type AuthMode = "sign-in" | "sign-up" | "forgot" | "reset";
 
 type AuthScreenProps = {
   initialMode?: AuthMode;
 };
-
-const POLICY_VERSION = "2026-08-22";
 
 function friendlyError(message: string) {
   if (/invalid login credentials/i.test(message)) return "That email or password is not correct.";
@@ -55,13 +54,16 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
   }, []);
 
   const persistSignupProfile = async () => {
+    const consentResponse = await fetch("/api/policies/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ terms: true, privacy: true, source: "signup" }),
+    });
+    if (!consentResponse.ok) throw new Error("Your account was created, but policy acceptance could not be recorded. Please sign in again.");
     const response = await fetch("/api/onboarding", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        display_name: displayName.trim() || null,
-        accept_policies: true,
-      }),
+      body: JSON.stringify({ display_name: displayName.trim() || null }),
     });
     if (!response.ok) throw new Error("Your account was created, but your profile could not be initialized. Please sign in again.");
   };
@@ -110,8 +112,8 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
             policy_consent: true,
             terms_accepted_at: acceptedAt,
             privacy_accepted_at: acceptedAt,
-            terms_version: POLICY_VERSION,
-            privacy_version: POLICY_VERSION,
+            terms_version: POLICY_VERSIONS.terms,
+            privacy_version: POLICY_VERSIONS.privacy,
           },
         },
       });

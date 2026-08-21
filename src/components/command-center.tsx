@@ -25,6 +25,7 @@ import { SupportPage } from "@/components/support-page";
 import { QuickStart, type QuickStartStatus } from "@/components/quick-start";
 import { recommendedExamPlan, phaseDateLabel } from "@/lib/exam-plan";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+import { POLICY_CONSENT_STATUS } from "@/lib/policy-config";
 import type { AdaptivePlanSummary, Chapter, ChapterPreference, CuratedTextbook, ExamEvent, ExamPlanPhase, JournalEntry, LearningMethod, LearningPreferences, MarksDistribution, Mistake, MockResult, PlanningSettings, RecommendationFeedback, StudyResource, StudySession, StudyTask, Subject, SubjectAssessment, StrengthLevel, UserProfile, WorkflowPreset, ChapterDifficulty } from "@/lib/types";
 
 const SSC_EXAM_YEAR = 2027;
@@ -911,6 +912,11 @@ export default function CommandCenter() {
       }
       if (!response) { setDatabaseStatus("error"); setDatabaseError("The database could not be reached. Check your connection and try again."); return; }
       if (response.status === 401) { setDatabaseStatus("auth-required"); setDatabaseError("Your sign-in session is not ready yet. Please wait a moment and try again."); return; }
+      if (response.status === POLICY_CONSENT_STATUS) {
+        const body = await response.json().catch(() => null) as { consentPath?: string } | null;
+        window.location.replace(body?.consentPath ?? "/consent?next=%2Fhome");
+        return;
+      }
       if (!response.ok) { const body = await response.json().catch(() => null) as { error?: string } | null; setDatabaseStatus("error"); setDatabaseError(body?.error ?? "The database is unavailable."); return; }
       const payload = await response.json().catch(() => null) as { mode?: string; data?: Record<string, Record<string, unknown>[]> } | null;
       if (cancelled || payload?.mode !== "cloud" || !payload.data) { setDatabaseStatus("error"); setDatabaseError("The database returned an invalid workspace response."); return; }

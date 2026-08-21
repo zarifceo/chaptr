@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
+import { POLICY_PUBLISHED_DATE } from "@/lib/policy-config";
 
 export const metadata: Metadata = {
   title: "Privacy Policy · Chaptr",
@@ -12,7 +13,7 @@ export default function PrivacyPage() {
       eyebrow="CHAPTR · DATA PRACTICES"
       title="Privacy Policy"
       intro="This Privacy Policy explains what Chaptr collects, how it is used, and the controls available for your private SSC 2027 study workspace."
-      updated="22 August 2026"
+      updated={POLICY_PUBLISHED_DATE}
       sections={[
         {
           title: "1. Scope",
