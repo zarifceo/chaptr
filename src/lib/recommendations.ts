@@ -8,6 +8,7 @@ type RecommendationEvidence = {
   mocks?: MockResult[];
   assessments?: SubjectAssessment[];
   feedback?: RecommendationFeedback[];
+  mostDifficultSubjectId?: string;
   examDate?: string;
   targetGrade?: string;
 };
@@ -55,14 +56,15 @@ export function scoreChapter(subject: Subject, chapter: Chapter, now = new Date(
   const assessment = assessmentFor(subject.id, evidence.assessments);
   const personalDifficulty = (assessment?.difficulty ?? 3) * 20;
   const chapterDifficulty = chapter.difficulty * 20;
-  const difficulty = Math.round((personalDifficulty + chapterDifficulty) / 2);
+  const personalSubjectSignal = evidence.mostDifficultSubjectId === subject.id ? 15 : 0;
+  const difficulty = Math.min(100, Math.round((personalDifficulty + chapterDifficulty) / 2) + personalSubjectSignal);
   const priority = (assessment?.priority ?? 3) * 20;
   const recentEvidence = Math.max(accuracyGap, mockGap, hasOpenMistake ? 100 : 0);
   const adjustment = feedbackAdjustment(subject.id, evidence.feedback);
   const score = urgency * .18 + difficulty * .22 + priority * .14 + masteryGap[chapter.status] * .20 + review * .14 + recentEvidence * .12 + adjustment;
   const method = preferredMethod(assessment);
   const reasons = [
-    chapter.difficulty >= 4 ? "chapter difficulty" : assessment?.startingPoint === "difficult" || (assessment?.difficulty ?? 3) >= 4 ? "your difficulty profile" : "balanced coverage",
+    evidence.mostDifficultSubjectId === subject.id ? "your selected difficult subject" : chapter.difficulty >= 4 ? "chapter difficulty" : assessment?.startingPoint === "difficult" || (assessment?.difficulty ?? 3) >= 4 ? "your difficulty profile" : "balanced coverage",
     chapter.status === "not-started" ? "first coverage" : "mastery gap",
     hasOpenMistake ? "open mistake" : review >= 80 ? "review due" : latestMock ? "mock evidence" : "recent evidence",
     `fits ${methodLabels[method]}`,
