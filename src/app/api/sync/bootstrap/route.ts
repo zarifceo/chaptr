@@ -40,8 +40,9 @@ export async function GET() {
     }
     profile = createdProfile;
   }
+  const hasAcademicProfile = Boolean(profile?.academic_profile_completed && profile.study_group && profile.religion_subject_id && profile.fourth_subject_id);
   const activeSubjectIds = new Set<string>(commonSubjectIds);
-  if (profile?.academic_profile_completed && profile.study_group && profile.religion_subject_id && profile.fourth_subject_id) {
+  if (hasAcademicProfile) {
     groupSubjectIds[profile.study_group as keyof typeof groupSubjectIds]?.forEach((id) => activeSubjectIds.add(id));
     activeSubjectIds.add(String(profile.religion_subject_id));
     activeSubjectIds.add(String(profile.fourth_subject_id));
@@ -52,13 +53,24 @@ export async function GET() {
     return [table, error ? [] : data ?? []] as const;
   }));
   const reference = Object.fromEntries(referenceResults) as Record<string, Record<string, unknown>[]>;
-  reference.subjects = (reference.subjects ?? []).filter((row) => activeSubjectIds.has(String(row.id)));
-  reference.chapters = (reference.chapters ?? []).filter((row) => activeSubjectIds.has(String(row.subject_id)));
-  reference.marks_distributions = (reference.marks_distributions ?? []).filter((row) => activeSubjectIds.has(String(row.subject_id)));
-  reference.curated_textbooks = (reference.curated_textbooks ?? []).filter((row) => activeSubjectIds.has(String(row.subject_id)) && String(row.language ?? "bn") === "bn");
-  const chapters = (reference.chapters ?? []) as Array<{ id: string }>;
+  const catalogSubjects = reference.subjects ?? [];
+  const catalogChapters = reference.chapters ?? [];
+  const catalogMarks = reference.marks_distributions ?? [];
+  const catalogTextbooks = (reference.curated_textbooks ?? []).filter((row) => String(row.language ?? "bn") === "bn");
+
+  // A new student needs the complete reference catalog while choosing a group,
+  // religion, and fourth subject. Once the profile is complete, send only that
+  // student's subjects so the rest of the app remains scoped to their course.
+  reference.subjects = hasAcademicProfile ? catalogSubjects.filter((row) => activeSubjectIds.has(String(row.id))) : catalogSubjects;
+  reference.chapters = hasAcademicProfile ? catalogChapters.filter((row) => activeSubjectIds.has(String(row.subject_id))) : catalogChapters;
+  reference.marks_distributions = hasAcademicProfile ? catalogMarks.filter((row) => activeSubjectIds.has(String(row.subject_id))) : catalogMarks;
+  reference.curated_textbooks = hasAcademicProfile ? catalogTextbooks.filter((row) => activeSubjectIds.has(String(row.subject_id))) : catalogTextbooks;
+
+  // User-owned defaults should still be created only for the subjects currently
+  // selected (common subjects until the academic profile is complete).
+  const chapters = catalogChapters.filter((row) => activeSubjectIds.has(String(row.subject_id))) as Array<{ id: string }>;
   const exams = (reference.exams ?? []) as Array<{ id: string; name: string; starts_on: string; ends_on: string }>;
-  const referenceSubjects = (reference.subjects ?? []) as Array<{ id: string }>;
+  const referenceSubjects = catalogSubjects.filter((row) => activeSubjectIds.has(String(row.id))) as Array<{ id: string }>;
 
   const [{ data: existingPreferences }, { data: existingEvents }, { data: existingPlanning }, { data: existingLearningPreferences }, { data: existingAssessments }, { data: existingWorkflows }] = await Promise.all([
     supabase.from("chapter_preferences").select("chapter_id").eq("user_id", userId),
