@@ -93,8 +93,6 @@ async function runSeed() {
     ["nctb-2026-civics", "civics", "পৌরনীতি ও নাগরিকতা", "https://drive.google.com/file/d/1h5OQIDlC4TuOQjbaqlTVXa7QKUhAAAla/view?usp=drive_link", null, 210],
     ["nctb-2026-bgs", "bgs", "বাংলাদেশ ও বিশ্বপরিচয়", "https://drive.google.com/file/d/1y8nVlBXO8JA7yCVka_kaf2xFQZl5alS2/view?usp=drive_link", null, 220],
     ["nctb-2026-hinduism", "hinduism", "হিন্দুধর্ম ও নৈতিক শিক্ষা", "https://drive.google.com/file/d/1hoqjWrhNdcWEcOmzX5x9-g9Zeav85RTl/view?usp=drive_link", null, 230],
-    ["nctb-2026-buddhism", "buddhism", "বৌদ্ধধর্ম ও নৈতিক শিক্ষা", "https://drive.google.com/file/d/16414iujNW-t1KgfPQ-6DP_JD96jmMNFy/view?usp=drive_link", null, 240],
-    ["nctb-2026-christianity", "christianity", "খ্রিষ্টধর্ম ও নৈতিক শিক্ষা", "https://drive.google.com/file/d/1wOP30jDvxRi1OlerfLcOkLLLzfUXsjhl/view?usp=drive_link", null, 250],
     ["nctb-2026-home-science", "home-science", "গার্হস্থ্যবিজ্ঞান", "https://drive.google.com/file/d/1RaKjS79_GO6mP3nZ8fLTyqFa5s5fBdMm/view?usp=drive_link", null, 260],
   ].map(([id, subject_id, title, url, alternate_url, sort_order]) => ({ id: String(id), subject_id: String(subject_id), title: String(title), board: "NCTB", academic_year: 2026, language: "bn", url: String(url), alternate_url: alternate_url ? String(alternate_url) : null, source_page: "https://nctb.gov.bd/pages/static-pages/695b99afc4774958d7b70612", source_label: "NCTB 2026 official textbook list", note: "Bangla-version Class 9–10 textbook.", sort_order: Number(sort_order), active: true }));
 

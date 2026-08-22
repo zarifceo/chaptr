@@ -65,7 +65,7 @@ const profilePatch = z.object({
   subject_strengths: z.record(z.string().min(1).max(80), z.enum(["strongest", "very-strong", "moderate", "toughest"])).optional(),
   most_difficult_subject_id: z.string().min(1).max(80).nullable().optional(),
   study_group: z.enum(["science", "commerce", "humanities"]).nullable().optional(),
-  religion_subject_id: z.enum(["islam", "hinduism", "buddhism", "christianity"]).nullable().optional(),
+  religion_subject_id: z.enum(["islam", "hinduism"]).nullable().optional(),
   fourth_subject_id: z.enum(["higher-mathematics", "agriculture", "home-science"]).nullable().optional(),
   academic_year: z.number().int().min(2025).max(2035).optional(),
   book_language: z.literal("bn").optional(),

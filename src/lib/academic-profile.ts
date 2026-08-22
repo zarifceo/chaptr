@@ -11,8 +11,6 @@ export const groupSubjectIds: Record<StudyGroup, readonly string[]> = {
 export const religionSubjectIds: Record<ReligionSubject, string> = {
   islam: "islam",
   hinduism: "hinduism",
-  buddhism: "buddhism",
-  christianity: "christianity",
 };
 
 export const fourthSubjectIds: Record<FourthSubject, string> = {
@@ -30,8 +28,6 @@ export const studyGroupOptions: Array<{ id: StudyGroup; label: string; detail: s
 export const religionOptions: Array<{ id: ReligionSubject; subjectId: string; label: string; banglaLabel: string }> = [
   { id: "islam", subjectId: "islam", label: "Islam and Moral Education", banglaLabel: "ইসলাম ও নৈতিক শিক্ষা" },
   { id: "hinduism", subjectId: "hinduism", label: "Hindu Religion and Moral Education", banglaLabel: "হিন্দুধর্ম ও নৈতিক শিক্ষা" },
-  { id: "buddhism", subjectId: "buddhism", label: "Buddhist Religion and Moral Education", banglaLabel: "বৌদ্ধধর্ম ও নৈতিক শিক্ষা" },
-  { id: "christianity", subjectId: "christianity", label: "Christian Religion and Moral Education", banglaLabel: "খ্রিষ্টধর্ম ও নৈতিক শিক্ষা" },
 ];
 
 export const fourthSubjectOptions: Array<{ id: FourthSubject; subjectId: string; label: string; detail: string }> = [

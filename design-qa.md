@@ -27,3 +27,15 @@
 | In-app study calendar | Ready for live verification | Verify task creation, date placement, month navigation, and opening scheduled tasks from the calendar. |
 | Vercel production URL | Ready to deploy | Link this local project to the connected Vercel project and supply the same environment values. |
 
+## Home hierarchy correction — 22 August 2026
+
+- Source visual truth: `C:\Users\iftkr\OneDrive\Pictures\Screenshots\Screenshot 2026-08-22 134817.png`.
+- Implementation evidence: `audit-evidence/13-home-layout-local.png`.
+- Side-by-side comparison: `audit-evidence/14-home-layout-comparison.png`.
+- Viewport: 1919 × 950 browser viewport; screenshots were normalized to equal widths for comparison.
+- State: representative Finance recommendation, 45 planned minutes, 1 completed minute, Full-Syllabus Test, and SSC 2027 countdowns.
+- Full-view result: Best Next Move leads the page and spans the dashboard width; the three summaries sit directly below it without the previous empty right column.
+- Focused-region result: Today's Target reports `aria-valuenow="2"` and its rendered fill is `width: 2%`; no browser console errors were present.
+- Iteration history: first implementation pass passed the focused visual and behavior check; no refinement pass was required.
+- Final result: passed.
+

@@ -3,7 +3,7 @@ export type MasteryStatus = "not-started" | "learning" | "practising" | "exam-re
 export type ChapterDifficulty = 1 | 2 | 3 | 4 | 5;
 export type WorkflowKind = "notebooklm" | "accounting" | "bangla-1" | "bangla-2" | "english" | "mathematics";
 export type StudyGroup = "science" | "commerce" | "humanities";
-export type ReligionSubject = "islam" | "hinduism" | "buddhism" | "christianity";
+export type ReligionSubject = "islam" | "hinduism";
 export type FourthSubject = "higher-mathematics" | "agriculture" | "home-science";
 export type SubjectCategory = "common" | "group" | "religion" | "fourth";
 

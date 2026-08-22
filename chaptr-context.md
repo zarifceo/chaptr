@@ -10,7 +10,7 @@ Chaptr is a private, light-mode study workspace for Bangladesh SSC 2027 students
 
 Chaptr is not a generic task manager and should not present itself as one. The central promise is: **tell the student what to do now, explain why it matters, let them study in their own way, and preserve evidence for the next decision.** The Home experience therefore combines planning, Today, evidence, repair work, and the close-the-loop journal flow rather than treating each feature as an isolated dashboard widget.
 
-The academic model must support **Science, Commerce, and Humanities/Arts**, four religion subjects, and one fourth subject. The catalog is the Bangla-version SSC/Class 9–10 curriculum [1][6]. The app must never assume that every student finds Mathematics difficult. Each student may choose exactly one personal most-difficult subject; recommendations use that signal together with observed evidence and other preferences. Mathematics is not a universal “hardest” or “superior” subject in product copy or scoring.
+The academic model must support **Science, Commerce, and Humanities/Arts**, Islam and Hinduism religion subjects, and one fourth subject. The catalog is the Bangla-version SSC/Class 9–10 curriculum [1][6]. The app must never assume that every student finds Mathematics difficult. Each student may choose exactly one personal most-difficult subject; recommendations use that signal together with observed evidence and other preferences. Mathematics is not a universal “hardest” or “superior” subject in product copy or scoring.
 
 All student-owned product state is database-backed. Do not introduce `localStorage`, IndexedDB, an offline cache, a browser-only queue, or local-only fallback state for tasks, progress, journals, resources, settings, timers, onboarding, or plans. In-memory React state is expected for rendering, and Supabase Auth necessarily uses browser cookies/session mechanisms, but product data must survive through Supabase rather than through the browser.
 
@@ -153,7 +153,7 @@ The profile determines the active subject set. The common subjects are Bangla 1s
 | Commerce | Business, Finance, Accounting, General Science |
 | Humanities / Arts | Geography and Environment, Economics, History of Bangladesh and World Civilization, Civics and Citizenship |
 
-Religion choices are Islam, Hinduism, Buddhism, and Christianity. Fourth-subject choices are Higher Mathematics, Agriculture Studies, and Home Science. `src/lib/academic-profile.ts` owns the mapping and `subjectsForProfile()` filtering. Do not put group/religion/fourth-subject logic in individual page components; use these helpers and the server bootstrap filter.
+Religion choices are Islam and Hinduism. Fourth-subject choices are Higher Mathematics, Agriculture Studies, and Home Science. `src/lib/academic-profile.ts` owns the mapping and `subjectsForProfile()` filtering. Do not put group/religion/fourth-subject logic in individual page components; use these helpers and the server bootstrap filter.
 
 All curated textbooks are currently marked as Bangla (`bn`) and point to the seeded NCTB reference metadata. The textbook rows include source page, source label, optional alternate URL, academic year, ordering, and a note that the item is a Bangla-version Class 9–10 textbook. Links are reference content, not permission to copy private or copyrighted materials into the application without review.
 

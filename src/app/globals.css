@@ -3793,14 +3793,49 @@ label {
 }
 
 @media (max-width: 560px) {
+  .syllabus-page .section-title {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 0;
+    gap: 0;
+    margin-bottom: 12px;
+  }
+
+  .syllabus-page .section-title > div {
+    display: contents;
+  }
+
+  .syllabus-page .section-title > div > small {
+    order: 2;
+    margin-top: 18px;
+  }
+
+  .syllabus-page .section-title h2 {
+    order: 3;
+    margin: 5px 0 0;
+  }
+
+  .syllabus-page .section-title .syllabus-tools {
+    order: 1;
+    margin: 0 !important;
+  }
+
   .syllabus-tools {
     align-items: stretch;
     flex-direction: column;
+    gap: 8px;
   }
 
   .syllabus-tools .search,
   .syllabus-tool-group {
     width: 100%;
+  }
+
+  .syllabus-tools .search {
+    flex: 0 0 44px;
+    min-height: 44px;
+    padding-inline: 12px;
   }
 
   .syllabus-tool-group {
@@ -6412,10 +6447,19 @@ label {
 }
 
 
-/* Settings page system: align every card to one content column with predictable actions. */
+/* Settings page hierarchy: one deliberate reading column prevents mismatched card heights and dead grid cells. */
 .settings-page .settings {
+  grid-template-columns: minmax(0, 1fr) !important;
+  width: min(1120px, 100%);
+  margin-inline: auto;
   align-items: start;
   grid-auto-rows: min-content;
+  gap: 16px;
+}
+
+.settings-page > .section-title {
+  width: min(1120px, 100%);
+  margin-inline: auto;
 }
 
 .settings-page .settings > article {
@@ -6449,22 +6493,26 @@ label {
 }
 
 .settings-page .settings > article > .settings-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-top: 10px;
 }
 
 .settings-page .settings > article > .settings-actions button,
 .settings-page .settings > article > button {
-  width: 100%;
+  width: auto;
   min-width: 0;
   min-height: 42px;
   justify-content: center;
   padding-inline: 10px !important;
   line-height: 1.25;
   white-space: normal;
+}
+
+.settings-page .settings > article > .settings-actions button {
+  flex: 0 1 260px;
 }
 
 .settings-page .settings > article > .inline-fields {
@@ -6488,7 +6536,7 @@ label {
 .settings-strength-list {
   grid-column: 2 / -1;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 12px;
 }
@@ -6572,6 +6620,7 @@ label {
 
   .settings-page .settings {
     grid-template-columns: 1fr !important;
+    width: 100%;
     gap: 12px;
   }
 
@@ -6614,9 +6663,14 @@ label {
   }
 
   .settings-page .settings > article > .settings-actions {
+    display: grid;
     grid-template-columns: 1fr;
     gap: 7px;
     margin-top: 9px;
+  }
+
+  .settings-page .settings > article > .settings-actions button {
+    width: 100%;
   }
 
   .settings-page .settings > article > .settings-actions button,
@@ -7438,16 +7492,34 @@ label {
   }
 }
 
-/* Home dashboard hierarchy: summaries first, task work next, insight sections last. */
+/* Home dashboard hierarchy: best next move first, summaries directly below it. */
+.dashboard-page .hero-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
 .home-summary-cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 24px;
+  margin: 12px 0 24px;
 }
 .home-summary-cards .mini-card {
   min-width: 0;
   margin: 0;
+}
+.home-target-card .meter {
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3, #e8edf5);
+}
+.home-target-card .meter > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #0ea5a8;
+  transition: width 220ms var(--ease-out);
 }
 .home-countdown-card h3 {
   margin: 6px 0 4px;
@@ -7481,7 +7553,7 @@ label {
     display: flex;
     flex-direction: column;
   }
-  .home-page > .home-summary-cards {
+  .home-page > .dashboard-page {
     order: 1;
   }
   .home-page > .quick-start-panel,
@@ -7491,13 +7563,10 @@ label {
   .home-page > .today-page {
     order: 3;
   }
-  .home-page > .dashboard-page {
-    order: 4;
-  }
   .home-summary-cards {
     grid-template-columns: 1fr;
     gap: 10px;
-    margin-bottom: 18px;
+    margin: 10px 0 18px;
   }
   .home-summary-cards .mini-card {
     padding: 16px;
@@ -7599,42 +7668,48 @@ label {
   border-color: rgba(22,126,250,.48);
   background: #f7fbff;
 }
-.support-request-form label.support-checkbox > input[type="checkbox"] {
-  appearance: none;
-  width: 18px !important;
-  height: 18px !important;
-  min-width: 18px !important;
-  min-height: 18px !important;
-  flex: 0 0 18px;
-  margin: 2px 0 0 !important;
-  padding: 0 !important;
-  border: 1.5px solid #aebfd3;
-  border-radius: 4px;
-  background: #fff;
-  box-shadow: none !important;
-  cursor: pointer;
-  position: relative;
+.support-request-form label.support-checkbox:has(> input[type="checkbox"]:checked) {
+  border-color: rgba(22,126,250,.7);
+  background: var(--brand-soft,#eaf3ff);
 }
-.support-request-form label.support-checkbox > input[type="checkbox"]:checked {
+.support-request-form label.support-checkbox > input[type="checkbox"] {
+  position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 1px !important;
+  min-height: 1px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0;
+}
+.support-request-form label.support-checkbox > .support-checkbox-control {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin-top: 1px;
+  color: transparent;
+  border: 1.5px solid #aebfd3;
+  border-radius: 5px;
+  background: #fff;
+  transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease;
+}
+.support-request-form label.support-checkbox > .support-checkbox-control svg {
+  width: 14px;
+  height: 14px;
+}
+.support-request-form label.support-checkbox > input[type="checkbox"]:checked + .support-checkbox-control {
   border-color: var(--brand,#167EFA);
   background: var(--brand,#167EFA);
+  color: #fff;
+  transform: scale(1.04);
 }
-.support-request-form label.support-checkbox > input[type="checkbox"]:checked::after {
-  content: "";
-  position: absolute;
-  left: 5px;
-  top: 1px;
-  width: 5px;
-  height: 10px;
-  border: solid #fff;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-.support-request-form label.support-checkbox > input[type="checkbox"]:focus-visible {
+.support-request-form label.support-checkbox > input[type="checkbox"]:focus-visible + .support-checkbox-control {
   outline: 3px solid rgba(22,126,250,.2);
   outline-offset: 2px;
 }
-.support-request-form label.support-checkbox > span {
+.support-request-form label.support-checkbox > .support-checkbox-copy {
   display: grid;
   gap: 3px;
   min-width: 0;
@@ -7908,7 +7983,15 @@ label {
     width: 100%;
   }
   .exam-builder .feature-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
+    gap: 14px;
+  }
+  .exam-builder .feature-heading > div,
+  .exam-builder .focus-task-select {
+    width: 100%;
+    min-width: 0;
   }
   .exam-choice-grid {
     grid-template-columns: 1fr;
@@ -8003,21 +8086,22 @@ label {
     height: 36px;
   }
   .goals-page .goal-row-actions {
-    display: flex !important;
+    display: grid !important;
     grid-column: 2;
-    align-items: center;
-    justify-content: flex-end;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
     gap: 8px;
     padding-top: 10px;
   }
   .goals-page .priority-control,
   .goals-page .goal-difficulty {
-    flex: 0 0 100%;
+    grid-column: 1 / -1;
+    width: 100%;
   }
   .goals-page .complete-inline {
-    flex: 0 1 auto;
-    width: auto;
-    min-width: 148px;
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
     height: 44px;
     min-height: 44px;
     padding: 0 14px;
@@ -8025,18 +8109,19 @@ label {
     white-space: nowrap;
   }
   .goals-page .remove-goal {
-    flex: 0 0 44px;
-    width: 44px;
-    min-width: 44px !important;
+    grid-column: 2;
+    width: 100%;
+    min-width: 0 !important;
     height: 44px;
     min-height: 44px;
-    padding: 0;
+    padding: 0 12px;
     justify-content: center;
   }
+  .goals-page .remove-goal[title="Remove from goal"]::after { content: "Remove"; }
+  .goals-page .remove-goal[title="Restore chapter"]::after { content: "Restore"; }
 }
 @media (max-width: 420px) {
   .goals-page .complete-inline {
-    min-width: 132px;
     padding-inline: 10px;
   }
 }
