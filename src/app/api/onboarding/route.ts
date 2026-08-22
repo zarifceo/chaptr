@@ -71,7 +71,7 @@ const profilePatch = z.object({
   book_language: z.literal("bn").optional(),
   academic_profile_completed: z.boolean().optional(),
   daily_target: z.number().int().min(15).max(600).optional(),
-  onboarding_step: z.number().int().min(0).max(11).optional(),
+  onboarding_step: z.number().int().min(0).max(10).optional(),
   onboarding_completed: z.boolean().optional(),
   quick_start_status: z.enum(["active", "dismissed", "completed"]).optional(),
   learning_preferences: learningPreferencesPatch.optional(),
