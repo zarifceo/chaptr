@@ -7881,6 +7881,11 @@ label {
 }
 
 /* Exam Mode builder: chapter-first setup, resumable state, and explicit question-type evidence. */
+.adaptive-onboarding .adaptive-subject-list .adaptive-subject-row:not(.selected),
+.adaptive-onboarding .onboarding-subject-grid button:not(.selected) {
+  display: none;
+}
+
 .focus-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
