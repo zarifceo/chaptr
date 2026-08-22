@@ -49,6 +49,8 @@ async function runSeed() {
     choice_rule: mark.rule,
     marks: mark.marks,
   }));
+  const markRowsWithoutPart = markRows.filter((mark) => mark.part === null);
+  const markRowsWithPart = markRows.filter((mark) => mark.part !== null);
   const workflowRows = Object.entries(workflowSteps).map(([workflow_kind, steps]) => ({ workflow_kind, steps: [...steps] }));
   const formulaRows = mathsFormulaSeeds.map((formula) => ({
     id: stableUuid(["maths-formula", formula.division, formula.chapterTitle ?? "", formula.title].join("|")),
@@ -101,13 +103,23 @@ async function runSeed() {
 
   const results = await Promise.all([
     admin.from("chapters").upsert(chapterRows),
-    admin.from("marks_distributions").upsert(markRows),
+    admin.from("marks_distributions").upsert(markRowsWithoutPart),
+    admin.from("marks_distributions").upsert(markRowsWithPart, {
+      onConflict: "subject_id,part,question_type",
+    }),
     admin.from("workflow_steps").upsert(workflowRows),
     admin.from("exams").upsert(examRows),
     admin.from("curated_textbooks").upsert(textbookRows),
   ]);
 
-  const tables = ["chapters", "marks_distributions", "workflow_steps", "exams", "curated_textbooks"] as const;
+  const tables = [
+    "chapters",
+    "marks_distributions without parts",
+    "marks_distributions with parts",
+    "workflow_steps",
+    "exams",
+    "curated_textbooks",
+  ] as const;
   results.forEach(({ error }, index) => {
     if (error) throw new Error(`Could not seed ${tables[index]}: ${error.message}`);
   });
