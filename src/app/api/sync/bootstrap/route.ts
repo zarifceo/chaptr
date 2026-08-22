@@ -6,9 +6,9 @@ import { commonSubjectIds, groupSubjectIds } from "@/lib/academic-profile";
 import { policyRequiredResponse } from "@/lib/policy-server";
 
 const referenceTables = ["subjects", "chapters", "marks_distributions", "workflow_steps", "exams", "curated_textbooks"] as const;
-const userTables = ["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "study_resources", "exam_events", "exam_plan_phases", "planning_settings", "adaptive_plan_summaries", "user_profiles", "learning_preferences", "subject_assessments", "recommendation_feedback", "study_workflows", "study_workflow_presets"] as const;
+const userTables = ["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "exam_sessions", "study_resources", "exam_events", "exam_plan_phases", "planning_settings", "adaptive_plan_summaries", "user_profiles", "learning_preferences", "subject_assessments", "recommendation_feedback", "study_workflows", "study_workflow_presets"] as const;
 
-const defaultPlanning = { main_start: "15:00", main_end: "19:00", math_start: "20:00", math_end: "22:00", daily_target: 240, math_days_per_week: 6, agriculture_days_per_week: 4, reminders_enabled: false };
+const defaultPlanning = { study_windows: [{ id: "window-1", start: "09:00", end: "12:00" }], daily_target: 240, reminders_enabled: false };
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
 const defaultWorkflows = studyPhases.map(({ id }) => ({ phase: id, steps: recommendedWorkflows[id] }));
 
