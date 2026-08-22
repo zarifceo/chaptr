@@ -119,8 +119,18 @@ export let marksDistributions: MarksDistribution[] = [
   { subjectId: "finance", questionType: "Creative", rule: "Answer 5 of 8; at least 2 Finance and 2 Banking", marks: 50 }, { subjectId: "finance", questionType: "Short", rule: "Answer 10 of 15; at least 4 from each part", marks: 20 }, { subjectId: "finance", questionType: "MCQ", rule: "Answer all 30", marks: 30 },
   { subjectId: "accounting", questionType: "Financial statement", rule: "Compulsory", marks: 20 }, { subjectId: "accounting", questionType: "Creative", rule: "Answer 4 of 7", marks: 40 }, { subjectId: "accounting", questionType: "Short", rule: "Answer 5 of 7", marks: 10 }, { subjectId: "accounting", questionType: "MCQ", rule: "Answer all 30", marks: 30 },
   { subjectId: "agriculture", part: "Written", questionType: "CQ", rule: "Creative question section", marks: 40 }, { subjectId: "agriculture", part: "Written", questionType: "Short", rule: "Short question section", marks: 10 }, { subjectId: "agriculture", part: "Written", questionType: "MCQ", rule: "MCQ section", marks: 25 }, { subjectId: "agriculture", part: "Practical", questionType: "Practical", rule: "Practical examination", marks: 25 },
-  ...["physics", "chemistry", "biology"].flatMap((subjectId) => [{ subjectId, part: "Written", questionType: "CQ", rule: "Creative question section", marks: 50 }, { subjectId, part: "Written", questionType: "MCQ", rule: "MCQ section", marks: 25 }, { subjectId, part: "Practical", questionType: "Practical", rule: "Practical examination", marks: 25 }]),
-  ...["bgs", "geography", "economics", "history", "civics", "hinduism", "higher-mathematics", "home-science"].flatMap((subjectId) => [{ subjectId, questionType: "Creative", rule: "Creative question section", marks: 50 }, { subjectId, questionType: "Short", rule: "Short question section", marks: 20 }, { subjectId, questionType: "MCQ", rule: "MCQ section", marks: 30 }]),
+  ...["physics", "chemistry", "biology", "higher-mathematics", "home-science"].flatMap((subjectId) => [
+    { subjectId, part: "Written", questionType: "MCQ", rule: "MCQ section", marks: 25 },
+    { subjectId, part: "Written", questionType: "CQ", rule: "Creative question section", marks: 40 },
+    { subjectId, part: "Written", questionType: "SQ", rule: "Short question section", marks: 10 },
+    { subjectId, part: "Practical", questionType: "Practical", rule: "Practical examination", marks: 25 },
+  ]),
+  ...["geography", "economics", "history", "civics", "hinduism"].flatMap((subjectId) => [
+    { subjectId, questionType: "MCQ", rule: "MCQ section", marks: 30 },
+    { subjectId, questionType: "CQ", rule: "Creative question section", marks: 70 },
+  ]),
+  { subjectId: "bgs", questionType: "MCQ", rule: "MCQ section", marks: 30 },
+  { subjectId: "bgs", questionType: "CQ", rule: "Creative question section", marks: 70 },
 ];
 
 export type AcademicExam = { id: string; name: string; start: string; end: string };
