@@ -1,5 +1,6 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import type { Chapter, Mistake, MockResult, RecommendationFeedback, StudyTask, Subject, SubjectAssessment, LearningMethod, StrengthLevel } from "./types";
+import { isMathematicalSubject, mathematicalStages } from "./study-workflows";
 
 const masteryGap = { "not-started": 100, learning: 72, practising: 42, "needs-revision": 78, "exam-ready": 8 } as const;
 
@@ -12,6 +13,8 @@ type RecommendationEvidence = {
   subjectStrengths?: Record<string, StrengthLevel>;
   examDate?: string;
   targetGrade?: string;
+  preferredMethods?: LearningMethod[];
+  tasks?: StudyTask[];
 };
 
 const methodLabels: Record<LearningMethod, string> = {
@@ -35,8 +38,8 @@ function feedbackAdjustment(subjectId: string, feedback: RecommendationFeedback[
   return recent.reduce((total, item) => total + (item.feedbackType === "too-hard" ? 7 : item.feedbackType === "useful" ? 3 : item.feedbackType === "too-easy" ? -5 : item.feedbackType === "not-useful" ? -3 : -1), 0);
 }
 
-function preferredMethod(assessment?: SubjectAssessment) {
-  return assessment?.preferredMethods?.[0] ?? "textbook";
+function preferredMethod(assessment?: SubjectAssessment, preferredMethods: LearningMethod[] = []) {
+  return assessment?.preferredMethods?.[0] ?? preferredMethods[0] ?? "textbook";
 }
 
 function workflowPhaseFor(chapter: Chapter): "learn" | "revise" | "practice" {
@@ -64,7 +67,7 @@ export function scoreChapter(subject: Subject, chapter: Chapter, now = new Date(
   const recentEvidence = Math.max(accuracyGap, mockGap, hasOpenMistake ? 100 : 0);
   const adjustment = feedbackAdjustment(subject.id, evidence.feedback);
   const score = urgency * .16 + difficulty * .22 + priority * .20 + masteryGap[chapter.status] * .20 + review * .12 + recentEvidence * .10 + adjustment;
-  const method = preferredMethod(assessment);
+  const method = preferredMethod(assessment, evidence.preferredMethods);
   const reasons = [
     evidence.mostDifficultSubjectId === subject.id ? "your selected difficult subject" : strength ? `your ${strength.replace("-", " ")} self-rating` : chapter.difficulty >= 4 ? "chapter difficulty" : "balanced coverage",
     assessment?.priority === 5 ? "your high priority setting" : assessment?.priority === 1 ? "your low priority setting" : null,
@@ -86,21 +89,32 @@ export function recommendTasks(subjects: Subject[], chapters: Chapter[], evidenc
     const scored = scoreChapter(subject, chapter, new Date(), evidence);
     const assessment = assessmentFor(subject.id, evidence.assessments);
     const method = scored.studyMethod;
-    const duration = Math.max(30, chapter.difficulty >= 4 ? 45 : assessment?.difficulty && assessment.difficulty >= 4 ? 45 : 35);
+    const mathematical = isMathematicalSubject(subject.id);
+    const completedStages = mathematical
+      ? (evidence.tasks ?? []).filter((task) => task.chapterId === chapter.id && task.workflowGroupId === `math-${chapter.id}` && task.workflowStage && (task.status === "completed" || task.status === "skipped")).map((task) => task.workflowStage ?? 0)
+      : [];
+    const completedStage = completedStages.length ? Math.max(...completedStages) : 0;
+    const stage = mathematical && completedStage < mathematicalStages.length ? mathematicalStages[completedStage] : undefined;
+    const stageMethod = stage && stage.compatibleMethods.includes(method) ? method : stage?.defaultMethod;
+    const duration = stage?.duration ?? Math.max(30, chapter.difficulty >= 4 ? 45 : assessment?.difficulty && assessment.difficulty >= 4 ? 45 : 35);
     return {
-      id: `task-${chapter.id}`,
+      id: stage ? `task-${chapter.id}-${stage.id}` : `task-${chapter.id}`,
       subjectId: subject.id,
       chapterId: chapter.id,
-      title: chapter.title,
+      title: stage ? `${chapter.title} · ${stage.label}` : chapter.title,
       plannedTime: "Unscheduled",
       duration,
       origin: "recommended" as const,
       status: "planned" as const,
       currentStep: 0,
-      reason: scored.explanation,
+      reason: stage ? `${scored.explanation} · Mathematical chapter stage ${mathematicalStages.indexOf(stage) + 1} of ${mathematicalStages.length}` : scored.explanation,
       priorityScore: scored.score,
-      studyMethod: method,
-      workflowPhase: workflowPhaseFor(chapter),
+      studyMethod: stageMethod ?? method,
+      workflowPhase: stage?.phase ?? workflowPhaseFor(chapter),
+      workflowStage: stage ? mathematicalStages.indexOf(stage) + 1 : undefined,
+      workflowStageCount: stage ? mathematicalStages.length : undefined,
+      workflowStageLabel: stage?.label,
+      workflowGroupId: stage ? `math-${chapter.id}` : undefined,
       recommendationFactors: scored.factors,
     };
   }).sort((a, b) => b.priorityScore - a.priorityScore);

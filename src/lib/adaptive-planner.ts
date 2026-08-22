@@ -1,6 +1,7 @@
 import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import type { Chapter, ChapterPreference, Mistake, MockResult, PlanningSettings, StudyTask, Subject, LearningPreferences, SubjectAssessment, RecommendationFeedback, StrengthLevel } from "./types";
 import { recommendTasks } from "./recommendations";
+import { isMathematicalSubject } from "./study-workflows";
 import { isBangladeshWeekend } from "./week-schedule";
 
 type AdaptivePlanInput = {
@@ -83,13 +84,9 @@ function priorityBonus(priority?: number) {
   return Math.max(0, ((priority ?? 3) - 1) * 4);
 }
 
-function protectedSubjectBonus(subjectId: string, dayOfWeek: number, settings: PlanningSettings, mostDifficultSubjectId?: string, subjectStrengths?: Record<string, StrengthLevel>) {
-  const agricultureDays = Math.max(1, Math.min(7, settings.agricultureDaysPerWeek));
-  const agricultureActive = [1, 2, 4, 6].includes(dayOfWeek) && agricultureDays >= 4;
+function protectedSubjectBonus(subjectId: string, mostDifficultSubjectId?: string, subjectStrengths?: Record<string, StrengthLevel>) {
   const selfRatingBonus = subjectStrengths?.[subjectId] === "toughest" ? 9 : subjectStrengths?.[subjectId] === "moderate" ? 5 : subjectStrengths?.[subjectId] === "very-strong" ? 2 : 0;
-  if (mostDifficultSubjectId === subjectId) return 14 + selfRatingBonus;
-  if (subjectId === "agriculture" && agricultureActive) return 10 + selfRatingBonus;
-  return selfRatingBonus;
+  return mostDifficultSubjectId === subjectId ? 14 + selfRatingBonus : selfRatingBonus;
 }
 
 function scheduleTask(task: StudyTask, dateKey: string, startMinutes: number, rationale: string) {
@@ -117,7 +114,7 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     const chapter = chapters.get(task.chapterId);
     const subject = input.subjects.find((item) => item.id === task.subjectId);
     if (!chapter || !subject) continue;
-    const bonus = protectedSubjectBonus(task.subjectId, now.getDay(), input.settings, input.mostDifficultSubjectId, input.subjectStrengths) + priorityBonus(assessmentsBySubject.get(task.subjectId)?.priority);
+    const bonus = protectedSubjectBonus(task.subjectId, input.mostDifficultSubjectId, input.subjectStrengths) + priorityBonus(assessmentsBySubject.get(task.subjectId)?.priority);
     candidates.push({ task, score: task.priorityScore + (task.pinned ? 70 : 0) + bonus, rationale: task.pinned ? "Pinned unfinished work" : `Continue unfinished ${subject.shortName} work`, source: "existing" });
   }
 
@@ -136,7 +133,7 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
       chapterId: chapter.id,
       title: `Reattempt: ${mistake.prompt}`,
       plannedTime: "Unscheduled",
-      duration: subject.id === "mathematics" ? 30 : 25,
+      duration: isMathematicalSubject(subject.id) ? 30 : 25,
       origin: "recommended",
       pinned: true,
       status: "planned",
@@ -150,19 +147,19 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     candidates.push({ task: revisionTask, score: revisionTask.priorityScore, rationale: `Repair ${subject.shortName}: ${mistake.errorType}`, source: "revision" });
   }
 
-  const recommendations = recommendTasks(input.subjects, input.chapters.filter((chapter) => !excluded.has(chapter.id)), { mistakes: input.mistakes, mocks: input.mocks, assessments: input.assessments, feedback: input.feedback, mostDifficultSubjectId: input.mostDifficultSubjectId, subjectStrengths: input.subjectStrengths });
+  const recommendations = recommendTasks(input.subjects, input.chapters.filter((chapter) => !excluded.has(chapter.id)), { mistakes: input.mistakes, mocks: input.mocks, assessments: input.assessments, feedback: input.feedback, mostDifficultSubjectId: input.mostDifficultSubjectId, subjectStrengths: input.subjectStrengths, preferredMethods: input.learningPreferences?.preferredMethods, tasks: input.tasks });
   for (const task of recommendations) {
     const chapter = chapters.get(task.chapterId);
     const subject = input.subjects.find((item) => item.id === task.subjectId);
-    if (!chapter || !subject || openChapterIds.has(task.chapterId) || chapter.status === "exam-ready") continue;
+    if (!chapter || !subject || openChapterIds.has(task.chapterId) || (chapter.status === "exam-ready" && !task.workflowStage)) continue;
     const preference = preferences.get(chapter.id);
     const assessment = input.assessments?.find((item) => item.subjectId === task.subjectId);
     const methodBonus = input.learningPreferences?.preferredMethods.includes(task.studyMethod ?? "textbook") ? 8 : 0;
-    const score = task.priorityScore + protectedSubjectBonus(task.subjectId, now.getDay(), input.settings, input.mostDifficultSubjectId, input.subjectStrengths) + (preference?.priority ?? 3) * 3 + (assessment?.priority ?? 3) * 2 + methodBonus;
+    const score = task.priorityScore + protectedSubjectBonus(task.subjectId, input.mostDifficultSubjectId, input.subjectStrengths) + (preference?.priority ?? 3) * 3 + (assessment?.priority ?? 3) * 2 + methodBonus;
     candidates.push({       task: { ...task, id: `adaptive-${task.chapterId}-${dateKey}` }, score, rationale: `Adaptive recommendation · ${task.reason}`, source: "recommendation" });
   }
 
-  const deduped = [...new Map(candidates.map((candidate) => [candidate.task.chapterId + ":" + candidate.source, candidate])).values()]
+  const deduped = [...new Map(candidates.map((candidate) => [candidate.task.chapterId + ":" + candidate.source + ":" + (candidate.task.workflowStage ?? candidate.task.id), candidate])).values()]
     .sort((a, b) => b.score - a.score || Number(Boolean(b.task.pinned)) - Number(Boolean(a.task.pinned)));
   const selectedCandidates: PlanCandidate[] = [];
   let remaining = budget;
@@ -174,24 +171,24 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     if (remaining <= 0) break;
   }
 
-  const mainStart = timeToMinutes(input.settings.mainStart);
-  const mainEnd = timeToMinutes(input.settings.mainEnd);
-  const mathStart = timeToMinutes(input.settings.mathStart);
-  const mathEnd = timeToMinutes(input.settings.mathEnd);
-  let mainCursor = mainStart;
-  let mathCursor = mathStart;
+  const configuredWindows = input.settings.studyWindows
+    .map((window) => ({ ...window, startMinutes: timeToMinutes(window.start), endMinutes: timeToMinutes(window.end) }))
+    .filter((window) => window.endMinutes > window.startMinutes);
+  const windows = configuredWindows.length ? configuredWindows : [{ id: "window-1", startMinutes: 9 * 60, endMinutes: 12 * 60 }];
+  const cursors = windows.map((window) => window.startMinutes);
   const selected: StudyTask[] = [];
   for (const candidate of selectedCandidates) {
-    const isMath = candidate.task.subjectId === "mathematics";
-    const cursor = isMath ? mathCursor : mainCursor;
-    const limit = isMath ? mathEnd : mainEnd;
-    if (cursor + candidate.task.duration > limit) {
-      rationale.push(`${candidate.task.title} was deferred because it would exceed the configured ${isMath ? "Maths" : "main"} study window.`);
-      continue;
+    let scheduled = false;
+    for (let index = 0; index < windows.length; index += 1) {
+      const window = windows[index];
+      const cursor = cursors[index];
+      if (cursor + candidate.task.duration > window.endMinutes) continue;
+      selected.push(scheduleTask(candidate.task, dateKey, cursor, candidate.rationale));
+      cursors[index] = cursor + candidate.task.duration + 10;
+      scheduled = true;
+      break;
     }
-    selected.push(scheduleTask(candidate.task, dateKey, cursor, candidate.rationale));
-    if (isMath) mathCursor += candidate.task.duration + 10;
-    else mainCursor += candidate.task.duration + 10;
+    if (!scheduled) rationale.push(`${candidate.task.title} was deferred because it would exceed the configured study windows.`);
   }
   const selectedIds = new Set(selected.map((task) => task.id));
   const activeIds = new Set(openTasks.map((task) => task.id));
@@ -204,8 +201,6 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
   const allTasks = [...generated, ...updatedTasks];
   const deferredCount = input.tasks.filter((task) => activeIds.has(task.id) && !selectedIds.has(task.id) && !task.pinned).length;
   if (revisionIds.size) rationale.push(`${revisionIds.size} due revision${revisionIds.size === 1 ? "" : "s"} placed first.`);
-  if (selected.some((task) => task.subjectId === "mathematics")) rationale.push("Mathematics was protected in the plan.");
-  if (selected.some((task) => task.subjectId === "agriculture")) rationale.push("Agriculture cadence was preserved.");
   if (deferredCount) rationale.push(`${deferredCount} lower-priority task${deferredCount === 1 ? " was" : "s were"} moved to tomorrow.`);
   if (!selected.length) rationale.push("No task fit the current time budget; increase available minutes or add a revision item.");
 

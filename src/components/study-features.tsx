@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, BookOpen, Books, CheckCircle, Exam, LinkSimple, Pause, Play, Plus, Timer, Trash, UploadSimple, X } from "@phosphor-icons/react";
+import { ArrowRight, BookOpen, Books, CheckCircle, LinkSimple, Pause, Play, Plus, Timer, Trash, UploadSimple, X } from "@phosphor-icons/react";
 import { chapters as seedChapters, subjects, orderChapters } from "@/lib/academic-data";
-import type { Chapter, ChapterEvidence, CuratedTextbook, JournalEntry, Mistake, ResourceKind, StudyResource, StudySession, StudyTask } from "@/lib/types";
+import type { Chapter, ChapterEvidence, CuratedTextbook, ExamSession, JournalEntry, Mistake, ResourceKind, StudyResource, StudySession, StudyTask } from "@/lib/types";
 
 const bySubject = (id: string) => subjects.find((subject) => subject.id === id)!;
 const byChapter = (id: string, list = seedChapters) => list.find((chapter) => chapter.id === id)!;
@@ -160,22 +160,81 @@ export function SyllabusEvidenceMap({ chapters, sessions, entries, mistakes, res
 }
 
 
-export function ExamModeFocus({ tasks, activeTaskId, onClose, onSaveSession, onUpdateTask }: { tasks: StudyTask[]; activeTaskId?: string | null; onClose: () => void; onSaveSession: (session: StudySession) => void; onUpdateTask: (task: StudyTask) => void }) {
-  const candidates = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped");
-  const [taskId, setTaskId] = useState(activeTaskId ?? candidates[0]?.id ?? "");
-  const task = candidates.find((item) => item.id === taskId) ?? candidates[0];
-  const [running, setRunning] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-  const [pauseSeconds, setPauseSeconds] = useState(0);
-  const [startedAt, setStartedAt] = useState<string | null>(null);
-  const [attempted, setAttempted] = useState(0);
-  const [correct, setCorrect] = useState(0);
-  useEffect(() => { if (!running) return; const id = window.setInterval(() => setSeconds((value) => value + 1), 1000); return () => window.clearInterval(id); }, [running]);
-  useEffect(() => { if (!running && startedAt && seconds > 0) { const id = window.setInterval(() => setPauseSeconds((value) => value + 1), 1000); return () => window.clearInterval(id); } }, [running, startedAt, seconds]);
-  const begin = () => { if (!startedAt) setStartedAt(new Date().toISOString()); setRunning(true); if (task) onUpdateTask({ ...task, status: "in-progress" }); };
-  const finish = () => { if (!task || !startedAt) return; const endedAt = new Date().toISOString(); onSaveSession({ id: crypto.randomUUID(), taskId: task.id, subjectId: task.subjectId, chapterId: task.chapterId, mode: "exam", startedAt, endedAt, focusedSeconds: seconds, pauseSeconds, completed: true, questionsAttempted: attempted || undefined, questionsCorrect: correct || undefined }); onUpdateTask({ ...task, focusedSeconds: (task.focusedSeconds ?? 0) + seconds, status: "in-progress" }); onClose(); };
-  if (!task) return <main id="main-content" tabIndex={-1} className="page focus-page"><div className="focus-empty"><Exam size={42} /><h2>No open task to enter exam mode.</h2><p>Add or schedule a task first, then return here for a timed attempt.</p><button className="solid-cta" onClick={onClose}><ArrowRight />Return to Today</button></div></main>;
-  return <main id="main-content" tabIndex={-1} className="page focus-page"><section className="focus-hero"><div className="focus-kicker"><span className={`subject-token ${bySubject(task.subjectId).accent}`}>{bySubject(task.subjectId).shortName.slice(0, 2)}</span><div><small>{bySubject(task.subjectId).shortName}</small><h2>{task.title}</h2></div></div><label className="focus-task-select">Change task<select value={task.id} onChange={(event) => { setTaskId(event.target.value); setRunning(false); setStartedAt(null); setSeconds(0); setPauseSeconds(0); }}>{candidates.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}</select></label></section><section className="focus-clock"><small>{running ? "FOCUSING NOW" : startedAt ? "PAUSED" : "READY WHEN YOU ARE"}</small><strong>{formatClock(seconds)}</strong><p>Pause time: {formatClock(pauseSeconds)}</p><div className="focus-actions">{running ? <button className="accent" onClick={() => setRunning(false)}><Pause weight="fill" />Pause</button> : <button className="solid-cta" onClick={begin}><Play weight="fill" />{startedAt ? "Resume" : "Start timed attempt"}</button>}{startedAt && <button className="finish" onClick={finish}><CheckCircle weight="fill" />Finish and save evidence</button>}</div></section><section className="focus-evidence"><article><small>QUESTIONS ATTEMPTED</small><input type="number" min="0" value={attempted} onChange={(event) => { const next = Math.max(0, Number(event.target.value)); setAttempted(next); setCorrect((value) => Math.min(value, next)); }} /></article><article><small>QUESTIONS CORRECT</small><input type="number" min="0" max={attempted} value={correct} onChange={(event) => setCorrect(Math.max(0, Math.min(attempted, Number(event.target.value))))} /></article><article><small>SESSION TARGET</small><strong>{task.duration}m</strong><p>{seconds >= task.duration * 60 ? "Target reached — finish when ready." : `${Math.max(0, task.duration - Math.floor(seconds / 60))} min remaining`}</p></article></section></main>;
+export function ExamModeFocus({ chapters, sessions, onClose, onSaveSession }: { chapters: Chapter[]; sessions: ExamSession[]; onClose: () => void; onSaveSession: (session: ExamSession) => void }) {
+  const openSessions = sessions.filter((session) => session.status !== "completed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const firstChapter = chapters[0];
+  const availableSubjects = subjects.filter((subject) => chapters.some((chapter) => chapter.subjectId === subject.id));
+  const [chapterId, setChapterId] = useState(firstChapter?.id ?? "");
+  const [sessionId, setSessionId] = useState("");
+  const [targetMinutes, setTargetMinutes] = useState(45);
+  const [now, setNow] = useState(() => Date.now());
+  const current = openSessions.find((session) => session.id === sessionId);
+  const running = current?.status === "running";
+  const elapsedSeconds = current ? current.elapsedSeconds + (running && current.lastResumedAt ? Math.max(0, Math.floor((now - new Date(current.lastResumedAt).getTime()) / 1000)) : 0) : 0;
+  useEffect(() => {
+    if (!running) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [running]);
+  useEffect(() => {
+    if (!running || !current) return;
+    const id = window.setInterval(() => {
+      const updatedAt = new Date().toISOString();
+      onSaveSession({ ...current, elapsedSeconds: current.elapsedSeconds + Math.max(0, Math.floor((Date.now() - new Date(current.lastResumedAt ?? updatedAt).getTime()) / 1000)), updatedAt });
+    }, 10000);
+    return () => window.clearInterval(id);
+  }, [current, onSaveSession, running]);
+  const createSession = () => {
+    const chapter = chapters.find((item) => item.id === chapterId);
+    if (!chapter) return undefined;
+    const timestamp = new Date().toISOString();
+    const created: ExamSession = { id: crypto.randomUUID(), subjectId: chapter.subjectId, chapterId: chapter.id, status: "draft", targetMinutes: Math.max(5, Math.min(600, targetMinutes)), elapsedSeconds: 0, mcqAttempted: 0, mcqCorrect: 0, cqAttempted: 0, cqCorrect: 0, sqAttempted: 0, sqCorrect: 0, createdAt: timestamp, updatedAt: timestamp };
+    onSaveSession(created);
+    setSessionId(created.id);
+    return created;
+  };
+  const persist = (patch: Partial<ExamSession>) => {
+    if (!current) return;
+    onSaveSession({ ...current, ...patch, updatedAt: new Date().toISOString() });
+  };
+  const start = () => {
+    const session = current ?? createSession();
+    if (!session) return;
+    const timestamp = new Date().toISOString();
+    onSaveSession({ ...session, status: "running", startedAt: session.startedAt ?? timestamp, lastResumedAt: timestamp, updatedAt: timestamp });
+    setNow(Date.now());
+  };
+  const pause = () => {
+    if (!current) return;
+    const timestamp = new Date().toISOString();
+    onSaveSession({ ...current, status: "paused", elapsedSeconds, lastResumedAt: undefined, updatedAt: timestamp });
+  };
+  const finish = () => {
+    if (!current) return;
+    const timestamp = new Date().toISOString();
+    onSaveSession({ ...current, status: "completed", elapsedSeconds, lastResumedAt: undefined, endedAt: timestamp, updatedAt: timestamp });
+    setSessionId("");
+  };
+  const updateCount = (field: "mcq" | "cq" | "sq", key: "Attempted" | "Correct", value: number) => {
+    if (!current) return;
+    const attemptedKey = `${field}Attempted` as const;
+    const correctKey = `${field}Correct` as const;
+    const nextAttempted = key === "Attempted" ? Math.max(0, value) : current[attemptedKey];
+    const nextCorrect = key === "Correct" ? Math.max(0, Math.min(nextAttempted, value)) : Math.min(current[correctKey], nextAttempted);
+    persist({ [attemptedKey]: nextAttempted, [correctKey]: nextCorrect });
+  };
+  const leave = () => {
+    if (current?.status === "running") pause();
+    onClose();
+  };
+  const selectedChapter = current ? chapters.find((chapter) => chapter.id === current.chapterId) : chapters.find((chapter) => chapter.id === chapterId);
+  const selectedSubject = selectedChapter ? bySubject(selectedChapter.subjectId) : availableSubjects[0] ?? subjects[0]!;
+  const questionCards = current ? ([
+    ["MCQ", "mcqAttempted", "mcqCorrect"],
+    ["CQ", "cqAttempted", "cqCorrect"],
+    ["SQ", "sqAttempted", "sqCorrect"],
+  ] as const) : [];
+  return <main id="main-content" tabIndex={-1} className="page focus-page"><section className="focus-hero"><div className="focus-kicker"><span className={`subject-token ${selectedSubject.accent}`}>{selectedSubject.shortName.slice(0, 2)}</span><div><small>EXAM MODE · IN-APP ONLY</small><h2>{selectedChapter?.title ?? "Choose a chapter"}</h2></div></div><button type="button" onClick={leave}><ArrowRight />Return to Today</button></section><section className="exam-builder panel"><div className="feature-heading"><div><small>CHOOSE ANY SSC CHAPTER</small><h3>{current ? "Saved exam attempt" : "Set up an exam attempt"}</h3><p>Choose a subject and chapter directly. This does not depend on your study-task queue.</p></div>{openSessions.length > 0 && <label className="focus-task-select">Resume saved attempt<select value={sessionId} onChange={(event) => setSessionId(event.target.value)}><option value="">New attempt</option>{openSessions.map((session) => <option value={session.id} key={session.id}>{bySubject(session.subjectId).shortName} · {byChapter(session.chapterId, chapters).title} · {session.status}</option>)}</select></label>}</div>{!current && <div className="exam-choice-grid"><label className="exam-chapter-picker">Chapter<select value={chapterId} onChange={(event) => setChapterId(event.target.value)}>{availableSubjects.map((subject) => <optgroup label={subject.name} key={subject.id}>{chapters.filter((chapter) => chapter.subjectId === subject.id).map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</option>)}</optgroup>)}</select></label><label>Target time (not a limit)<input type="number" min="5" max="600" value={targetMinutes} onChange={(event) => setTargetMinutes(Math.max(5, Math.min(600, Number(event.target.value))))} /><small>You can continue for as long as needed.</small></label></div>}{!current && <button className="solid-cta" type="button" onClick={start}><Play weight="fill" />Start exam attempt</button>}</section>{current && <><section className="focus-clock"><small>{running ? "EXAM IN PROGRESS" : current.status === "paused" ? "PAUSED · SAVED" : "READY WHEN YOU ARE"}</small><strong>{formatClock(elapsedSeconds)}</strong><p>Target: {current.targetMinutes} minutes · You may continue beyond it. This target never stops the attempt.</p><div className="focus-actions">{running ? <button className="accent" onClick={pause}><Pause weight="fill" />Pause and save</button> : <button className="solid-cta" onClick={start}><Play weight="fill" />{current.status === "paused" ? "Resume attempt" : "Start attempt"}</button>}{current.status !== "draft" && <button className="finish" onClick={finish}><CheckCircle weight="fill" />Finish and save evidence</button>}</div></section><section className="focus-evidence">{questionCards.map(([label, attemptedKey, correctKey]) => <article key={label}><small>{label} QUESTIONS</small><label>Attempted<input type="number" min="0" value={current[attemptedKey]} onChange={(event) => updateCount(label.toLowerCase() as "mcq" | "cq" | "sq", "Attempted", Number(event.target.value))} /></label><label>Correct<input type="number" min="0" max={current[attemptedKey]} value={current[correctKey]} onChange={(event) => updateCount(label.toLowerCase() as "mcq" | "cq" | "sq", "Correct", Number(event.target.value))} /></label></article>)}</section></>}{!current && <section className="exam-history panel"><small>RESUMABLE ATTEMPTS</small><p>Exam progress is saved to your account when you pause and while you work. You can return here later without losing the attempt.</p></section>}</main>;
 }
 
 const MAX_RESOURCE_BYTES = 120 * 1024 * 1024;

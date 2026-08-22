@@ -1137,6 +1137,84 @@ export type Database = {
         }
         Relationships: []
       }
+      exam_sessions: {
+        Row: {
+          chapter_id: string
+          cq_attempted: number
+          cq_correct: number
+          created_at: string
+          elapsed_seconds: number
+          ended_at: string | null
+          id: string
+          last_resumed_at: string | null
+          mcq_attempted: number
+          mcq_correct: number
+          sq_attempted: number
+          sq_correct: number
+          started_at: string | null
+          status: string
+          subject_id: string
+          target_minutes: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chapter_id: string
+          cq_attempted?: number
+          cq_correct?: number
+          created_at?: string
+          elapsed_seconds?: number
+          ended_at?: string | null
+          id: string
+          last_resumed_at?: string | null
+          mcq_attempted?: number
+          mcq_correct?: number
+          sq_attempted?: number
+          sq_correct?: number
+          started_at?: string | null
+          status?: string
+          subject_id: string
+          target_minutes?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chapter_id?: string
+          cq_attempted?: number
+          cq_correct?: number
+          created_at?: string
+          elapsed_seconds?: number
+          ended_at?: string | null
+          id?: string
+          last_resumed_at?: string | null
+          mcq_attempted?: number
+          mcq_correct?: number
+          sq_attempted?: number
+          sq_correct?: number
+          started_at?: string | null
+          status?: string
+          subject_id?: string
+          target_minutes?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_sessions_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exam_sessions_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exam_events: {
         Row: {
           archived: boolean
@@ -1189,6 +1267,7 @@ export type Database = {
           main_end: string
           main_start: string
           reminders_enabled: boolean
+          study_windows: Json
           updated_at: string
           user_id: string
         }
@@ -1201,6 +1280,7 @@ export type Database = {
           main_end?: string
           main_start?: string
           reminders_enabled?: boolean
+          study_windows?: Json
           updated_at?: string
           user_id: string
         }
@@ -1213,6 +1293,7 @@ export type Database = {
           main_end?: string
           main_start?: string
           reminders_enabled?: boolean
+          study_windows?: Json
           updated_at?: string
           user_id?: string
         }
@@ -1238,6 +1319,10 @@ export type Database = {
           study_method: string | null;
           workflow_phase: string | null;
           workflow_steps: Json | null;
+          workflow_stage: number | null;
+          workflow_stage_count: number | null;
+          workflow_stage_label: string | null;
+          workflow_group_id: string | null;
           title: string;
           updated_at: string
           user_id: string
@@ -1261,6 +1346,10 @@ export type Database = {
           study_method?: string | null;
           workflow_phase?: string | null;
           workflow_steps?: Json | null;
+          workflow_stage?: number | null;
+          workflow_stage_count?: number | null;
+          workflow_stage_label?: string | null;
+          workflow_group_id?: string | null;
           title: string;
           updated_at?: string
           user_id: string
@@ -1284,6 +1373,10 @@ export type Database = {
           study_method?: string | null;
           workflow_phase?: string | null;
           workflow_steps?: Json | null;
+          workflow_stage?: number | null;
+          workflow_stage_count?: number | null;
+          workflow_stage_label?: string | null;
+          workflow_group_id?: string | null;
           title?: string;
           updated_at?: string
           user_id?: string

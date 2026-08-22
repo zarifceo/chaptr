@@ -17,8 +17,30 @@ export type CustomStudyWorkflow = {
 
 export const mathematicalSubjectIds = new Set(["mathematics", "accounting", "higher-mathematics"]);
 
+export function isMathematicalSubject(subjectId?: string) {
+  return Boolean(subjectId && mathematicalSubjectIds.has(subjectId));
+}
+
+export type MathematicalStage = {
+  id: string;
+  label: string;
+  phase: StudyPhase;
+  duration: number;
+  defaultMethod: LearningMethod;
+  compatibleMethods: LearningMethod[];
+  steps: string[];
+};
+
+export const mathematicalStages: MathematicalStage[] = [
+  { id: "foundation", label: "Learn the foundation", phase: "learn", duration: 45, defaultMethod: "tutor", compatibleMethods: ["tutor", "online-class", "video", "textbook", "group-study"], steps: ["Learn the basic idea from your tutor, school class, or an online lesson", "Copy and explain the teacher's worked examples step by step", "Write down the parts of the method that still feel unclear", "Solve one or two introductory problems without looking at the example"] },
+  { id: "formulas", label: "Build the formula and rule sheet", phase: "learn", duration: 35, defaultMethod: "notes", compatibleMethods: ["notes", "textbook", "flashcards", "tutor", "online-class"], steps: ["Collect every formula, rule, condition, or accounting treatment used in the chapter", "Write what each symbol means and when the formula or rule applies", "Close the notes and reproduce the sheet from memory", "Test the sheet on a few short problems and correct missing conditions"] },
+  { id: "textbook-exercises", label: "Complete textbook exercises", phase: "practice", duration: 60, defaultMethod: "textbook", compatibleMethods: ["textbook", "guidebook", "tutor", "question-bank"], steps: ["Work through the textbook examples with every calculation and intermediate step shown", "Complete a representative set of exercise types instead of only reading solutions", "Mark questions where the method, formula, or presentation broke down", "Redo the missed questions without checking the worked answer first"] },
+  { id: "mcq-practice", label: "Prepare chapter MCQs", phase: "practice", duration: 45, defaultMethod: "question-bank", compatibleMethods: ["question-bank", "guidebook", "textbook", "tutor"], steps: ["Attempt a chapter MCQ set from your guidebook or question bank without notes", "Classify each error as formula recall, calculation, concept, or trap", "Review the explanation for every wrong answer and add only useful corrections", "Repeat the missed MCQs after a short gap"] },
+  { id: "board-practice", label: "Practise board questions", phase: "exam", duration: 60, defaultMethod: "question-bank", compatibleMethods: ["question-bank", "guidebook", "tutor", "textbook"], steps: ["Choose a representative board-question set for this chapter", "Attempt it under a realistic time and marks condition with full workings", "Check calculations, signs, formula substitutions, proof steps, or ledger presentation", "Create an error log and redo the questions that cost you marks"] },
+];
+
 export function workflowSubjectType(subjectId?: string): WorkflowPresetSubjectType {
-  return subjectId && mathematicalSubjectIds.has(subjectId) ? "mathematical" : "theory";
+  return isMathematicalSubject(subjectId) ? "mathematical" : "theory";
 }
 
 const methodActions: Record<LearningMethod, string> = {
@@ -129,6 +151,10 @@ export function workflowForTask(task: StudyTask, custom: CustomStudyWorkflow[] =
   const preset = presets.find((item) => item.phase === phase && (item.subjectType === subjectType || item.subjectType === "custom"));
   if (preset?.steps.length) return { phase, steps: preset.steps, preset };
   const saved = custom.find((workflow) => workflow.phase === phase);
+  if (subjectType === "mathematical" && task.workflowStage) {
+    const stage = mathematicalStages[task.workflowStage - 1];
+    if (stage?.steps.length) return { phase, steps: saved?.steps.length ? saved.steps : stage.steps, preset: undefined as WorkflowPreset | undefined };
+  }
   return { phase, steps: saved?.steps.length ? saved.steps : recommendedWorkflow(phase, task.studyMethod, subjectType, preferredMethods), preset: undefined as WorkflowPreset | undefined };
 }
 

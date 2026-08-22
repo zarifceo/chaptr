@@ -79,6 +79,10 @@ export interface StudyTask {
   studyMethod?: LearningMethod;
   workflowPhase?: StudyPhase;
   workflowSteps?: string[];
+  workflowStage?: number;
+  workflowStageCount?: number;
+  workflowStageLabel?: string;
+  workflowGroupId?: string;
   recommendationFactors?: Record<string, number>;
 }
 
@@ -147,6 +151,28 @@ export interface StudySession {
   completed: boolean;
   questionsAttempted?: number;
   questionsCorrect?: number;
+}
+
+export type ExamQuestionType = "MCQ" | "CQ" | "SQ";
+export type ExamSessionStatus = "draft" | "running" | "paused" | "completed";
+export interface ExamSession {
+  id: string;
+  subjectId: string;
+  chapterId: string;
+  status: ExamSessionStatus;
+  targetMinutes: number;
+  elapsedSeconds: number;
+  lastResumedAt?: string;
+  startedAt?: string;
+  endedAt?: string;
+  mcqAttempted: number;
+  mcqCorrect: number;
+  cqAttempted: number;
+  cqCorrect: number;
+  sqAttempted: number;
+  sqCorrect: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type ResourceKind = "textbook" | "question-bank" | "video" | "notes" | "website" | "other";
@@ -317,14 +343,15 @@ export interface UserProfile {
   updatedAt: string;
 }
 
+export interface StudyWindow {
+  id: string;
+  start: string;
+  end: string;
+}
+
 export interface PlanningSettings {
-  mainStart: string;
-  mainEnd: string;
-  mathStart: string;
-  mathEnd: string;
+  studyWindows: StudyWindow[];
   dailyTarget: number;
-  mathDaysPerWeek: number;
-  agricultureDaysPerWeek: number;
   remindersEnabled: boolean;
 }
 
