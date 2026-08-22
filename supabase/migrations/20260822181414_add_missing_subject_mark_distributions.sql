@@ -50,5 +50,6 @@ from (
     ('history', null, 'MCQ', 'MCQ section', 30),
     ('history', null, 'CQ', 'Creative question section', 70),
     ('hinduism', null, 'MCQ', 'MCQ section', 30),
-    ('hinduism', null, 'CQ', 'Creative question section', 70)
+    ('hinduism', null, 'SQ', 'Short question section', 20),
+    ('hinduism', null, 'CQ', 'Creative question section', 50)
 ) as distributions(subject_id, part, question_type, choice_rule, marks);

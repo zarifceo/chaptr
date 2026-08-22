@@ -125,12 +125,16 @@ export let marksDistributions: MarksDistribution[] = [
     { subjectId, part: "Written", questionType: "SQ", rule: "Short question section", marks: 10 },
     { subjectId, part: "Practical", questionType: "Practical", rule: "Practical examination", marks: 25 },
   ]),
-  ...["geography", "economics", "history", "civics", "hinduism"].flatMap((subjectId) => [
+  ...["geography", "economics", "history", "civics"].flatMap((subjectId) => [
     { subjectId, questionType: "MCQ", rule: "MCQ section", marks: 30 },
     { subjectId, questionType: "CQ", rule: "Creative question section", marks: 70 },
   ]),
+  { subjectId: "hinduism", questionType: "MCQ", rule: "MCQ section", marks: 30 },
+  { subjectId: "hinduism", questionType: "SQ", rule: "Short question section", marks: 20 },
+  { subjectId: "hinduism", questionType: "CQ", rule: "Creative question section", marks: 50 },
   { subjectId: "bgs", questionType: "MCQ", rule: "MCQ section", marks: 30 },
-  { subjectId: "bgs", questionType: "CQ", rule: "Creative question section", marks: 70 },
+  { subjectId: "bgs", questionType: "Short", rule: "Short question section", marks: 20 },
+  { subjectId: "bgs", questionType: "CQ", rule: "Creative question section", marks: 50 },
 ];
 
 export type AcademicExam = { id: string; name: string; start: string; end: string };
