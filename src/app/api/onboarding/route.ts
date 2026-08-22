@@ -5,6 +5,18 @@ import { createClient } from "@/lib/supabase/server";
 const SSC_EXAM_YEAR = 2027;
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
 
+type DatabaseError = { code?: string; message: string; details?: string; hint?: string };
+
+function onboardingDatabaseError(operation: string, error: DatabaseError, message: string) {
+  console.error(`[api/onboarding] ${operation} failed`, {
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+  });
+  return NextResponse.json({ error: message }, { status: 500, headers: noStoreHeaders });
+}
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
@@ -98,7 +110,7 @@ export async function GET() {
     .select("*")
     .eq("user_id", userId)
     .maybeSingle();
-  if (readError) return NextResponse.json({ error: readError.message }, { status: 400 });
+  if (readError) return onboardingDatabaseError("read profile", readError, "Could not load your setup. Refresh and try again.");
   if (existing) return NextResponse.json({ profile: { ...existing, exam_year: SSC_EXAM_YEAR } }, { headers: noStoreHeaders });
 
   const { data: created, error: createError } = await supabase
@@ -106,7 +118,7 @@ export async function GET() {
     .insert({ user_id: userId, exam_year: SSC_EXAM_YEAR })
     .select("*")
     .single();
-  if (createError) return NextResponse.json({ error: createError.message }, { status: 400 });
+  if (createError) return onboardingDatabaseError("create profile", createError, "Could not start your setup. Please try again.");
   return NextResponse.json({ profile: { ...created, exam_year: SSC_EXAM_YEAR } }, { headers: noStoreHeaders });
 }
 
@@ -125,38 +137,51 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid onboarding profile" }, { status: 400 });
 
   const { learning_preferences: learningPreferences, subject_assessments: subjectAssessments, study_workflows: studyWorkflows, study_workflow_presets: studyWorkflowPresets, exam_plan_phases: examPlanPhases, ...profileData } = parsed.data;
-  const { data, error } = await supabase
+  const profileValues = { ...profileData, exam_year: SSC_EXAM_YEAR, updated_at: new Date().toISOString() };
+  const { data: updatedProfile, error: updateError } = await supabase
     .from("user_profiles")
-    .upsert({ user_id: userId, ...profileData, exam_year: SSC_EXAM_YEAR, updated_at: new Date().toISOString() })
+    .update(profileValues)
+    .eq("user_id", userId)
     .select("*")
-    .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    .maybeSingle();
+  if (updateError) return onboardingDatabaseError("update profile", updateError, "Could not save this setup step. Please try again.");
+
+  let data = updatedProfile;
+  if (!data) {
+    const { data: createdProfile, error: insertError } = await supabase
+      .from("user_profiles")
+      .insert({ user_id: userId, ...profileValues })
+      .select("*")
+      .single();
+    if (insertError) return onboardingDatabaseError("create profile during save", insertError, "Could not save this setup step. Please try again.");
+    data = createdProfile;
+  }
 
   if (learningPreferences) {
     const { error: preferencesError } = await supabase.from("learning_preferences").upsert({ user_id: userId, ...learningPreferences, updated_at: new Date().toISOString() });
-    if (preferencesError) return NextResponse.json({ error: preferencesError.message }, { status: 400 });
+    if (preferencesError) return onboardingDatabaseError("save learning preferences", preferencesError, "Could not save your learning preferences. Please try again.");
   }
   if (subjectAssessments) {
     const { error: assessmentError } = await supabase.from("subject_assessments").upsert(subjectAssessments.map((assessment) => ({ user_id: userId, ...assessment, updated_at: new Date().toISOString() })), { onConflict: "user_id,subject_id" });
-    if (assessmentError) return NextResponse.json({ error: assessmentError.message }, { status: 400 });
+    if (assessmentError) return onboardingDatabaseError("save subject assessments", assessmentError, "Could not save your subject ratings. Please try again.");
   }
   if (studyWorkflows) {
     const { error: workflowError } = await supabase.from("study_workflows").upsert(studyWorkflows.map((workflow) => ({ user_id: userId, phase: workflow.phase, steps: workflow.steps, updated_at: new Date().toISOString() })), { onConflict: "user_id,phase" });
-    if (workflowError) return NextResponse.json({ error: workflowError.message }, { status: 400 });
+    if (workflowError) return onboardingDatabaseError("save study workflows", workflowError, "Could not save your study workflow. Please try again.");
   }
   if (studyWorkflowPresets) {
     const { error: deletePresetsError } = await supabase.from("study_workflow_presets").delete().eq("user_id", userId);
-    if (deletePresetsError) return NextResponse.json({ error: deletePresetsError.message }, { status: 400 });
+    if (deletePresetsError) return onboardingDatabaseError("replace workflow presets", deletePresetsError, "Could not update your workflow presets. Please try again.");
     if (studyWorkflowPresets.length) {
       const { error: presetError } = await supabase.from("study_workflow_presets").insert(studyWorkflowPresets.map((preset) => ({ id: preset.id, user_id: userId, name: preset.name, description: preset.description, phase: preset.phase, subject_type: preset.subject_type, steps: preset.steps, updated_at: new Date().toISOString() })));
-      if (presetError) return NextResponse.json({ error: presetError.message }, { status: 400 });
+      if (presetError) return onboardingDatabaseError("save workflow presets", presetError, "Could not save your workflow presets. Please try again.");
     }
   }
   if (examPlanPhases) {
     const { error: deletePlanError } = await supabase.from("exam_plan_phases").delete().eq("user_id", userId);
-    if (deletePlanError) return NextResponse.json({ error: deletePlanError.message }, { status: 400 });
+    if (deletePlanError) return onboardingDatabaseError("replace exam plan", deletePlanError, "Could not update your exam plan. Please try again.");
     const { error: planError } = await supabase.from("exam_plan_phases").insert(examPlanPhases.map((phase) => ({ user_id: userId, ...phase, updated_at: new Date().toISOString() })));
-    if (planError) return NextResponse.json({ error: planError.message }, { status: 400 });
+    if (planError) return onboardingDatabaseError("save exam plan", planError, "Could not save your exam plan. Please try again.");
   }
   const [{ data: savedPreferences }, { data: savedAssessments }, { data: savedWorkflows }, { data: savedPresets }, { data: savedExamPlan }] = await Promise.all([
     supabase.from("learning_preferences").select("*").eq("user_id", userId).maybeSingle(),

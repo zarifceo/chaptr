@@ -26,8 +26,20 @@ export async function GET() {
   if (consentResponse) return consentResponse;
   await ensureAcademicData();
 
-  const { data: loadedProfile } = await supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle();
-  const profile = loadedProfile ?? (await supabase.from("user_profiles").upsert({ user_id: userId, selected_subjects: [], onboarding_step: 0, onboarding_completed: false, academic_profile_completed: false, book_language: "bn", academic_year: 2026 }).select("*").single()).data;
+  const { data: loadedProfile, error: profileReadError } = await supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle();
+  if (profileReadError) {
+    console.error("[api/sync/bootstrap] profile read failed", { code: profileReadError.code, message: profileReadError.message });
+    return NextResponse.json({ error: "Could not load your profile. Refresh and try again." }, { status: 500, headers: noStoreHeaders });
+  }
+  let profile = loadedProfile;
+  if (!profile) {
+    const { data: createdProfile, error: profileCreateError } = await supabase.from("user_profiles").insert({ user_id: userId, selected_subjects: [], onboarding_step: 0, onboarding_completed: false, academic_profile_completed: false, book_language: "bn", academic_year: 2026 }).select("*").single();
+    if (profileCreateError) {
+      console.error("[api/sync/bootstrap] profile creation failed", { code: profileCreateError.code, message: profileCreateError.message });
+      return NextResponse.json({ error: "Could not prepare your profile. Refresh and try again." }, { status: 500, headers: noStoreHeaders });
+    }
+    profile = createdProfile;
+  }
   const activeSubjectIds = new Set<string>(commonSubjectIds);
   if (profile?.academic_profile_completed && profile.study_group && profile.religion_subject_id && profile.fourth_subject_id) {
     groupSubjectIds[profile.study_group as keyof typeof groupSubjectIds]?.forEach((id) => activeSubjectIds.add(id));
