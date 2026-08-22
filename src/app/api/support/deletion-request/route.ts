@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -38,9 +39,11 @@ function signedInDuringGracePeriod(user: { last_sign_in_at?: string }, row: { re
   return signedInAt > requestedAt && signedInAt < scheduledFor;
 }
 
-async function cancelAfterSignIn(supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>, userId: string, row: { id: string; requested_at: string; scheduled_for: string | null; audit_metadata?: unknown }) {
+async function cancelAfterSignIn(userId: string, row: { id: string; requested_at: string; scheduled_for: string | null; audit_metadata?: unknown }) {
+  const admin = createAdminClient();
+  if (!admin) return { data: null, error: new Error("Deletion service is not configured") };
   const existingAudit = row.audit_metadata && typeof row.audit_metadata === "object" && !Array.isArray(row.audit_metadata) ? row.audit_metadata as Record<string, unknown> : {};
-  const { data, error } = await supabase.from("account_deletion_requests").update({
+  const { data, error } = await admin.from("account_deletion_requests").update({
     status: "cancelled",
     cancelled_at: new Date().toISOString(),
     processing_started_at: null,
@@ -56,7 +59,7 @@ async function getRequestsAndCancelOnSignIn(supabase: NonNullable<Awaited<Return
   const rows = data ?? [];
   const active = rows.find((row) => row.status === "requested" || row.status === "pending_review");
   if (active && signedInDuringGracePeriod(user, active) && active.scheduled_for && Date.parse(active.scheduled_for) > Date.now()) {
-    const cancelled = await cancelAfterSignIn(supabase, user.id, active);
+    const cancelled = await cancelAfterSignIn(user.id, active);
     if (cancelled.error) return { data: null, error: cancelled.error };
     const replaced = rows.map((row) => row.id === active.id ? cancelled.data : row).filter(Boolean);
     return { data: replaced, error: null };
@@ -97,9 +100,11 @@ export async function POST(request: Request) {
   if (!hasFreshReauthentication(user)) return NextResponse.json({ error: "Verify your password or email code again before submitting the deletion request.", reauthenticationRequired: true }, { status: 403, headers: noStoreHeaders });
   const { data: existing } = await supabase.from("account_deletion_requests").select(selectColumns).eq("user_id", user.id).in("status", ["requested", "pending_review", "processing"]).order("requested_at", { ascending: false }).limit(1).maybeSingle();
   if (existing) return NextResponse.json({ request: existing, alreadyRequested: true }, { status: 200, headers: noStoreHeaders });
+  const admin = createAdminClient();
+  if (!admin) return NextResponse.json({ error: "Deletion service is not configured" }, { status: 503, headers: noStoreHeaders });
   const requestedAt = new Date();
   const scheduledFor = new Date(requestedAt.getTime() + gracePeriodMs).toISOString();
-  const { data, error } = await supabase.from("account_deletion_requests").insert({ user_id: user.id, status: "requested", requested_at: requestedAt.toISOString(), confirmed_at: requestedAt.toISOString(), scheduled_for: scheduledFor, grace_period_days: 14, audit_metadata: { source: "support", confirmation: "explicit_phrase", reauthentication: parsed.data.reauth_method, grace_period_days: 14 } }).select(selectColumns).single();
+  const { data, error } = await admin.from("account_deletion_requests").insert({ user_id: user.id, status: "requested", requested_at: requestedAt.toISOString(), confirmed_at: requestedAt.toISOString(), scheduled_for: scheduledFor, grace_period_days: 14, audit_metadata: { source: "support", confirmation: "explicit_phrase", reauthentication: parsed.data.reauth_method, grace_period_days: 14 } }).select(selectColumns).single();
   if (error) {
     if (error.code === "23505") return NextResponse.json({ error: "An active deletion request already exists." }, { status: 409, headers: noStoreHeaders });
     return NextResponse.json({ error: error.message }, { status: 400, headers: noStoreHeaders });
@@ -111,7 +116,9 @@ export async function DELETE() {
   const { supabase, user } = await currentUser();
   if (!supabase) return NextResponse.json({ error: "Database is not configured" }, { status: 503, headers: noStoreHeaders });
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: noStoreHeaders });
-  const { data, error } = await supabase.from("account_deletion_requests").update({ status: "cancelled", cancelled_at: new Date().toISOString(), processing_started_at: null, last_error: null, audit_metadata: { cancellation_source: "user", cancelled_at: new Date().toISOString() } }).eq("user_id", user.id).in("status", ["requested", "pending_review"]).select(selectColumns).maybeSingle();
+  const admin = createAdminClient();
+  if (!admin) return NextResponse.json({ error: "Deletion service is not configured" }, { status: 503, headers: noStoreHeaders });
+  const { data, error } = await admin.from("account_deletion_requests").update({ status: "cancelled", cancelled_at: new Date().toISOString(), processing_started_at: null, last_error: null, audit_metadata: { cancellation_source: "user", cancelled_at: new Date().toISOString() } }).eq("user_id", user.id).in("status", ["requested", "pending_review"]).select(selectColumns).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 400, headers: noStoreHeaders });
   if (!data) return NextResponse.json({ error: "There is no active deletion request to cancel." }, { status: 404, headers: noStoreHeaders });
   return NextResponse.json({ request: data, cancelled: true }, { headers: noStoreHeaders });

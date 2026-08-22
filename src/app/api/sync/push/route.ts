@@ -6,6 +6,7 @@ import { policyRequiredResponse } from "@/lib/policy-server";
 
 const payload = z.object({ table: z.enum(["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "exam_sessions", "study_resources", "exam_events", "exam_plan_phases", "planning_settings", "adaptive_plan_summaries"]), rows: z.array(z.record(z.string(), z.unknown())).max(500) });
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
+const maxSyncPayloadBytes = 512 * 1024;
 
 type SyncTable = z.infer<typeof payload>["table"];
 type InsertRow<T extends SyncTable> = Database["public"]["Tables"][T]["Insert"];
@@ -15,6 +16,15 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const supabase = await createClient();
+  if (!supabase) return NextResponse.json({ queued: true, mode: "local" }, { status: 202, headers: noStoreHeaders });
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
+  if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: noStoreHeaders });
+  const contentLength = Number(request.headers.get("content-length"));
+  if (!Number.isFinite(contentLength) || contentLength <= 0 || contentLength > maxSyncPayloadBytes) {
+    return NextResponse.json({ error: "Sync payload is missing a valid size or exceeds 512 KB" }, { status: 413, headers: noStoreHeaders });
+  }
   let body: unknown;
   try {
     body = await request.json();
@@ -23,11 +33,6 @@ export async function POST(request: Request) {
   }
   const parsed = payload.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid sync payload" }, { status: 400 });
-  const supabase = await createClient();
-  if (!supabase) return NextResponse.json({ queued: true, mode: "local" }, { status: 202, headers: noStoreHeaders });
-  const { data: claims } = await supabase.auth.getClaims();
-  const userId = claims?.claims?.sub;
-  if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: noStoreHeaders });
   const consentResponse = await policyRequiredResponse(supabase, userId, "/home");
   if (consentResponse) return consentResponse;
   const rows = parsed.data.rows.map(row => ({ ...row, user_id: userId, updated_at: new Date().toISOString() }));

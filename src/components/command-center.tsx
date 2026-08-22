@@ -305,7 +305,7 @@ function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents
       </article>
     </section>
     <HomeSummaryCards tasks={tasks} preferences={preferences} entries={entries} examEvents={examEvents} />
-    <section className="strategy-ribbon"><button onClick={() => go("Goals")}><Target weight="fill" /><span><small>SSC STRATEGY</small><strong>{preferences.filter((item) => item.includedForSsc && !item.excluded).length} selected</strong></span><CaretRight /></button><button onClick={() => go("Goals")}><CalendarPlus weight="fill" /><span><small>{monthLabel(currentMonthKey()).toUpperCase()}</small><strong>{preferences.filter((item) => item.targetMonth === currentMonthKey() && !item.excluded).length} chapter goals</strong></span><CaretRight /></button><button onClick={() => go("Syllabus")}><EyeSlash weight="fill" /><span><small>STRATEGICALLY SKIPPED</small><strong>{preferences.filter((item) => item.excluded).length} excluded</strong></span><CaretRight /></button></section>
+    <section className="strategy-ribbon"><button onClick={() => go("Goals")}><Target weight="fill" /><span><small>SSC COVERAGE</small><strong>{preferences.filter((item) => item.includedForSsc && !item.excluded).length} chapters</strong></span><CaretRight /></button><button onClick={() => go("Goals")}><CalendarPlus weight="fill" /><span><small>{monthLabel(currentMonthKey()).toUpperCase()}</small><strong>{preferences.filter((item) => item.targetMonth === currentMonthKey() && !item.excluded).length} chapter goals</strong></span><CaretRight /></button><button onClick={() => go("Syllabus")}><EyeSlash weight="fill" /><span><small>CHAPTER EXCLUSIONS</small><strong>{preferences.filter((item) => item.excluded).length} excluded</strong></span><CaretRight /></button></section>
     <section className="dashboard-grid">
       <article className="panel weekly"><SectionTitle kicker="LIVE EVIDENCE" title="Work that protects your result" /><div className="bars">{evidenceRows.length ? evidenceRows.map(({ subject: evidenceSubject, readiness }) => <div key={evidenceSubject.id}><span>{evidenceSubject.name}</span><i><b className={evidenceSubject.accent} style={{ width: `${readiness}%` }} /></i><strong>{readiness}%</strong></div>) : <div className="empty compact"><p>No subject evidence yet. Complete a chapter or log a study result to build this view.</p></div>}</div></article>
       <article className="panel risks"><SectionTitle kicker="URGENT" title="Repair queue"><Warning weight="fill" /></SectionTitle>{repairRows.length ? repairRows.map(({ subject: repairSubject, readiness, openMistakes, chapters: repairChapters }) => <button key={repairSubject.id} onClick={() => go("Syllabus")}><i className={repairSubject.accent} /><span><strong>{repairSubject.name}</strong><small>{openMistakes ? `${openMistakes} open mistake${openMistakes === 1 ? "" : "s"} need reattempts` : `${readiness}% readiness · ${repairChapters.length} chapters tracked`}</small></span><CaretRight /></button>) : <div className="empty compact"><p>No repair signals yet. Your queue will appear as chapter evidence accumulates.</p></div>}</article>
@@ -540,7 +540,7 @@ function GoalMetrics({ chapters }: { chapters: Chapter[] }) {
 
 function Goals({ list, preferences, updatePreference, updatePreferences, completeChapter, uncompleteChapter, setDifficulty, buildQueue }: { list: Chapter[]; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; updatePreferences: (values: ChapterPreference[]) => void; completeChapter: (chapter: Chapter) => void; uncompleteChapter: (chapter: Chapter) => void; setDifficulty: (chapter: Chapter, difficulty: ChapterDifficulty) => void; buildQueue: (chapters: Chapter[], label: string) => void }) {
   const [month, setMonth] = useState(currentMonthKey());
-  const [subjectId, setSubjectId] = useState("all");
+  const [subjectId, setSubjectId] = useState(() => subjects.find((subject) => list.some((chapter) => chapter.subjectId === subject.id))?.id ?? "all");
   const [mode, setMode] = useState<"monthly" | "ssc" | "excluded">("ssc");
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
   const monthly = orderChapters(list.filter((chapter) => preferenceFor(chapter.id, preferences).targetMonth === month && !preferenceFor(chapter.id, preferences).excluded));
@@ -1133,7 +1133,7 @@ export default function CommandCenter() {
   };
 
   const uploadResource = async (file: File) => {
-    if (file.size > 120 * 1024 * 1024) throw new Error("Each file must be 120 MB or smaller.");
+    if (file.size > 25 * 1024 * 1024) throw new Error("Each file must be 25 MB or smaller.");
     const client = createSupabaseClient();
     if (!client) throw new Error("Supabase is not configured for this deployment.");
     const { data: userData } = await client.auth.getUser();

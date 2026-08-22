@@ -17,7 +17,6 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 export async function GET() {
-  await ensureAcademicData();
   const supabase = await createClient();
   if (!supabase) return NextResponse.json({ error: "Database is not configured" }, { status: 503, headers: noStoreHeaders });
   const { data: claims } = await supabase.auth.getClaims();
@@ -25,6 +24,7 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401, headers: noStoreHeaders });
   const consentResponse = await policyRequiredResponse(supabase, userId, "/home");
   if (consentResponse) return consentResponse;
+  await ensureAcademicData();
 
   const { data: loadedProfile } = await supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle();
   const profile = loadedProfile ?? (await supabase.from("user_profiles").upsert({ user_id: userId, selected_subjects: [], onboarding_step: 0, onboarding_completed: false, academic_profile_completed: false, book_language: "bn", academic_year: 2026 }).select("*").single()).data;

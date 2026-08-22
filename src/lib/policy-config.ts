@@ -24,6 +24,6 @@ export function hasCurrentPolicyConsent(row?: PolicyConsentRow | null) {
 }
 
 export function safeNextPath(value: string | null | undefined) {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/api/")) return "/home";
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/api/") || /[\\\\\u0000-\u001f\u007f]/.test(value)) return "/home";
   return value;
 }

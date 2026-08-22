@@ -47,7 +47,7 @@ export default function PrivacyPage() {
         {
           title: "5. Uploaded resources and saved links",
           paragraphs: [
-            "If you upload a study file, Chaptr stores it in private user-scoped storage and keeps the associated title, file type, size, chapter, note, and storage reference needed to show it in your workspace. The current upload interface accepts supported document, image, and text formats up to 120 MB per file. When you open an uploaded file, Chaptr may issue a temporary signed access URL that expires after a limited period.",
+            "If you upload a study file, Chaptr stores it in private user-scoped storage and keeps the associated title, file type, size, chapter, note, and storage reference needed to show it in your workspace. The current upload interface accepts supported document, image, and text formats up to 25 MB per file, subject to an account storage quota. When you open an uploaded file, Chaptr may issue a temporary signed access URL that expires after a limited period.",
             "If you save a URL, Chaptr stores the link and the study context you attach to it. Opening that link takes you to a third-party destination. Chaptr does not control the privacy, security, availability, or content of that destination.",
           ],
         },
