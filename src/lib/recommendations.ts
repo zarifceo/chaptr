@@ -2,7 +2,14 @@ import { differenceInCalendarDays, parseISO } from "date-fns";
 import type { Chapter, Mistake, MockResult, RecommendationFeedback, StudyTask, Subject, SubjectAssessment, LearningMethod, StrengthLevel } from "./types";
 import { isMathematicalSubject, mathematicalStages } from "./study-workflows";
 
-const masteryGap = { "not-started": 100, learning: 72, practising: 42, "needs-revision": 78, "exam-ready": 8 } as const;
+const baseMasteryGap = { "not-started": 100, learning: 72, practising: 42, "needs-revision": 78, "exam-ready": 8 } as const;
+
+function masteryGap(status: Chapter["status"], targetGrade?: string) {
+  const base = baseMasteryGap[status];
+  if (targetGrade === "A+") return status === "exam-ready" ? 18 : Math.min(100, base + 8);
+  if (targetGrade === "Pass safely") return status === "not-started" ? 100 : Math.max(0, base - 12);
+  return base;
+}
 
 type RecommendationEvidence = {
   mistakes?: Mistake[];
@@ -14,6 +21,8 @@ type RecommendationEvidence = {
   examDate?: string;
   targetGrade?: string;
   preferredMethods?: LearningMethod[];
+  preferredSessionMinutes?: number;
+  subjectProgress?: Record<string, number>;
   tasks?: StudyTask[];
 };
 
@@ -65,27 +74,32 @@ export function scoreChapter(subject: Subject, chapter: Chapter, now = new Date(
   const difficulty = Math.min(100, Math.round((personalDifficulty + chapterDifficulty) / 2) + personalSubjectSignal);
   const priority = (assessment?.priority ?? 3) * 20;
   const recentEvidence = Math.max(accuracyGap, mockGap, hasOpenMistake ? 100 : 0);
+  const subjectProgress = Math.max(0, Math.min(100, evidence.subjectProgress?.[subject.id] ?? 0));
+  const subjectProgressGap = 100 - subjectProgress;
   const adjustment = feedbackAdjustment(subject.id, evidence.feedback);
-  const score = urgency * .16 + difficulty * .22 + priority * .20 + masteryGap[chapter.status] * .20 + review * .12 + recentEvidence * .10 + adjustment;
+  const mastery = masteryGap(chapter.status, evidence.targetGrade);
+  const score = urgency * .10 + difficulty * .20 + priority * .16 + mastery * .20 + subjectProgressGap * .18 + review * .08 + recentEvidence * .08 + adjustment;
   const method = preferredMethod(assessment, evidence.preferredMethods);
   const reasons = [
     evidence.mostDifficultSubjectId === subject.id ? "your selected difficult subject" : strength ? `your ${strength.replace("-", " ")} self-rating` : chapter.difficulty >= 4 ? "chapter difficulty" : "balanced coverage",
     assessment?.priority === 5 ? "your high priority setting" : assessment?.priority === 1 ? "your low priority setting" : null,
-    chapter.status === "not-started" ? "first coverage" : "mastery gap",
+    subjectProgress < 40 ? `${subject.shortName} has the largest coverage gap` : subjectProgress < 70 ? `${subject.shortName} needs more coverage` : null,
+    chapter.status === "not-started" ? "first coverage" : evidence.targetGrade === "A+" ? "A+ mastery standard" : "mastery gap",
     hasOpenMistake ? "open mistake" : review >= 80 ? "review due" : latestMock ? "mock evidence" : "recent evidence",
     `fits ${methodLabels[method]}`,
   ].filter((reason): reason is string => Boolean(reason));
   return {
     score: Math.max(0, Math.round(score)),
     explanation: reasons.join(" · "),
-    factors: { urgency: Math.round(urgency), difficulty, priority: Math.round(priority), mastery: masteryGap[chapter.status], review: Math.round(review), evidence: Math.round(recentEvidence), feedback: adjustment },
+    factors: { urgency: Math.round(urgency), difficulty, priority: Math.round(priority), mastery, subjectProgressGap: Math.round(subjectProgressGap), review: Math.round(review), evidence: Math.round(recentEvidence), feedback: adjustment },
     studyMethod: method,
   };
 }
 
 export function recommendTasks(subjects: Subject[], chapters: Chapter[], evidence: RecommendationEvidence = {}): StudyTask[] {
-  return chapters.map<StudyTask>((chapter) => {
-    const subject = subjects.find((item) => item.id === chapter.subjectId)!;
+  return chapters.flatMap<StudyTask>((chapter) => {
+    const subject = subjects.find((item) => item.id === chapter.subjectId);
+    if (!subject) return [];
     const scored = scoreChapter(subject, chapter, new Date(), evidence);
     const assessment = assessmentFor(subject.id, evidence.assessments);
     const method = scored.studyMethod;
@@ -96,8 +110,9 @@ export function recommendTasks(subjects: Subject[], chapters: Chapter[], evidenc
     const completedStage = completedStages.length ? Math.max(...completedStages) : 0;
     const stage = mathematical && completedStage < mathematicalStages.length ? mathematicalStages[completedStage] : undefined;
     const stageMethod = stage && stage.compatibleMethods.includes(method) ? method : stage?.defaultMethod;
-    const duration = stage?.duration ?? Math.max(30, chapter.difficulty >= 4 ? 45 : assessment?.difficulty && assessment.difficulty >= 4 ? 45 : 35);
-    return {
+    const baseDuration = stage?.duration ?? Math.max(30, chapter.difficulty >= 4 ? 45 : assessment?.difficulty && assessment.difficulty >= 4 ? 45 : 35);
+    const duration = Math.max(15, Math.min(baseDuration, evidence.preferredSessionMinutes ?? baseDuration));
+    return [{
       id: stage ? `task-${chapter.id}-${stage.id}` : `task-${chapter.id}`,
       subjectId: subject.id,
       chapterId: chapter.id,
@@ -116,7 +131,7 @@ export function recommendTasks(subjects: Subject[], chapters: Chapter[], evidenc
       workflowStageLabel: stage?.label,
       workflowGroupId: stage ? `math-${chapter.id}` : undefined,
       recommendationFactors: scored.factors,
-    };
+    }];
   }).sort((a, b) => b.priorityScore - a.priorityScore);
 }
 

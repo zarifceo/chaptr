@@ -6,8 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 
 const BUCKET = "study-resources";
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
-const MAX_USER_BYTES = 500 * 1024 * 1024;
-const MAX_USER_FILES = 100;
 const allowedMimeTypes = new Set([
   "application/pdf",
   "text/plain",
@@ -46,21 +44,28 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   if (!admin) return NextResponse.json({ error: "Secure uploads are not configured for this deployment." }, { status: 503, headers: noStoreHeaders });
-  const { data: existing, error: listError } = await admin.storage.from(BUCKET).list(userId, { limit: MAX_USER_FILES, offset: 0 });
-  if (listError) {
-    console.error("[api/resources/upload-token] storage list failed", { userId, message: listError.message });
-    return NextResponse.json({ error: "Could not check your upload allowance. Try again." }, { status: 502, headers: noStoreHeaders });
-  }
-  const usedBytes = (existing ?? []).reduce((total, item) => total + Number((item.metadata as { size?: number } | null)?.size ?? 0), 0);
-  if ((existing ?? []).length >= MAX_USER_FILES) return NextResponse.json({ error: "You have reached the 100-file resource limit." }, { status: 413, headers: noStoreHeaders });
-  if (usedBytes + parsed.data.fileSize > MAX_USER_BYTES) return NextResponse.json({ error: "This upload would exceed your 500 MB resource allowance." }, { status: 413, headers: noStoreHeaders });
-
   const safeName = parsed.data.fileName.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "resource";
   const storagePath = `${userId}/${crypto.randomUUID()}-${safeName}`;
   const { data, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(storagePath);
   if (error || !data?.token) {
     console.error("[api/resources/upload-token] signed URL failed", { userId, message: error?.message });
     return NextResponse.json({ error: "Could not prepare the upload. Try again." }, { status: 502, headers: noStoreHeaders });
+  }
+  // Reserve the bucket's maximum object size, not the browser-declared size.
+  // Signed upload tokens do not bind Content-Length, so a worst-case reservation
+  // is required to make the aggregate quota authoritative under concurrency.
+  const { error: reservationError } = await admin.rpc("reserve_study_resource_upload", {
+    p_user_id: userId,
+    p_storage_path: storagePath,
+    p_reserved_bytes: MAX_FILE_BYTES,
+  });
+  if (reservationError) {
+    const fileLimit = reservationError.message.includes("resource_file_limit_exceeded");
+    const byteLimit = reservationError.message.includes("resource_byte_limit_exceeded");
+    console.error("[api/resources/upload-token] quota reservation failed", { userId, code: reservationError.code, message: reservationError.message });
+    if (fileLimit) return NextResponse.json({ error: "You have reached the 100-file resource limit." }, { status: 413, headers: noStoreHeaders });
+    if (byteLimit) return NextResponse.json({ error: "This upload could exceed your 500 MB resource allowance." }, { status: 413, headers: noStoreHeaders });
+    return NextResponse.json({ error: "Could not reserve upload capacity. Try again." }, { status: 502, headers: noStoreHeaders });
   }
   return NextResponse.json({ storagePath, token: data.token }, { headers: noStoreHeaders });
 }

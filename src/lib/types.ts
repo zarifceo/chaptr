@@ -276,8 +276,6 @@ export interface LearningPreferences {
   preferredMethods: LearningMethod[];
   preferredResourceKinds: ResourceKind[];
   sessionLengthMinutes: number;
-  sessionsPerDay: number;
-  availableDays: string[];
   weekdayMinutes: number;
   weekendMinutes: number;
   targetGrade: string;
@@ -329,9 +327,6 @@ export interface UserProfile {
   academicYear?: number;
   bookLanguage?: "bn";
   academicProfileCompleted: boolean;
-  dailyTarget: number;
-  mainStart: string;
-  mainEnd: string;
   onboardingStep: number;
   onboardingCompleted: boolean;
   quickStartStatus?: "active" | "dismissed" | "completed";
@@ -343,15 +338,7 @@ export interface UserProfile {
   updatedAt: string;
 }
 
-export interface StudyWindow {
-  id: string;
-  start: string;
-  end: string;
-}
-
 export interface PlanningSettings {
-  studyWindows: StudyWindow[];
-  dailyTarget: number;
   remindersEnabled: boolean;
 }
 

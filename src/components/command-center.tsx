@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -15,7 +15,7 @@ import {
 import { queueCloudSync } from "@/lib/offline-sync";
 import { Button } from "@/components/ui/button";
 import { recommendTasks } from "@/lib/recommendations";
-import { buildAdaptivePlan, revisionDelayDays } from "@/lib/adaptive-planner";
+import { buildAdaptivePlan, revisionDelayDays, subjectProgressMap } from "@/lib/adaptive-planner";
 import { defaultWorkflowPresets, isMathematicalSubject, workflowForTask, workflowSubjectType, type CustomStudyWorkflow, type StudyPhase, recommendedWorkflow, studyPhases } from "@/lib/study-workflows";
 import { StudyAnalytics, SyllabusEvidenceMap, ExamModeFocus, ResourceLibrary, summarizeStudyEvidence } from "@/components/study-features";
 import { AuthScreen } from "@/components/auth-screen";
@@ -24,9 +24,10 @@ import { ExamCountdownCenter } from "@/components/exam-countdown";
 import { SupportPage } from "@/components/support-page";
 import { QuickStart, type QuickStartStatus } from "@/components/quick-start";
 import { recommendedExamPlan, phaseDateLabel } from "@/lib/exam-plan";
+import { capacityDayLabel, dailyCapacityMinutes, effectiveCapacityMinutes, isCurrentDailyPlan } from "@/lib/daily-capacity";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { POLICY_CONSENT_STATUS } from "@/lib/policy-config";
-import type { AdaptivePlanSummary, Chapter, ChapterPreference, CuratedTextbook, ExamEvent, ExamPlanPhase, ExamSession, JournalEntry, LearningMethod, LearningPreferences, MarksDistribution, Mistake, MockResult, PlanningSettings, RecommendationFeedback, StudyResource, StudyWindow, StudySession, StudyTask, Subject, SubjectAssessment, StrengthLevel, UserProfile, WorkflowPreset, ChapterDifficulty } from "@/lib/types";
+import type { AdaptivePlanSummary, Chapter, ChapterPreference, CuratedTextbook, ExamEvent, ExamPlanPhase, ExamSession, JournalEntry, LearningMethod, LearningPreferences, MarksDistribution, Mistake, MockResult, PlanningSettings, RecommendationFeedback, StudyResource, StudySession, StudyTask, Subject, SubjectAssessment, StrengthLevel, UserProfile, WorkflowPreset, ChapterDifficulty } from "@/lib/types";
 
 const SSC_EXAM_YEAR = 2027;
 
@@ -57,15 +58,68 @@ const officialTotalFor = (subjectId: string) => marksDistributions.filter((mark)
 
 type BootstrapRow = Record<string, unknown>;
 const chapterDifficulty = (value: unknown): ChapterDifficulty => Math.max(1, Math.min(5, Number(value ?? 3))) as ChapterDifficulty;
+const numericValue = (value: unknown, fallback: number) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
-const studyTaskFromRow = (row: BootstrapRow): StudyTask => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), plannedTime: row.planned_start ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "numeric", minute: "2-digit" }).format(new Date(String(row.planned_start))) : "Unscheduled", plannedStart: row.planned_start ? String(row.planned_start) : undefined, plannedEnd: row.planned_end ? String(row.planned_end) : undefined, deferredUntil: row.deferred_until ? String(row.deferred_until) : undefined, duration: Number(row.duration_minutes), origin: row.origin as StudyTask["origin"], pinned: Boolean(row.pinned), status: row.status as StudyTask["status"], currentStep: Number(row.current_step), reason: String(row.priority_explanation ?? "Database task"), priorityScore: Number(row.priority_score), focusedSeconds: Number(row.focused_seconds ?? 0), studyMethod: row.study_method ? String(row.study_method) as StudyTask["studyMethod"] : undefined, workflowPhase: row.workflow_phase ? String(row.workflow_phase) as StudyTask["workflowPhase"] : undefined, workflowSteps: Array.isArray(row.workflow_steps) ? row.workflow_steps.map(String).filter(Boolean) : undefined, workflowStage: row.workflow_stage == null ? undefined : Number(row.workflow_stage), workflowStageCount: row.workflow_stage_count == null ? undefined : Number(row.workflow_stage_count), workflowStageLabel: row.workflow_stage_label ? String(row.workflow_stage_label) : undefined, workflowGroupId: row.workflow_group_id ? String(row.workflow_group_id) : undefined, recommendationFactors: row.recommendation_factors && typeof row.recommendation_factors === "object" ? row.recommendation_factors as Record<string, number> : undefined });
+function learningPreferencesFromRow(row: BootstrapRow, fallback: LearningPreferences): LearningPreferences {
+  return {
+    userId: String(row.user_id ?? fallback.userId),
+    preferredMethods: Array.isArray(row.preferred_methods) ? row.preferred_methods.map(String) as LearningPreferences["preferredMethods"] : fallback.preferredMethods,
+    preferredResourceKinds: Array.isArray(row.preferred_resource_kinds) ? row.preferred_resource_kinds.map(String) as LearningPreferences["preferredResourceKinds"] : fallback.preferredResourceKinds,
+    sessionLengthMinutes: numericValue(row.session_length_minutes, fallback.sessionLengthMinutes),
+    weekdayMinutes: numericValue(row.weekday_minutes, fallback.weekdayMinutes),
+    weekendMinutes: numericValue(row.weekend_minutes, fallback.weekendMinutes),
+    targetGrade: String(row.target_grade ?? fallback.targetGrade),
+    guidanceMode: String(row.guidance_mode ?? fallback.guidanceMode) as LearningPreferences["guidanceMode"],
+    planStrictness: String(row.plan_strictness ?? fallback.planStrictness) as LearningPreferences["planStrictness"],
+    instructionRatio: numericValue(row.instruction_ratio, fallback.instructionRatio),
+    practiceRatio: numericValue(row.practice_ratio, fallback.practiceRatio),
+    reviewRatio: numericValue(row.review_ratio, fallback.reviewRatio),
+    createdAt: String(row.created_at ?? fallback.createdAt),
+    updatedAt: String(row.updated_at ?? fallback.updatedAt),
+  };
+}
+
+function userProfileFromRow(row: BootstrapRow): UserProfile {
+  return {
+    userId: String(row.user_id),
+    displayName: row.display_name ? String(row.display_name) : undefined,
+    board: String(row.board),
+    examYear: SSC_EXAM_YEAR,
+    selectedSubjects: Array.isArray(row.selected_subjects) ? row.selected_subjects.map(String) : [],
+    subjectStrengths: subjectStrengthsFromRow(row.subject_strengths),
+    mostDifficultSubjectId: row.most_difficult_subject_id ? String(row.most_difficult_subject_id) : undefined,
+    studyGroup: row.study_group as UserProfile["studyGroup"],
+    religionSubject: row.religion_subject_id as UserProfile["religionSubject"],
+    fourthSubject: row.fourth_subject_id as UserProfile["fourthSubject"],
+    academicYear: numericValue(row.academic_year, 2026),
+    bookLanguage: "bn",
+    academicProfileCompleted: Boolean(row.academic_profile_completed),
+    onboardingStep: numericValue(row.onboarding_step, 0),
+    onboardingCompleted: Boolean(row.onboarding_completed),
+    quickStartStatus: row.quick_start_status === "dismissed" || row.quick_start_status === "completed" ? row.quick_start_status : "active",
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+function plannedTimeLabel(value: unknown) {
+  if (!value) return "Unscheduled";
+  const date = new Date(String(value));
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  if (hour === 0 && minute === 0) return "Today";
+  return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Dhaka", hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+const studyTaskFromRow = (row: BootstrapRow): StudyTask => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), plannedTime: plannedTimeLabel(row.planned_start), plannedStart: row.planned_start ? String(row.planned_start) : undefined, plannedEnd: row.planned_end ? String(row.planned_end) : undefined, deferredUntil: row.deferred_until ? String(row.deferred_until) : undefined, duration: Number(row.duration_minutes), origin: row.origin as StudyTask["origin"], pinned: Boolean(row.pinned), status: row.status as StudyTask["status"], currentStep: Number(row.current_step), reason: String(row.priority_explanation ?? "Database task"), priorityScore: Number(row.priority_score), focusedSeconds: Number(row.focused_seconds ?? 0), studyMethod: row.study_method ? String(row.study_method) as StudyTask["studyMethod"] : undefined, workflowPhase: row.workflow_phase ? String(row.workflow_phase) as StudyTask["workflowPhase"] : undefined, workflowSteps: Array.isArray(row.workflow_steps) ? row.workflow_steps.map(String).filter(Boolean) : undefined, workflowStage: row.workflow_stage == null ? undefined : Number(row.workflow_stage), workflowStageCount: row.workflow_stage_count == null ? undefined : Number(row.workflow_stage_count), workflowStageLabel: row.workflow_stage_label ? String(row.workflow_stage_label) : undefined, workflowGroupId: row.workflow_group_id ? String(row.workflow_group_id) : undefined, recommendationFactors: row.recommendation_factors && typeof row.recommendation_factors === "object" ? row.recommendation_factors as Record<string, number> : undefined });
 
 const methodLabel = (method?: LearningMethod) => method ? method.replace("question-bank", "question bank").replace("online-class", "online class").replace("group-study", "group study") : "your preferred method";
 
 const currentMonthKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit" }).format(new Date()) + "-01";
 const preferenceFor = (chapterId: string, list: ChapterPreference[]) => list.find((item) => item.chapterId === chapterId) ?? { chapterId, includedForSsc: false, excluded: false, priority: 3 as const };
 const monthLabel = (month: string) => new Date(`${month}T00:00:00+06:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "Asia/Dhaka" });
-const plannedDate = (task: StudyTask) => task.plannedStart?.slice(0, 10);
+const plannedDate = (task: StudyTask) => task.plannedStart ? dhakaDateKey(new Date(task.plannedStart)) : undefined;
 const displayTime = (value: string) => {
   const match = value.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
   if (!match) return "3:00 PM";
@@ -108,7 +162,9 @@ function dhakaDateAfter(days: number) {
 }
 
 function isTaskAvailable(task: StudyTask) {
-  return !task.deferredUntil || new Date(task.deferredUntil).getTime() <= Date.now();
+  if (task.deferredUntil && new Date(task.deferredUntil).getTime() > Date.now()) return false;
+  const date = plannedDate(task);
+  return !date || date <= dhakaDateKey();
 }
 
 function taskRow(task: StudyTask) {
@@ -194,23 +250,8 @@ function examEventRow(event: ExamEvent) {
   return { id: event.id, name: event.name, starts_on: event.start, ends_on: event.end, kind: event.kind, scope: event.scope, note: event.note ?? null, locked: event.locked ?? false, archived: event.archived ?? false };
 }
 
-function normalizeStudyWindows(value: unknown, fallbackStart?: unknown, fallbackEnd?: unknown): StudyWindow[] {
-  const candidates = Array.isArray(value) ? value : [];
-  const valid = candidates.map((item, index) => {
-    const row = item as { id?: unknown; start?: unknown; end?: unknown };
-    const start = typeof row.start === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(row.start) ? row.start : "";
-    const end = typeof row.end === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(row.end) ? row.end : "";
-    return start && end && start < end ? { id: typeof row.id === "string" && row.id ? row.id : `window-${index + 1}`, start, end } : null;
-  }).filter((item): item is StudyWindow => Boolean(item));
-  if (valid.length) return valid.slice(0, 4);
-  const start = typeof fallbackStart === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(fallbackStart) ? fallbackStart : "09:00";
-  const end = typeof fallbackEnd === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(fallbackEnd) && fallbackEnd > start ? fallbackEnd : "12:00";
-  return [{ id: "window-1", start, end }];
-}
-
 function planningRow(settings: PlanningSettings) {
-  const firstWindow = settings.studyWindows[0] ?? { start: "09:00", end: "12:00" };
-  return { study_windows: settings.studyWindows, main_start: firstWindow.start, main_end: firstWindow.end, daily_target: settings.dailyTarget, reminders_enabled: settings.remindersEnabled };
+  return { reminders_enabled: settings.remindersEnabled };
 }
 
 function adaptivePlanRow(summary: AdaptivePlanSummary) {
@@ -222,8 +263,6 @@ function learningPreferencesRow(value: Partial<LearningPreferences>) {
     preferred_methods: value.preferredMethods,
     preferred_resource_kinds: value.preferredResourceKinds,
     session_length_minutes: value.sessionLengthMinutes,
-    sessions_per_day: value.sessionsPerDay,
-    available_days: value.availableDays,
     weekday_minutes: value.weekdayMinutes,
     weekend_minutes: value.weekendMinutes,
     target_grade: value.targetGrade,
@@ -276,7 +315,7 @@ function SectionTitle({ kicker, title, children }: { kicker: string; title: stri
   return <div className="section-title"><div><small>{kicker}</small><h2>{title}</h2></div>{children}</div>;
 }
 
-function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents, go, startStudy, add }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; go: (value: string) => void; startStudy: (task: StudyTask) => void; add: () => void }) {
+function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents, learningPreferences, planSummary, go, startStudy, add }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; learningPreferences: LearningPreferences; planSummary: AdaptivePlanSummary | null; go: (value: string) => void; startStudy: (task: StudyTask) => void; add: () => void }) {
   const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
   const visible = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped" && isTaskAvailable(task) && !excluded.has(task.chapterId));
   const first = visible[0];
@@ -304,7 +343,7 @@ function Dashboard({ tasks, chapters, preferences, mistakes, entries, examEvents
         <Brain className="hero-art" weight="duotone" />
       </article>
     </section>
-    <HomeSummaryCards tasks={tasks} preferences={preferences} entries={entries} examEvents={examEvents} />
+    <HomeSummaryCards tasks={tasks} preferences={preferences} entries={entries} examEvents={examEvents} learningPreferences={learningPreferences} planSummary={planSummary} />
     <section className="strategy-ribbon"><button onClick={() => go("Goals")}><Target weight="fill" /><span><small>SSC COVERAGE</small><strong>{preferences.filter((item) => item.includedForSsc && !item.excluded).length} chapters</strong></span><CaretRight /></button><button onClick={() => go("Goals")}><CalendarPlus weight="fill" /><span><small>{monthLabel(currentMonthKey()).toUpperCase()}</small><strong>{preferences.filter((item) => item.targetMonth === currentMonthKey() && !item.excluded).length} chapter goals</strong></span><CaretRight /></button><button onClick={() => go("Syllabus")}><EyeSlash weight="fill" /><span><small>CHAPTER EXCLUSIONS</small><strong>{preferences.filter((item) => item.excluded).length} excluded</strong></span><CaretRight /></button></section>
     <section className="dashboard-grid">
       <article className="panel weekly"><SectionTitle kicker="LIVE EVIDENCE" title="Work that protects your result" /><div className="bars">{evidenceRows.length ? evidenceRows.map(({ subject: evidenceSubject, readiness }) => <div key={evidenceSubject.id}><span>{evidenceSubject.name}</span><i><b className={evidenceSubject.accent} style={{ width: `${readiness}%` }} /></i><strong>{readiness}%</strong></div>) : <div className="empty compact"><p>No subject evidence yet. Complete a chapter or log a study result to build this view.</p></div>}</div></article>
@@ -352,10 +391,11 @@ function FocusTimer({ session, baseSeconds = 0, onStart, onChange, onReset }: { 
   return <div className="timer-box"><Timer /><strong>{label}</strong><button className="primary" onClick={() => { if (!session || session.timerState !== "running") onStart(); else onChange({ ...session, focusedSeconds: seconds, timerState: "paused", lastResumedAt: undefined }); }}>{running ? <><Pause weight="fill" />Pause</> : <><Play weight="fill" />{session?.timerState === "paused" ? "Resume" : "Focus"}</>}</button><button onClick={onReset}>Reset</button></div>;
 }
 
-function AdaptivePlannerControls({ summary, run, state, message }: { summary: AdaptivePlanSummary | null; run: (minutes: number) => void | Promise<void>; state: "idle" | "running" | "success" | "error"; message?: string }) {
-  const [minutes, setMinutes] = useState(summary?.availableMinutes ?? 240);
+function AdaptivePlannerControls({ summary, baselineMinutes, run, state, message }: { summary: AdaptivePlanSummary | null; baselineMinutes: number; run: (minutes: number) => void | Promise<void>; state: "idle" | "running" | "success" | "error"; message?: string }) {
+  const [minutes, setMinutes] = useState(isCurrentDailyPlan(summary) ? summary!.availableMinutes : baselineMinutes);
   const busy = state === "running";
-  return <article className="panel adaptive-planner"><div><small className="eyebrow">ADAPTIVE DAILY PLANNER</small><h3>Plan today around the gaps.</h3><p>Review open mistakes first, then schedule the next useful chapter.</p>{summary?.rationale.map((line) => <small className="planner-note" key={line}>{line}</small>)}</div><div className="adaptive-planner-actions"><label>Available minutes<input type="number" min="15" max="600" step="15" value={minutes} onChange={(event) => setMinutes(Math.max(15, Math.min(600, Number(event.target.value))))} /></label><button className="accent" onClick={() => void run(minutes)} disabled={busy}><Sparkle weight="fill" />{busy ? "Planning…" : "Adapt my day"}</button>{summary && <span className="planner-result" role="status">{summary.usedMinutes}/{summary.availableMinutes} min placed · {summary.deferredCount} deferred</span>}{message && <span className={`planner-feedback ${state}`} role="status">{message}</span>}</div></article>;
+  const presets = Array.from(new Set([30, 60, 90, baselineMinutes])).sort((a, b) => a - b);
+  return <article className="panel adaptive-planner"><div><small className="eyebrow">TODAY&apos;S CAPACITY</small><h3>Plan around the time you actually have.</h3><p>Your normal {capacityDayLabel().toLowerCase()} is {baselineMinutes} minutes. Change it only when today is different.</p>{summary?.rationale.map((line) => <small className="planner-note" key={line}>{line}</small>)}</div><div className="adaptive-planner-actions"><div className="capacity-presets" role="group" aria-label="Available study time today">{presets.map((value) => <button type="button" key={value} className={minutes === value ? "selected" : ""} aria-pressed={minutes === value} onClick={() => setMinutes(value)}>{value === baselineMinutes ? `Usual · ${value}m` : `${value}m`}</button>)}</div><label>Custom minutes<input type="number" min="15" max="720" step="15" value={minutes} onChange={(event) => setMinutes(Math.max(15, Math.min(720, Number(event.target.value))))} /></label><button className="accent" onClick={() => void run(minutes)} disabled={busy}><Sparkle weight="fill" />{busy ? "Planning…" : "Build today&apos;s plan"}</button>{summary && <span className="planner-result" role="status">{summary.usedMinutes}/{summary.availableMinutes} min planned · {summary.deferredCount} saved for later</span>}{message && <span className={`planner-feedback ${state}`} role="status">{message}</span>}</div></article>;
 }
 
 function DailyTaskCard({ task, subject, index, featured, expanded, toggle, update, remove, journal, feedback, workflows, workflowPresets, preferredMethods, focusSession, startFocus, updateFocus, resetFocus }: { task: StudyTask; subject: Subject; index: number; featured?: boolean; expanded: boolean; toggle: () => void; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; workflows: CustomStudyWorkflow[]; workflowPresets: WorkflowPreset[]; preferredMethods: LearningMethod[]; focusSession?: StudySession; startFocus: () => void; updateFocus: (session: StudySession) => void; resetFocus: () => void }) {
@@ -381,7 +421,7 @@ function DailyTaskCard({ task, subject, index, featured, expanded, toggle, updat
   </article>;
 }
 
-function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, planSummary, planToday, plannerState, plannerMessage, feedback, entries, goJournal, workflows, workflowPresets, preferredMethods, sessions, startFocus, updateFocus, resetFocus }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void | Promise<void>; plannerState: "idle" | "running" | "success" | "error"; plannerMessage?: string; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; entries: JournalEntry[]; goJournal: () => void; workflows: CustomStudyWorkflow[]; workflowPresets: WorkflowPreset[]; preferredMethods: LearningMethod[]; sessions: StudySession[]; startFocus: (task: StudyTask) => void; updateFocus: (session: StudySession) => void; resetFocus: (task: StudyTask) => void }) {
+function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, planSummary, baselineMinutes, planToday, plannerState, plannerMessage, feedback, entries, goJournal, workflows, workflowPresets, preferredMethods, sessions, startFocus, updateFocus, resetFocus }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; baselineMinutes: number; planToday: (minutes: number) => void | Promise<void>; plannerState: "idle" | "running" | "success" | "error"; plannerMessage?: string; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; entries: JournalEntry[]; goJournal: () => void; workflows: CustomStudyWorkflow[]; workflowPresets: WorkflowPreset[]; preferredMethods: LearningMethod[]; sessions: StudySession[]; startFocus: (task: StudyTask) => void; updateFocus: (session: StudySession) => void; resetFocus: (task: StudyTask) => void }) {
   const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
   const visible = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped" && isTaskAvailable(task) && !excluded.has(task.chapterId));
   const doNow = visible[0];
@@ -399,7 +439,7 @@ function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, 
   const plannedMinutes = visible.reduce((sum, task) => sum + task.duration, 0);
   return <section id="daily-loop" className="today-page home-section" tabIndex={-1}>
     <SectionTitle kicker={`YOUR DAILY LOOP · ${dhakaDate()}`} title="What to do next"><button className="add-task" onClick={add}><Plus />Add task</button></SectionTitle>
-    <AdaptivePlannerControls summary={planSummary} run={planToday} state={plannerState} message={plannerMessage} />
+    <AdaptivePlannerControls summary={planSummary} baselineMinutes={baselineMinutes} run={planToday} state={plannerState} message={plannerMessage} />
     <div className="daily-loop-grid">
       <section className="daily-loop-section do-now-section">
         <div className="daily-loop-heading"><span className="daily-loop-index">1</span><div><small>DO NOW</small><h3>Start with one clear action.</h3><p>The strongest next step is first. You do not need to plan the whole day before beginning.</p></div></div>
@@ -418,16 +458,17 @@ function Today({ tasks, preferences, update, remove, journal, add, focusTaskId, 
   </section>;
 }
 
-function HomeSummaryCards({ tasks, preferences, entries, examEvents }: { tasks: StudyTask[]; preferences: ChapterPreference[]; entries: JournalEntry[]; examEvents: ExamEvent[] }) {
+function HomeSummaryCards({ tasks, preferences, entries, examEvents, learningPreferences, planSummary }: { tasks: StudyTask[]; preferences: ChapterPreference[]; entries: JournalEntry[]; examEvents: ExamEvent[]; learningPreferences: LearningPreferences; planSummary: AdaptivePlanSummary | null }) {
   const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
   const visible = tasks.filter((task) => task.status !== "completed" && task.status !== "skipped" && isTaskAvailable(task) && !excluded.has(task.chapterId));
   const todayKey = dhakaDateKey();
   const completedMinutes = entries.filter((entry) => dhakaDateKey(new Date(entry.createdAt)) === todayKey).reduce((sum, entry) => sum + entry.minutes, 0);
   const plannedMinutes = visible.reduce((sum, task) => sum + task.duration, 0);
-  const progress = completedMinutes ? Math.min(100, Math.round(completedMinutes / Math.max(plannedMinutes + completedMinutes, 1) * 100)) : 0;
+  const targetMinutes = effectiveCapacityMinutes(learningPreferences, planSummary);
+  const progress = Math.min(100, Math.round(completedMinutes / Math.max(targetMinutes, 1) * 100));
   const countdowns = ["test", "ssc"].map((id) => examEvents.find((event) => event.id === id)).filter((event): event is ExamEvent => Boolean(event));
   return <section className="home-summary-cards" aria-label="Exam dates and today target">
-    <article className="mini-card home-target-card"><small>TODAY&apos;S TARGET</small><h3>{plannedMinutes}<em> min</em><b>{progress}%</b></h3><div className="meter" role="progressbar" aria-label="Today&apos;s study progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><span style={{ width: `${progress}%` }} /></div></article>
+    <article className="mini-card home-target-card"><small>TODAY&apos;S CAPACITY</small><h3>{targetMinutes}<em> min</em><b>{progress}%</b></h3><p>{completedMinutes} completed · {plannedMinutes} currently queued</p><div className="meter" role="progressbar" aria-label={`${completedMinutes} of ${targetMinutes} available study minutes completed today`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><span style={{ width: `${progress}%` }} /></div></article>
     {countdowns.map((event) => <HomeCountdownCard key={event.id} event={event} />)}
   </section>;
 }
@@ -438,9 +479,9 @@ function HomeCountdownCard({ event }: { event: ExamEvent }) {
   const label = days > 0 ? `${days} days` : days === 0 ? "Today" : "Started";
   return <article className={`mini-card home-countdown-card ${event.id === "ssc" ? "official" : "test"}`}><small>{event.id === "ssc" ? "SSC EXAM" : "TEST EXAM"}</small><h3>{event.id === "ssc" ? "SSC 2027" : event.name}</h3><strong>{label}</strong><span>Starts {new Date(`${event.start}T00:00:00+06:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Dhaka" })}</span></article>;
 }
-function Home({ tasks, chapters, preferences, mistakes, entries, examEvents, update, remove, journal, add, focusTaskId, planSummary, planToday, plannerState, plannerMessage, sessions, startFocus, updateFocus, resetFocus, go, startStudy, feedback, goJournal, workflows, workflowPresets, preferredMethods, quickStartStatus, onQuickStartStatusChange }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void | Promise<void>; plannerState: "idle" | "running" | "success" | "error"; plannerMessage?: string; sessions: StudySession[]; startFocus: (task: StudyTask) => void; updateFocus: (session: StudySession) => void; resetFocus: (task: StudyTask) => void; go: (value: string) => void; startStudy: (task: StudyTask) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; goJournal: () => void; workflows: CustomStudyWorkflow[]; workflowPresets: WorkflowPreset[]; preferredMethods: LearningMethod[]; quickStartStatus: QuickStartStatus; onQuickStartStatusChange: (status: QuickStartStatus) => void | Promise<void> }) {
+function Home({ tasks, chapters, preferences, mistakes, entries, examEvents, learningPreferences, update, remove, journal, add, focusTaskId, planSummary, planToday, plannerState, plannerMessage, sessions, startFocus, updateFocus, resetFocus, go, startStudy, feedback, goJournal, workflows, workflowPresets, preferredMethods, quickStartStatus, onQuickStartStatusChange }: { tasks: StudyTask[]; chapters: Chapter[]; preferences: ChapterPreference[]; mistakes: Mistake[]; entries: JournalEntry[]; examEvents: ExamEvent[]; learningPreferences: LearningPreferences; update: (task: StudyTask) => void; remove: (task: StudyTask) => void; journal: (task: StudyTask) => void; add: () => void; focusTaskId?: string | null; planSummary: AdaptivePlanSummary | null; planToday: (minutes: number) => void | Promise<void>; plannerState: "idle" | "running" | "success" | "error"; plannerMessage?: string; sessions: StudySession[]; startFocus: (task: StudyTask) => void; updateFocus: (session: StudySession) => void; resetFocus: (task: StudyTask) => void; go: (value: string) => void; startStudy: (task: StudyTask) => void; feedback: (task: StudyTask, feedbackType: RecommendationFeedback["feedbackType"]) => void; goJournal: () => void; workflows: CustomStudyWorkflow[]; workflowPresets: WorkflowPreset[]; preferredMethods: LearningMethod[]; quickStartStatus: QuickStartStatus; onQuickStartStatusChange: (status: QuickStartStatus) => void | Promise<void> }) {
   const hasEvidence = entries.length > 0 || sessions.some((session) => session.completed || (session.focusedSeconds ?? 0) > 0);
-  return <main id="main-content" tabIndex={-1} className="page home-page"><Dashboard tasks={tasks} chapters={chapters} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} go={go} startStudy={startStudy} add={add} /><QuickStart status={quickStartStatus} tasks={tasks} chapters={chapters} preferences={preferences} hasEvidence={hasEvidence} onGo={go} onAddTask={add} onStartTask={(task) => { startFocus(task); startStudy(task); }} onStatusChange={onQuickStartStatusChange} /><Today tasks={tasks} preferences={preferences} update={update} remove={remove} journal={journal} add={add} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} plannerState={plannerState} plannerMessage={plannerMessage} feedback={feedback} entries={entries} goJournal={goJournal} workflows={workflows} workflowPresets={workflowPresets} preferredMethods={preferredMethods} sessions={sessions} startFocus={startFocus} updateFocus={updateFocus} resetFocus={resetFocus} /></main>;
+  return <main id="main-content" tabIndex={-1} className="page home-page"><Dashboard tasks={tasks} chapters={chapters} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} learningPreferences={learningPreferences} planSummary={planSummary} go={go} startStudy={startStudy} add={add} /><QuickStart status={quickStartStatus} tasks={tasks} chapters={chapters} preferences={preferences} hasEvidence={hasEvidence} onGo={go} onAddTask={add} onStartTask={(task) => { startFocus(task); startStudy(task); }} onStatusChange={onQuickStartStatusChange} /><Today tasks={tasks} preferences={preferences} update={update} remove={remove} journal={journal} add={add} focusTaskId={focusTaskId} planSummary={planSummary} baselineMinutes={dailyCapacityMinutes(learningPreferences)} planToday={planToday} plannerState={plannerState} plannerMessage={plannerMessage} feedback={feedback} entries={entries} goJournal={goJournal} workflows={workflows} workflowPresets={workflowPresets} preferredMethods={preferredMethods} sessions={sessions} startFocus={startFocus} updateFocus={updateFocus} resetFocus={resetFocus} /></main>;
 }
 
 const difficultyLabels: Record<ChapterDifficulty, string> = { 1: "Easy", 2: "Light", 3: "Moderate", 4: "Hard", 5: "Very hard" };
@@ -682,10 +723,10 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
   const [guidanceMode, setGuidanceMode] = useState(learningPreferences.guidanceMode);
   const [planStrictness, setPlanStrictness] = useState(learningPreferences.planStrictness);
   const [sessionLength, setSessionLength] = useState(learningPreferences.sessionLengthMinutes);
+  const [weekdayMinutes, setWeekdayMinutes] = useState(learningPreferences.weekdayMinutes);
+  const [weekendMinutes, setWeekendMinutes] = useState(learningPreferences.weekendMinutes);
   const [mostDifficultSubjectId, setMostDifficultSubjectId] = useState(profile.mostDifficultSubjectId ?? "");
   const [subjectStrengths, setSubjectStrengths] = useState<Record<string, StrengthLevel>>(profile.subjectStrengths ?? {});
-  const [studyWindows, setStudyWindows] = useState<StudyWindow[]>(planning.studyWindows);
-  const [studyWindowError, setStudyWindowError] = useState("");
   useEffect(() => {
     const client = createSupabaseClient();
     if (!client) return;
@@ -694,59 +735,23 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
     return () => data.subscription.unsubscribe();
   }, []);
   const updateProfile = async () => { try { await saveProfile({ displayName: displayName.trim() || undefined }); setMessage("Profile updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Profile update failed."); } };
-  const updateAdaptive = async () => { try { await saveAdaptive({ guidanceMode, planStrictness, sessionLengthMinutes: sessionLength }); setMessage("Your planning preferences were updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update planning preferences."); } };
+  const updateAdaptive = async () => { try { await saveAdaptive({ guidanceMode, planStrictness, sessionLengthMinutes: sessionLength, weekdayMinutes, weekendMinutes }); setMessage("Your daily capacity and planning preferences were updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update planning preferences."); } };
   const updateMostDifficult = async () => { try { await saveProfile({ mostDifficultSubjectId: mostDifficultSubjectId || undefined }); setMessage("Your personal difficulty signal was updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update your difficulty signal."); } };
   const updateSubjectStrengths = async () => { try { await saveProfile({ subjectStrengths }); setMessage("Your subject strengths were updated."); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update your subject strengths."); } };
-  const restartOnboarding = async () => { try { await saveProfile({ onboardingStep: 0, onboardingCompleted: false }); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not restart setup."); } };
-  const timeMinutes = (value: string) => { const [hour, minute] = value.split(":").map(Number); return hour * 60 + minute; };
-  const updateWindow = (id: string, patch: Partial<StudyWindow>) => {
-    setStudyWindows((current) => current.map((window) => window.id === id ? { ...window, ...patch } : window));
-    setStudyWindowError("");
-  };
-  const addWindow = () => {
-    if (studyWindows.length >= 4) return;
-    const last = studyWindows.at(-1);
-    const lastEnd = last?.end ?? "09:00";
-    const startMinutes = Math.min(22 * 60, timeMinutes(lastEnd));
-    const endMinutes = Math.min(23 * 60 + 45, startMinutes + 120);
-    if (endMinutes <= startMinutes) {
-      setStudyWindowError("There is no room for another two-hour window after the current schedule. Shorten or move the last window first.");
-      return;
-    }
-    const nextStart = `${String(Math.floor(startMinutes / 60)).padStart(2, "0")}:${String(startMinutes % 60).padStart(2, "0")}`;
-    const nextEnd = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
-    setStudyWindows((current) => [...current, { id: `window-${crypto.randomUUID()}`, start: nextStart, end: nextEnd }]);
-    setStudyWindowError("");
-  };
-  const removeWindow = (id: string) => {
-    if (studyWindows.length <= 1) return;
-    setStudyWindows((current) => current.filter((window) => window.id !== id));
-    setStudyWindowError("");
-  };
-  const saveStudyWindows = () => {
-    const invalid = studyWindows.find((window) => timeMinutes(window.start) >= timeMinutes(window.end));
-    if (invalid) {
-      setStudyWindowError("Each study window must end after it starts. Adjust the highlighted time range before saving.");
-      return;
-    }
-    setPlanning({ ...planning, studyWindows });
-    setStudyWindowError("");
-    setMessage("Study windows saved.");
-  };
+  const restartOnboarding = async () => { try { await saveProfile({ onboardingStep: 0, onboardingCompleted: false }); window.location.reload(); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not restart setup."); } };
   const enableReminders = async () => {
     if (!("Notification" in window)) return setMessage("This browser does not support notifications.");
     const permission = await Notification.requestPermission();
-    setPlanning({ ...planning, studyWindows, remindersEnabled: permission === "granted" });
+    setPlanning({ remindersEnabled: permission === "granted" });
     setMessage(permission === "granted" ? "Reminders enabled. Calendar reminders remain the reliable option when the app is closed." : "Notification permission was not granted.");
   };
   return <main id="main-content" tabIndex={-1} className="page settings-page"><SectionTitle kicker="PRIVATE BY DEFAULT" title="Planning settings" /><section className="settings">
     <article className="auth-card account-card"><span className="lilac"><CloudCheck /></span><div><p><strong>{email ? "Cloud account connected" : "Cloud account"}</strong><small>{email ?? "Your account email"}</small></p><label>Display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name" /></label><div className="settings-actions"><button onClick={updateProfile}>Save profile</button><button onClick={restartOnboarding}>Restart setup</button><button type="button" onClick={() => void onSignOut()}><SignOut />Sign out</button></div></div></article>
-    <article className="settings-editor adaptive-settings"><span className="blue"><Brain /></span><p><strong>How SSC plans for you</strong><small>Current methods: {learningPreferences.preferredMethods.join(", ") || "Choose methods in setup"}. The planner learns from your feedback.</small></p><div className="inline-fields"><label>Guidance<select value={guidanceMode} onChange={(event) => setGuidanceMode(event.target.value as LearningPreferences["guidanceMode"])}><option value="guided">Guide me</option><option value="balanced">Balanced</option><option value="quiet">Quiet queue</option></select></label><label>Plan style<select value={planStrictness} onChange={(event) => setPlanStrictness(event.target.value as LearningPreferences["planStrictness"])}><option value="flexible">Flexible</option><option value="balanced">Balanced</option><option value="strict">Strict</option></select></label><label>Session length<select value={sessionLength} onChange={(event) => setSessionLength(Number(event.target.value))}><option value="25">25 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="90">90 min</option></select></label></div><div className="settings-actions adaptive-actions"><button type="button" className="accent" onClick={updateAdaptive}>Save planning preferences</button><button type="button" onClick={restartOnboarding}>Run calibration again</button></div></article>
+    <article className="settings-editor adaptive-settings capacity-settings"><span className="blue"><Brain /></span><p><strong>Daily capacity and planning</strong><small>Chaptr builds each day inside these limits, then gives extra weight to difficult subjects, low-progress chapters, due reviews, mistakes, and your feedback.</small></p><div className="inline-fields capacity-fields"><label>Sunday–Thursday<select value={weekdayMinutes} onChange={(event) => setWeekdayMinutes(Number(event.target.value))}><option value="60">60 min/day</option><option value="90">90 min/day</option><option value="120">2 hours/day</option><option value="180">3 hours/day</option><option value="240">4 hours/day</option></select></label><label>Friday–Saturday<select value={weekendMinutes} onChange={(event) => setWeekendMinutes(Number(event.target.value))}><option value="90">90 min/day</option><option value="120">2 hours/day</option><option value="180">3 hours/day</option><option value="240">4 hours/day</option><option value="300">5 hours/day</option></select></label><label>Preferred focus block<select value={sessionLength} onChange={(event) => setSessionLength(Number(event.target.value))}><option value="25">25 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="90">90 min</option></select></label><label>Guidance<select value={guidanceMode} onChange={(event) => setGuidanceMode(event.target.value as LearningPreferences["guidanceMode"])}><option value="guided">Guide me</option><option value="balanced">Balanced</option><option value="quiet">Quiet queue</option></select></label><label>Plan style<select value={planStrictness} onChange={(event) => setPlanStrictness(event.target.value as LearningPreferences["planStrictness"])}><option value="flexible">Flexible</option><option value="balanced">Balanced</option><option value="strict">Strict</option></select></label></div><p className="capacity-derived-note">A usual Sunday–Thursday day becomes about {Math.max(1, Math.ceil(weekdayMinutes / sessionLength))} focus block{Math.ceil(weekdayMinutes / sessionLength) === 1 ? "" : "s"}. You never need to maintain a separate session count.</p><div className="settings-actions adaptive-actions"><button type="button" className="accent" onClick={updateAdaptive}>Save daily capacity</button><button type="button" onClick={restartOnboarding}>Run calibration again</button></div></article>
     <article className="settings-editor personal-difficulty-settings"><span className="yellow"><Target /></span><p><strong>Your subject strengths</strong><small>Rate each selected subject from Strongest to Toughest. These labels personalize your Syllabus and gently shape planning priorities.</small></p><div className="settings-strength-list">{subjects.filter((subject) => profile.selectedSubjects.includes(subject.id)).map((subject) => <label key={subject.id}><span>{subject.name}</span><select aria-label={`${subject.name} strength`} value={subjectStrengths[subject.id] ?? ""} onChange={(event) => setSubjectStrengths((current) => ({ ...current, [subject.id]: event.target.value as StrengthLevel }))}><option value="">Choose level</option>{strengthLevels.map((level) => <option key={level} value={level}>{strengthLabels[level]}</option>)}</select></label>)}</div><div className="settings-actions"><button type="button" className="accent" onClick={updateSubjectStrengths}>Save subject strengths</button></div></article>
     <article className="settings-editor personal-difficulty-settings"><span className="yellow"><Target /></span><p><strong>Your most difficult subject</strong><small>This optional signal gives one subject a little extra protection in your daily plan.</small></p><div className="inline-fields"><label>Subject<select value={mostDifficultSubjectId} onChange={(event) => setMostDifficultSubjectId(event.target.value)}><option value="">I do not have one right now</option>{subjects.filter((subject) => profile.selectedSubjects.includes(subject.id)).map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label></div><div className="settings-actions"><button type="button" className="accent" onClick={updateMostDifficult}>Save difficulty signal</button></div></article>
     <WorkflowPresetEditor presets={workflowPresets} save={saveWorkflowPresets} />
 
-    <article className="settings-editor study-window-editor"><span className="mint"><Clock /></span><div className="study-window-editor-body"><p><strong>Study windows</strong><small>Add one to four windows for when you actually like to study. No subject, including Maths, is assigned to a special time.</small></p><div className="study-window-list">{studyWindows.map((window, index) => { const invalid = timeMinutes(window.start) >= timeMinutes(window.end); return <div className={`study-window-row${invalid ? " invalid" : ""}`} key={window.id}><strong>Window {index + 1}</strong><TimePicker value={window.start} onChange={(value) => updateWindow(window.id, { start: value })} invalid={invalid} /><span>to</span><TimePicker value={window.end} onChange={(value) => updateWindow(window.id, { end: value })} invalid={invalid} /><button type="button" className="study-window-remove" onClick={() => removeWindow(window.id)} disabled={studyWindows.length <= 1}>Remove</button>{invalid && <small className="study-window-row-error" role="alert">End this window after its start time.</small>}</div>; })}</div><div className="study-window-footer"><label>Daily study target<input type="number" min="15" max="600" value={planning.dailyTarget} onChange={(event) => setPlanning({ ...planning, studyWindows, dailyTarget: Number(event.target.value) })} /><em>min</em></label><div className="study-window-actions"><button type="button" className="accent" onClick={addWindow} disabled={studyWindows.length >= 4}><Plus />{studyWindows.length >= 4 ? "Maximum 4 windows" : "Add study window"}</button><button type="button" onClick={saveStudyWindows}>Save study windows</button></div></div>{studyWindowError && <small className="settings-message study-window-error" role="alert">{studyWindowError}</small>}</div></article>
     <article><span className="blue"><Warning /></span><p><strong>Study reminders</strong><small>{planning.remindersEnabled ? "Browser permission granted." : "Optional browser and install reminders."}</small></p><button onClick={enableReminders}>{planning.remindersEnabled ? "Enabled" : "Enable"}</button></article>
     <article className="settings-editor settings-privacy-link"><span className="pink"><Headphones /></span><p><strong>Support and account privacy</strong><small>Search help, send a private support request, or request deletion of your Chaptr account.</small></p><button type="button" onClick={() => router.push("/support")}>Open Support <ArrowRight /></button></article>
     {message && <p className="settings-message">{message}</p>}
@@ -906,9 +911,9 @@ export default function CommandCenter() {
   const [curatedTextbooks, setCuratedTextbooks] = useState<CuratedTextbook[]>([]);
   const [examPlan, setExamPlan] = useState<ExamPlanPhase[]>([]);
   const [examEvents, setExamEvents] = useState<ExamEvent[]>([]);
-  const [planning, setPlanning] = useState<PlanningSettings>({ studyWindows: [{ id: "window-1", start: "09:00", end: "12:00" }], dailyTarget: 240, remindersEnabled: false });
+  const [planning, setPlanning] = useState<PlanningSettings>({ remindersEnabled: false });
   const [preferences, setPreferences] = useState<ChapterPreference[]>([]);
-  const [learningPreferences, setLearningPreferences] = useState<LearningPreferences>({ userId: "", preferredMethods: ["textbook", "question-bank"], preferredResourceKinds: ["textbook", "question-bank"], sessionLengthMinutes: 45, sessionsPerDay: 2, availableDays: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], weekdayMinutes: 120, weekendMinutes: 180, targetGrade: "A", guidanceMode: "guided", planStrictness: "flexible", instructionRatio: 30, practiceRatio: 50, reviewRatio: 20, createdAt: "", updatedAt: "" });
+  const [learningPreferences, setLearningPreferences] = useState<LearningPreferences>({ userId: "", preferredMethods: ["textbook", "question-bank"], preferredResourceKinds: ["textbook", "question-bank"], sessionLengthMinutes: 45, weekdayMinutes: 120, weekendMinutes: 180, targetGrade: "A", guidanceMode: "guided", planStrictness: "flexible", instructionRatio: 30, practiceRatio: 50, reviewRatio: 20, createdAt: "", updatedAt: "" });
   const [subjectAssessments, setSubjectAssessments] = useState<SubjectAssessment[]>([]);
   const [recommendationFeedback, setRecommendationFeedback] = useState<RecommendationFeedback[]>([]);
   const [studyWorkflows, setStudyWorkflows] = useState<CustomStudyWorkflow[]>([]);
@@ -923,6 +928,7 @@ export default function CommandCenter() {
   const [planSummary, setPlanSummary] = useState<AdaptivePlanSummary | null>(null);
   const [plannerState, setPlannerState] = useState<"idle" | "running" | "success" | "error">("idle");
   const [plannerMessage, setPlannerMessage] = useState("");
+  const autoPlanDateRef = useRef("");
   const [databaseStatus, setDatabaseStatus] = useState<"loading" | "ready" | "auth-required" | "error">("loading");
   const [databaseError, setDatabaseError] = useState("");
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -983,6 +989,8 @@ export default function CommandCenter() {
       const data = payload.data;
       const loadedSubjects: Subject[] = (data.subjects ?? []).map((row) => ({ id: String(row.id), name: String(row.name), shortName: String(row.short_name), strength: String(row.strength_level) as Subject["strength"], weaknessScore: Number(row.priority), workflow: String(row.workflow_kind) as Subject["workflow"], accent: subjectAccent[String(row.id)] ?? "blue", category: row.category as Subject["category"], studyGroup: row.study_group as Subject["studyGroup"], religionSubject: row.religion_subject as Subject["religionSubject"], fourthSubject: row.fourth_subject as Subject["fourthSubject"], bookLanguage: "bn" }));
       const loadedChapters: Chapter[] = orderChapters((data.chapters ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), number: row.chapter_number == null ? undefined : Number(row.chapter_number), title: String(row.title), division: row.division ? String(row.division) : undefined, note: row.note ? String(row.note) : undefined, status: "not-started" as const, confidence: 1 as const, difficulty: 3 as ChapterDifficulty, formats: Array.isArray(row.question_formats) ? row.question_formats.map(String) : [], questionsAttempted: 0, questionsCorrect: 0 })));
+      const loadedSubjectIds = new Set(loadedSubjects.map((subject) => subject.id));
+      const loadedChapterIds = new Set(loadedChapters.map((chapter) => chapter.id));
       const loadedMarks: MarksDistribution[] = (data.marks_distributions ?? []).map((row) => ({ subjectId: String(row.subject_id), part: row.part ? String(row.part) : undefined, questionType: String(row.question_type), rule: String(row.choice_rule), marks: Number(row.marks) }));
       const loadedExams = (data.exams ?? []).map((row) => ({ id: String(row.id), name: String(row.name), start: String(row.starts_on), end: String(row.ends_on) }));
       const loadedWorkflows = Object.fromEntries((data.workflow_steps ?? []).map((row) => [String(row.workflow_kind), Array.isArray(row.steps) ? row.steps.map(String) : []])) as unknown as typeof workflowSteps;
@@ -991,27 +999,27 @@ export default function CommandCenter() {
       replaceAcademicData({ subjects: loadedSubjects, chapters: loadedChapters, marksDistributions: loadedMarks, exams: loadedExams, workflowSteps: loadedWorkflows });
       const progress = new Map((data.chapter_progress ?? []).map((row) => [String(row.chapter_id), row]));
       setChapterList(loadedChapters.map((chapter) => { const row = progress.get(chapter.id); return row ? { ...chapter, status: row.status as Chapter["status"], confidence: Number(row.confidence) as Chapter["confidence"], difficulty: chapterDifficulty(row.difficulty), lastStudied: row.last_studied ? String(row.last_studied) : undefined, nextReview: row.next_review ? String(row.next_review) : undefined, questionsAttempted: Number(row.questions_attempted), questionsCorrect: Number(row.questions_correct) } : chapter; }));
-      setTasks((data.study_tasks ?? []).map(studyTaskFromRow));
-      setPreferences((data.chapter_preferences ?? []).map((row) => ({ chapterId: String(row.chapter_id), includedForSsc: Boolean(row.included_for_ssc), targetMonth: row.target_month ? String(row.target_month) : undefined, excluded: Boolean(row.excluded), exclusionReason: row.exclusion_reason ? String(row.exclusion_reason) : undefined, priority: Number(row.priority) as ChapterPreference["priority"] })));
+      setTasks((data.study_tasks ?? []).filter((row) => loadedSubjectIds.has(String(row.subject_id)) && loadedChapterIds.has(String(row.chapter_id))).map(studyTaskFromRow));
+      setPreferences((data.chapter_preferences ?? []).filter((row) => loadedChapterIds.has(String(row.chapter_id))).map((row) => ({ chapterId: String(row.chapter_id), includedForSsc: Boolean(row.included_for_ssc), targetMonth: row.target_month ? String(row.target_month) : undefined, excluded: Boolean(row.excluded), exclusionReason: row.exclusion_reason ? String(row.exclusion_reason) : undefined, priority: Number(row.priority) as ChapterPreference["priority"] })));
       const learningRow = data.learning_preferences?.[0];
-      if (learningRow) setLearningPreferences({ userId: String(learningRow.user_id), preferredMethods: Array.isArray(learningRow.preferred_methods) ? learningRow.preferred_methods.map(String) as LearningPreferences["preferredMethods"] : ["textbook", "question-bank"], preferredResourceKinds: Array.isArray(learningRow.preferred_resource_kinds) ? learningRow.preferred_resource_kinds.map(String) as LearningPreferences["preferredResourceKinds"] : ["textbook", "question-bank"], sessionLengthMinutes: Number(learningRow.session_length_minutes), sessionsPerDay: Number(learningRow.sessions_per_day), availableDays: Array.isArray(learningRow.available_days) ? learningRow.available_days.map(String) : [], weekdayMinutes: Number(learningRow.weekday_minutes), weekendMinutes: Number(learningRow.weekend_minutes), targetGrade: String(learningRow.target_grade), guidanceMode: String(learningRow.guidance_mode) as LearningPreferences["guidanceMode"], planStrictness: String(learningRow.plan_strictness) as LearningPreferences["planStrictness"], instructionRatio: Number(learningRow.instruction_ratio), practiceRatio: Number(learningRow.practice_ratio), reviewRatio: Number(learningRow.review_ratio), createdAt: String(learningRow.created_at), updatedAt: String(learningRow.updated_at) });
-      setSubjectAssessments((data.subject_assessments ?? []).map((row) => ({ id: String(row.id), userId: String(row.user_id), subjectId: String(row.subject_id), difficulty: Number(row.difficulty) as SubjectAssessment["difficulty"], confidence: Number(row.confidence) as SubjectAssessment["confidence"], priority: Number(row.priority) as SubjectAssessment["priority"], startingPoint: String(row.starting_point) as SubjectAssessment["startingPoint"], preferredMethods: Array.isArray(row.preferred_methods) ? row.preferred_methods.map(String) as SubjectAssessment["preferredMethods"] : [], createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
-      setRecommendationFeedback((data.recommendation_feedback ?? []).map((row) => ({ id: String(row.id), userId: String(row.user_id), taskId: row.task_id ? String(row.task_id) : undefined, subjectId: row.subject_id ? String(row.subject_id) : undefined, chapterId: row.chapter_id ? String(row.chapter_id) : undefined, feedbackType: String(row.feedback_type) as RecommendationFeedback["feedbackType"], method: row.method ? String(row.method) as RecommendationFeedback["method"] : undefined, note: row.note ? String(row.note) : undefined, createdAt: String(row.created_at) })));
+      if (learningRow) setLearningPreferences((current) => learningPreferencesFromRow(learningRow, current));
+      setSubjectAssessments((data.subject_assessments ?? []).filter((row) => loadedSubjectIds.has(String(row.subject_id))).map((row) => ({ id: String(row.id), userId: String(row.user_id), subjectId: String(row.subject_id), difficulty: Number(row.difficulty) as SubjectAssessment["difficulty"], confidence: Number(row.confidence) as SubjectAssessment["confidence"], priority: Number(row.priority) as SubjectAssessment["priority"], startingPoint: String(row.starting_point) as SubjectAssessment["startingPoint"], preferredMethods: Array.isArray(row.preferred_methods) ? row.preferred_methods.map(String) as SubjectAssessment["preferredMethods"] : [], createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
+      setRecommendationFeedback((data.recommendation_feedback ?? []).filter((row) => !row.subject_id || loadedSubjectIds.has(String(row.subject_id))).map((row) => ({ id: String(row.id), userId: String(row.user_id), taskId: row.task_id ? String(row.task_id) : undefined, subjectId: row.subject_id ? String(row.subject_id) : undefined, chapterId: row.chapter_id ? String(row.chapter_id) : undefined, feedbackType: String(row.feedback_type) as RecommendationFeedback["feedbackType"], method: row.method ? String(row.method) as RecommendationFeedback["method"] : undefined, note: row.note ? String(row.note) : undefined, createdAt: String(row.created_at) })));
       setStudyWorkflows((data.study_workflows ?? []).map((row) => ({ phase: String(row.phase) as StudyPhase, steps: Array.isArray(row.steps) ? row.steps.map(String).filter(Boolean) : [], updatedAt: row.updated_at ? String(row.updated_at) : undefined })));
       setWorkflowPresets((data.study_workflow_presets ?? []).map((row) => ({ id: String(row.id), name: String(row.name), description: String(row.description ?? ""), phase: String(row.phase) as StudyPhase, subjectType: String(row.subject_type) as WorkflowPreset["subjectType"], steps: Array.isArray(row.steps) ? row.steps.map(String).filter(Boolean) : [], createdAt: row.created_at ? String(row.created_at) : undefined, updatedAt: row.updated_at ? String(row.updated_at) : undefined })));
-      setEntries((data.journal_entries ?? []).map((row) => ({ id: String(row.id), taskId: String(row.task_id ?? ""), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), minutes: Number(row.minutes), attempted: Number(row.attempted), correct: Number(row.correct), confidenceBefore: Number(row.confidence_before), confidenceAfter: Number(row.confidence_after), learningGoal: String(row.learning_goal ?? ""), resources: Array.isArray(row.resources) ? row.resources.map(String) : [], mistakesText: row.mistakes_text ? String(row.mistakes_text) : undefined, writtenScore: row.written_score == null ? undefined : Number(row.written_score), reflection: String(row.reflection ?? ""), nextAction: String(row.next_action ?? ""), createdAt: String(row.created_at) })));
-      setMistakes((data.mistakes ?? []).map((row) => ({ id: String(row.id), chapterId: String(row.chapter_id), prompt: String(row.prompt), errorType: String(row.error_type), reattemptDate: String(row.reattempt_date ?? ""), resolved: Boolean(row.resolved), revisionCount: Number(row.revision_count ?? 0), lastAttemptedAt: row.last_attempted_at ? String(row.last_attempted_at) : undefined, lastAttemptNote: row.last_attempt_note ? String(row.last_attempt_note) : undefined })));
-      setMocks((data.mock_results ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), paperType: String(row.paper_type ?? "Full paper"), score: Number(row.score), total: Number(row.total), durationMinutes: row.duration_minutes == null ? undefined : Number(row.duration_minutes), takenAt: String(row.taken_at) })));
-      setSessions((data.study_sessions ?? []).map((row) => ({ id: String(row.id), taskId: String(row.task_id), subjectId: String(row.subject_id ?? ""), chapterId: String(row.chapter_id ?? ""), mode: row.mode === "exam" ? "exam" : "focus", startedAt: String(row.started_at), endedAt: row.ended_at ? String(row.ended_at) : undefined, timerState: row.timer_state === "running" || row.timer_state === "paused" || row.timer_state === "completed" ? row.timer_state : row.completed ? "completed" : "paused", lastResumedAt: row.last_resumed_at ? String(row.last_resumed_at) : undefined, focusedSeconds: Number(row.focused_seconds ?? 0), pauseSeconds: Number(row.pause_seconds ?? 0), completed: Boolean(row.completed), questionsAttempted: row.questions_attempted == null ? undefined : Number(row.questions_attempted), questionsCorrect: row.questions_correct == null ? undefined : Number(row.questions_correct) })));
-      setExamSessions((data.exam_sessions ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), status: row.status === "running" || row.status === "paused" || row.status === "completed" ? row.status : "draft", targetMinutes: Number(row.target_minutes ?? 45), elapsedSeconds: Number(row.elapsed_seconds ?? 0), lastResumedAt: row.last_resumed_at ? String(row.last_resumed_at) : undefined, startedAt: row.started_at ? String(row.started_at) : undefined, endedAt: row.ended_at ? String(row.ended_at) : undefined, mcqAttempted: Number(row.mcq_attempted ?? 0), mcqCorrect: Number(row.mcq_correct ?? 0), cqAttempted: Number(row.cq_attempted ?? 0), cqCorrect: Number(row.cq_correct ?? 0), sqAttempted: Number(row.sq_attempted ?? 0), sqCorrect: Number(row.sq_correct ?? 0), createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
-      setResources((data.study_resources ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), url: String(row.url), kind: row.kind as StudyResource["kind"], source: row.source === "upload" ? "upload" : "url", storagePath: row.storage_path ? String(row.storage_path) : undefined, fileName: row.file_name ? String(row.file_name) : undefined, mimeType: row.mime_type ? String(row.mime_type) : undefined, fileSize: row.file_size == null ? undefined : Number(row.file_size), note: row.note ? String(row.note) : undefined, archived: Boolean(row.archived), createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
+      setEntries((data.journal_entries ?? []).filter((row) => loadedSubjectIds.has(String(row.subject_id)) && loadedChapterIds.has(String(row.chapter_id))).map((row) => ({ id: String(row.id), taskId: String(row.task_id ?? ""), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), minutes: Number(row.minutes), attempted: Number(row.attempted), correct: Number(row.correct), confidenceBefore: Number(row.confidence_before), confidenceAfter: Number(row.confidence_after), learningGoal: String(row.learning_goal ?? ""), resources: Array.isArray(row.resources) ? row.resources.map(String) : [], mistakesText: row.mistakes_text ? String(row.mistakes_text) : undefined, writtenScore: row.written_score == null ? undefined : Number(row.written_score), reflection: String(row.reflection ?? ""), nextAction: String(row.next_action ?? ""), createdAt: String(row.created_at) })));
+      setMistakes((data.mistakes ?? []).filter((row) => loadedChapterIds.has(String(row.chapter_id))).map((row) => ({ id: String(row.id), chapterId: String(row.chapter_id), prompt: String(row.prompt), errorType: String(row.error_type), reattemptDate: String(row.reattempt_date ?? ""), resolved: Boolean(row.resolved), revisionCount: Number(row.revision_count ?? 0), lastAttemptedAt: row.last_attempted_at ? String(row.last_attempted_at) : undefined, lastAttemptNote: row.last_attempt_note ? String(row.last_attempt_note) : undefined })));
+      setMocks((data.mock_results ?? []).filter((row) => loadedSubjectIds.has(String(row.subject_id))).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), paperType: String(row.paper_type ?? "Full paper"), score: Number(row.score), total: Number(row.total), durationMinutes: row.duration_minutes == null ? undefined : Number(row.duration_minutes), takenAt: String(row.taken_at) })));
+      setSessions((data.study_sessions ?? []).filter((row) => loadedSubjectIds.has(String(row.subject_id ?? "")) && loadedChapterIds.has(String(row.chapter_id ?? ""))).map((row) => ({ id: String(row.id), taskId: String(row.task_id), subjectId: String(row.subject_id ?? ""), chapterId: String(row.chapter_id ?? ""), mode: row.mode === "exam" ? "exam" : "focus", startedAt: String(row.started_at), endedAt: row.ended_at ? String(row.ended_at) : undefined, timerState: row.timer_state === "running" || row.timer_state === "paused" || row.timer_state === "completed" ? row.timer_state : row.completed ? "completed" : "paused", lastResumedAt: row.last_resumed_at ? String(row.last_resumed_at) : undefined, focusedSeconds: Number(row.focused_seconds ?? 0), pauseSeconds: Number(row.pause_seconds ?? 0), completed: Boolean(row.completed), questionsAttempted: row.questions_attempted == null ? undefined : Number(row.questions_attempted), questionsCorrect: row.questions_correct == null ? undefined : Number(row.questions_correct) })));
+      setExamSessions((data.exam_sessions ?? []).filter((row) => loadedSubjectIds.has(String(row.subject_id)) && loadedChapterIds.has(String(row.chapter_id))).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), status: row.status === "running" || row.status === "paused" || row.status === "completed" ? row.status : "draft", targetMinutes: Number(row.target_minutes ?? 45), elapsedSeconds: Number(row.elapsed_seconds ?? 0), lastResumedAt: row.last_resumed_at ? String(row.last_resumed_at) : undefined, startedAt: row.started_at ? String(row.started_at) : undefined, endedAt: row.ended_at ? String(row.ended_at) : undefined, mcqAttempted: Number(row.mcq_attempted ?? 0), mcqCorrect: Number(row.mcq_correct ?? 0), cqAttempted: Number(row.cq_attempted ?? 0), cqCorrect: Number(row.cq_correct ?? 0), sqAttempted: Number(row.sq_attempted ?? 0), sqCorrect: Number(row.sq_correct ?? 0), createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
+      setResources((data.study_resources ?? []).filter((row) => loadedSubjectIds.has(String(row.subject_id)) && loadedChapterIds.has(String(row.chapter_id))).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), chapterId: String(row.chapter_id), title: String(row.title), url: String(row.url), kind: row.kind as StudyResource["kind"], source: row.source === "upload" ? "upload" : "url", storagePath: row.storage_path ? String(row.storage_path) : undefined, fileName: row.file_name ? String(row.file_name) : undefined, mimeType: row.mime_type ? String(row.mime_type) : undefined, fileSize: row.file_size == null ? undefined : Number(row.file_size), note: row.note ? String(row.note) : undefined, archived: Boolean(row.archived), createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
       setExamEvents((data.exam_events ?? []).map((row) => ({ id: String(row.id), name: String(row.name), start: String(row.starts_on), end: String(row.ends_on), kind: row.kind as ExamEvent["kind"], scope: Array.isArray(row.scope) ? row.scope.map(String) : [], note: row.note ? String(row.note) : undefined, locked: Boolean(row.locked), archived: Boolean(row.archived) })).filter((event) => !event.archived));
       const planningRow = data.planning_settings?.[0];
-      if (planningRow) setPlanning({ studyWindows: normalizeStudyWindows(planningRow.study_windows, planningRow.main_start, planningRow.main_end), dailyTarget: Number(planningRow.daily_target), remindersEnabled: Boolean(planningRow.reminders_enabled) });
+      if (planningRow) setPlanning({ remindersEnabled: Boolean(planningRow.reminders_enabled) });
       const summaryRow = data.adaptive_plan_summaries?.[0];
       if (summaryRow) setPlanSummary({ usedMinutes: Number(summaryRow.used_minutes), availableMinutes: Number(summaryRow.available_minutes), deferredCount: Number(summaryRow.deferred_count), generatedRevisionCount: Number(summaryRow.generated_revision_count), rationale: Array.isArray(summaryRow.rationale) ? summaryRow.rationale.map(String) : [], plannedAt: String(summaryRow.planned_at) });
       const profileRow = data.user_profiles?.[0];
-      if (profileRow) setProfile({ userId: String(profileRow.user_id), displayName: profileRow.display_name ? String(profileRow.display_name) : undefined, board: String(profileRow.board), examYear: SSC_EXAM_YEAR, selectedSubjects: Array.isArray(profileRow.selected_subjects) ? profileRow.selected_subjects.map(String) : [], subjectStrengths: subjectStrengthsFromRow(profileRow.subject_strengths), mostDifficultSubjectId: profileRow.most_difficult_subject_id ? String(profileRow.most_difficult_subject_id) : undefined, studyGroup: profileRow.study_group as UserProfile["studyGroup"], religionSubject: profileRow.religion_subject_id as UserProfile["religionSubject"], fourthSubject: profileRow.fourth_subject_id as UserProfile["fourthSubject"], academicYear: Number(profileRow.academic_year ?? 2026), bookLanguage: "bn", academicProfileCompleted: Boolean(profileRow.academic_profile_completed), dailyTarget: Number(profileRow.daily_target), mainStart: String(profileRow.main_start), mainEnd: String(profileRow.main_end), onboardingStep: Number(profileRow.onboarding_step), onboardingCompleted: Boolean(profileRow.onboarding_completed), quickStartStatus: profileRow.quick_start_status === "dismissed" || profileRow.quick_start_status === "completed" ? profileRow.quick_start_status : "active", createdAt: String(profileRow.created_at), updatedAt: String(profileRow.updated_at) });
+      if (profileRow) setProfile(userProfileFromRow(profileRow));
       if (!cancelled) setDatabaseStatus("ready");
     };
     void bootstrap();
@@ -1035,7 +1043,6 @@ export default function CommandCenter() {
       academic_year: patch.academicYear,
       book_language: patch.bookLanguage,
       academic_profile_completed: patch.academicProfileCompleted,
-      daily_target: patch.dailyTarget,
       onboarding_step: patch.onboardingStep,
       onboarding_completed: patch.onboardingCompleted,
       quick_start_status: patch.quickStartStatus,
@@ -1044,7 +1051,7 @@ export default function CommandCenter() {
     const payload = await response.json().catch(() => null) as { profile?: Record<string, unknown>; error?: string } | null;
     if (!response.ok || !payload?.profile) throw new Error(payload?.error ?? "Could not save your profile");
     const row = payload.profile;
-    setProfile({ userId: String(row.user_id), displayName: row.display_name ? String(row.display_name) : undefined, board: String(row.board), examYear: SSC_EXAM_YEAR, selectedSubjects: Array.isArray(row.selected_subjects) ? row.selected_subjects.map(String) : [], subjectStrengths: subjectStrengthsFromRow(row.subject_strengths), mostDifficultSubjectId: row.most_difficult_subject_id ? String(row.most_difficult_subject_id) : undefined, studyGroup: row.study_group as UserProfile["studyGroup"], religionSubject: row.religion_subject_id as UserProfile["religionSubject"], fourthSubject: row.fourth_subject_id as UserProfile["fourthSubject"], academicYear: Number(row.academic_year ?? 2026), bookLanguage: "bn", academicProfileCompleted: Boolean(row.academic_profile_completed), dailyTarget: Number(row.daily_target), mainStart: String(row.main_start), mainEnd: String(row.main_end), onboardingStep: Number(row.onboarding_step), onboardingCompleted: Boolean(row.onboarding_completed), quickStartStatus: row.quick_start_status === "dismissed" || row.quick_start_status === "completed" ? row.quick_start_status : "active", createdAt: String(row.created_at), updatedAt: String(row.updated_at) });
+    setProfile(userProfileFromRow(row));
   };
 
   const updateQuickStartStatus = async (status: QuickStartStatus) => {
@@ -1074,7 +1081,7 @@ export default function CommandCenter() {
     if (!response.ok) throw new Error(payload?.error ?? "Could not save your study preferences");
     if (payload?.learning_preferences) {
       const row = payload.learning_preferences;
-      setLearningPreferences({ userId: String(row.user_id), preferredMethods: Array.isArray(row.preferred_methods) ? row.preferred_methods.map(String) as LearningPreferences["preferredMethods"] : learningPreferences.preferredMethods, preferredResourceKinds: Array.isArray(row.preferred_resource_kinds) ? row.preferred_resource_kinds.map(String) as LearningPreferences["preferredResourceKinds"] : learningPreferences.preferredResourceKinds, sessionLengthMinutes: Number(row.session_length_minutes), sessionsPerDay: Number(row.sessions_per_day), availableDays: Array.isArray(row.available_days) ? row.available_days.map(String) : learningPreferences.availableDays, weekdayMinutes: Number(row.weekday_minutes), weekendMinutes: Number(row.weekend_minutes), targetGrade: String(row.target_grade), guidanceMode: String(row.guidance_mode) as LearningPreferences["guidanceMode"], planStrictness: String(row.plan_strictness) as LearningPreferences["planStrictness"], instructionRatio: Number(row.instruction_ratio), practiceRatio: Number(row.practice_ratio), reviewRatio: Number(row.review_ratio), createdAt: String(row.created_at), updatedAt: String(row.updated_at) });
+      setLearningPreferences((current) => learningPreferencesFromRow(row, current));
     }
     if (payload?.subject_assessments) setSubjectAssessments(payload.subject_assessments.map((row) => ({ id: String(row.id), userId: String(row.user_id), subjectId: String(row.subject_id), difficulty: Number(row.difficulty) as SubjectAssessment["difficulty"], confidence: Number(row.confidence) as SubjectAssessment["confidence"], priority: Number(row.priority) as SubjectAssessment["priority"], startingPoint: String(row.starting_point) as SubjectAssessment["startingPoint"], preferredMethods: Array.isArray(row.preferred_methods) ? row.preferred_methods.map(String) as SubjectAssessment["preferredMethods"] : [], createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
   };
@@ -1270,8 +1277,9 @@ export default function CommandCenter() {
       .filter((chapter) => chapter.status !== "exam-ready" && !openChapterIds.has(chapter.id) && !preferenceFor(chapter.id, preferences).excluded)
       .sort((a, b) => preferenceFor(b.id, preferences).priority - preferenceFor(a.id, preferences).priority || a.confidence - b.confidence)
       .slice(0, 5);
+    const progressBySubject = subjectProgressMap(chapterList.filter((chapter) => !preferenceFor(chapter.id, preferences).excluded));
     const generated = candidates.map((chapter) => {
-      const base = recommendTasks(subjects, [chapter], { mistakes, mocks, assessments: subjectAssessments, feedback: recommendationFeedback, mostDifficultSubjectId: profile?.mostDifficultSubjectId, subjectStrengths: profile?.subjectStrengths, targetGrade: learningPreferences.targetGrade, preferredMethods: learningPreferences.preferredMethods, tasks })[0];
+      const base = recommendTasks(subjects, [chapter], { mistakes, mocks, assessments: subjectAssessments, feedback: recommendationFeedback, mostDifficultSubjectId: profile?.mostDifficultSubjectId, subjectStrengths: profile?.subjectStrengths, targetGrade: learningPreferences.targetGrade, preferredMethods: learningPreferences.preferredMethods, preferredSessionMinutes: learningPreferences.sessionLengthMinutes, subjectProgress: progressBySubject, examDate: examPlan.at(-1)?.end, tasks })[0];
       const priority = preferenceFor(chapter.id, preferences).priority;
       return {
         ...base,
@@ -1302,7 +1310,7 @@ export default function CommandCenter() {
     const updatedChapters = chapterList.map((chapter) => chapter.id === entry.chapterId ? updatedChapter : chapter);
     const nextMistakes = isMathematicalSubject(entry.subjectId) && entry.mistakesText ? [{ id: crypto.randomUUID(), chapterId: entry.chapterId, prompt: entry.mistakesText, errorType: "Session mistake", reattemptDate: dhakaDateAfter(1), resolved: false, revisionCount: 0 }, ...mistakes] : mistakes;
     const allowedChapters = updatedChapters.filter((chapter) => !preferenceFor(chapter.id, preferences).excluded);
-    const recommended = recommendTasks(subjects, allowedChapters, { mistakes: nextMistakes, mocks, assessments: subjectAssessments, feedback: recommendationFeedback, mostDifficultSubjectId: profile?.mostDifficultSubjectId, subjectStrengths: profile?.subjectStrengths, targetGrade: learningPreferences.targetGrade, preferredMethods: learningPreferences.preferredMethods, tasks: updatedTasks }).find((candidate) => !updatedTasks.some((task) => task.status !== "completed" && task.status !== "skipped" && task.chapterId === candidate.chapterId && (!isMathematicalSubject(candidate.subjectId) || (task.workflowGroupId === candidate.workflowGroupId && task.workflowStage === candidate.workflowStage))));
+    const recommended = recommendTasks(subjects, allowedChapters, { mistakes: nextMistakes, mocks, assessments: subjectAssessments, feedback: recommendationFeedback, mostDifficultSubjectId: profile?.mostDifficultSubjectId, subjectStrengths: profile?.subjectStrengths, targetGrade: learningPreferences.targetGrade, preferredMethods: learningPreferences.preferredMethods, preferredSessionMinutes: learningPreferences.sessionLengthMinutes, subjectProgress: subjectProgressMap(allowedChapters), examDate: examPlan.at(-1)?.end, tasks: updatedTasks }).find((candidate) => !updatedTasks.some((task) => task.status !== "completed" && task.status !== "skipped" && task.chapterId === candidate.chapterId && (!isMathematicalSubject(candidate.subjectId) || (task.workflowGroupId === candidate.workflowGroupId && task.workflowStage === candidate.workflowStage))));
     if (recommended) updatedTasks.push({ ...recommended, plannedTime: "Tomorrow", deferredUntil: new Date(Date.now() + 86400000).toISOString() });
     setEntries([entry, ...entries]);
     setTasks(updatedTasks);
@@ -1348,12 +1356,12 @@ export default function CommandCenter() {
     navigate("Home");
   };
 
-  const planToday = async (availableMinutes: number) => {
+  const planToday = async (availableMinutes: number, navigateAfter = true) => {
     setPlannerState("running");
     setPlannerMessage("");
-    const dayMinutes = new Date().getDay() === 0 || new Date().getDay() === 6 ? learningPreferences.weekendMinutes : learningPreferences.weekdayMinutes;
+    const dayMinutes = dailyCapacityMinutes(learningPreferences);
     try {
-      const result = buildAdaptivePlan({ tasks, chapters: chapterList, preferences, mistakes, mocks, subjects, settings: planning, availableMinutes: availableMinutes || dayMinutes, learningPreferences, assessments: subjectAssessments, feedback: recommendationFeedback, mostDifficultSubjectId: profile?.mostDifficultSubjectId, subjectStrengths: profile?.subjectStrengths });
+      const result = buildAdaptivePlan({ tasks, chapters: chapterList, preferences, mistakes, mocks, subjects, availableMinutes: availableMinutes || dayMinutes, learningPreferences, assessments: subjectAssessments, feedback: recommendationFeedback, mostDifficultSubjectId: profile?.mostDifficultSubjectId, subjectStrengths: profile?.subjectStrengths, selectedSubjectIds: profile?.selectedSubjects, examDate: examPlan.at(-1)?.end });
       const summary: AdaptivePlanSummary = { usedMinutes: result.usedMinutes, availableMinutes: result.availableMinutes, deferredCount: result.deferredCount, generatedRevisionCount: result.generatedRevisionCount, rationale: result.rationale, plannedAt: new Date().toISOString() };
       setTasks(result.tasks);
       setPlanSummary(summary);
@@ -1363,17 +1371,27 @@ export default function CommandCenter() {
       ]);
       setPlannerState("success");
       setPlannerMessage(result.selected.length ? `${result.usedMinutes} minutes arranged across ${result.selected.length} task${result.selected.length === 1 ? "" : "s"}.` : "No task fit this budget. Increase the minutes or add a revision item.");
-      navigate("Home");
+      if (navigateAfter) navigate("Home");
     } catch (error) {
       setPlannerState("error");
       setPlannerMessage(error instanceof Error ? error.message : "Could not save today’s plan. Try again.");
     }
   };
 
+  const runAutomaticPlan = useEffectEvent((minutes: number) => {
+    void planToday(minutes, false);
+  });
+  useEffect(() => {
+    const today = dhakaDateKey();
+    if (databaseStatus !== "ready" || !profile?.onboardingCompleted || !profile.academicProfileCompleted || isCurrentDailyPlan(planSummary) || autoPlanDateRef.current === today) return;
+    autoPlanDateRef.current = today;
+    runAutomaticPlan(dailyCapacityMinutes(learningPreferences));
+  }, [databaseStatus, learningPreferences, planSummary, profile]);
+
   if (databaseStatus !== "ready") return <DatabaseGate status={databaseStatus} error={databaseError} />;
   if (!profile) return <DatabaseGate status="loading" error="Preparing your private workspace…" />;
-  if (!profile.onboardingCompleted || !profile.academicProfileCompleted) return <OnboardingWizard profile={profile} subjects={subjects} chapters={chapterList} save={saveProfile} saveAdaptive={saveAdaptiveProfile} saveCompletedChapters={saveCompletedChapters} examPlan={examPlan} saveExamPlan={saveExamPlan} startPlan={() => planToday(learningPreferences.weekdayMinutes)} />;
-  const home = <Home tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} plannerState={plannerState} plannerMessage={plannerMessage} sessions={sessions} startFocus={startFocus} updateFocus={updateFocus} resetFocus={resetFocus} go={navigate} startStudy={startStudy} feedback={recordFeedback} goJournal={() => navigate("Journal")} workflows={studyWorkflows} workflowPresets={workflowPresets} preferredMethods={learningPreferences.preferredMethods} quickStartStatus={profile.quickStartStatus ?? "active"} onQuickStartStatusChange={updateQuickStartStatus} />;
+  if (!profile.onboardingCompleted || !profile.academicProfileCompleted) return <OnboardingWizard profile={profile} subjects={subjects} chapters={chapterList} learningPreferences={learningPreferences} subjectAssessments={subjectAssessments} save={saveProfile} saveAdaptive={saveAdaptiveProfile} saveCompletedChapters={saveCompletedChapters} examPlan={examPlan} saveExamPlan={saveExamPlan} />;
+  const home = <Home tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} learningPreferences={learningPreferences} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} plannerState={plannerState} plannerMessage={plannerMessage} sessions={sessions} startFocus={startFocus} updateFocus={updateFocus} resetFocus={resetFocus} go={navigate} startStudy={startStudy} feedback={recordFeedback} goJournal={() => navigate("Journal")} workflows={studyWorkflows} workflowPresets={workflowPresets} preferredMethods={learningPreferences.preferredMethods} quickStartStatus={profile.quickStartStatus ?? "active"} onQuickStartStatusChange={updateQuickStartStatus} />;
   const content = (() => {
     switch (active) {
       case "Home":
@@ -1385,7 +1403,7 @@ export default function CommandCenter() {
       case "Journal": return <Journal entries={entries} add={() => openJournalEntry()} />;
       case "Progress": return <Progress entries={entries} list={chapterList} mocks={mocks} addMock={() => setMockOpen(true)} sessions={sessions} tasks={tasks} />;
       case "Exam Mode": return <ExamModeFocus chapters={chapterList} sessions={examSessions} onClose={() => navigate("Home")} onSaveSession={saveExamSession} />;
-      case "Resources": return <ResourceLibrary resources={resources.filter((resource) => !resource.archived)} curatedTextbooks={curatedTextbooks} chapters={chapterList} initialChapterId={resourceChapterId} save={saveResource} remove={removeResource} upload={uploadResource} open={openResource} />;
+      case "Resources": return <ResourceLibrary resources={resources.filter((resource) => !resource.archived)} curatedTextbooks={curatedTextbooks} chapters={chapterList} initialChapterId={resourceChapterId} preferredKinds={learningPreferences.preferredResourceKinds} save={saveResource} remove={removeResource} upload={uploadResource} open={openResource} />;
       case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => navigate("Home")} />;
       case "Exam Plan": return <ExamPlan plan={examPlan} save={saveExamPlan} />;
       case "Support": return <SupportPage />;

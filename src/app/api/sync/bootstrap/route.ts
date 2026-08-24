@@ -8,7 +8,7 @@ import { policyRequiredResponse } from "@/lib/policy-server";
 const referenceTables = ["subjects", "chapters", "marks_distributions", "workflow_steps", "exams", "curated_textbooks"] as const;
 const userTables = ["study_tasks", "chapter_progress", "chapter_preferences", "journal_entries", "mistakes", "mock_results", "study_sessions", "exam_sessions", "study_resources", "exam_events", "exam_plan_phases", "planning_settings", "adaptive_plan_summaries", "user_profiles", "learning_preferences", "subject_assessments", "recommendation_feedback", "study_workflows", "study_workflow_presets"] as const;
 
-const defaultPlanning = { study_windows: [{ id: "window-1", start: "09:00", end: "12:00" }], daily_target: 240, reminders_enabled: false };
+const defaultPlanning = { reminders_enabled: false };
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
 const defaultWorkflows = studyPhases.map(({ id }) => ({ phase: id, steps: recommendedWorkflows[id] }));
 
@@ -41,6 +41,7 @@ export async function GET() {
     profile = createdProfile;
   }
   const hasAcademicProfile = Boolean(profile?.academic_profile_completed && profile.study_group && profile.religion_subject_id && profile.fourth_subject_id);
+  const shouldScopeReferenceCatalog = Boolean(hasAcademicProfile && profile?.onboarding_completed);
   const activeSubjectIds = new Set<string>(commonSubjectIds);
   if (hasAcademicProfile) {
     groupSubjectIds[profile.study_group as keyof typeof groupSubjectIds]?.forEach((id) => activeSubjectIds.add(id));
@@ -61,10 +62,13 @@ export async function GET() {
   // A new student needs the complete reference catalog while choosing a group,
   // religion, and fourth subject. Once the profile is complete, send only that
   // student's subjects so the rest of the app remains scoped to their course.
-  reference.subjects = hasAcademicProfile ? catalogSubjects.filter((row) => activeSubjectIds.has(String(row.id))) : catalogSubjects;
-  reference.chapters = hasAcademicProfile ? catalogChapters.filter((row) => activeSubjectIds.has(String(row.subject_id))) : catalogChapters;
-  reference.marks_distributions = hasAcademicProfile ? catalogMarks.filter((row) => activeSubjectIds.has(String(row.subject_id))) : catalogMarks;
-  reference.curated_textbooks = hasAcademicProfile ? catalogTextbooks.filter((row) => activeSubjectIds.has(String(row.subject_id))) : catalogTextbooks;
+  // Keep the complete catalog available whenever onboarding is open. This is
+  // essential for recalibration: a student can change groups without needing
+  // a second reload just to obtain the newly selected subjects and chapters.
+  reference.subjects = shouldScopeReferenceCatalog ? catalogSubjects.filter((row) => activeSubjectIds.has(String(row.id))) : catalogSubjects;
+  reference.chapters = shouldScopeReferenceCatalog ? catalogChapters.filter((row) => activeSubjectIds.has(String(row.subject_id))) : catalogChapters;
+  reference.marks_distributions = shouldScopeReferenceCatalog ? catalogMarks.filter((row) => activeSubjectIds.has(String(row.subject_id))) : catalogMarks;
+  reference.curated_textbooks = shouldScopeReferenceCatalog ? catalogTextbooks.filter((row) => activeSubjectIds.has(String(row.subject_id))) : catalogTextbooks;
 
   // User-owned defaults should still be created only for the subjects currently
   // selected (common subjects until the academic profile is complete).
@@ -97,7 +101,13 @@ export async function GET() {
 
   const userResults = await Promise.all(userTables.map(async (table) => {
     const query = supabase.from(table).select("*");
-    const { data, error } = table === "planning_settings" || table === "adaptive_plan_summaries" || table === "user_profiles" || table === "learning_preferences" ? await query.eq("user_id", userId).maybeSingle() : table === "recommendation_feedback" ? await query.eq("user_id", userId).order("created_at", { ascending: false }) : await query.eq("user_id", userId).order("updated_at", { ascending: false });
+    const { data, error } = table === "planning_settings" || table === "adaptive_plan_summaries" || table === "user_profiles" || table === "learning_preferences"
+      ? await query.eq("user_id", userId).maybeSingle()
+      : table === "recommendation_feedback"
+        ? await query.eq("user_id", userId).order("created_at", { ascending: false })
+        : table === "study_tasks"
+          ? await query.eq("user_id", userId).order("priority_score", { ascending: false }).order("updated_at", { ascending: false })
+          : await query.eq("user_id", userId).order("updated_at", { ascending: false });
     return [table, error ? [] : data == null ? [] : Array.isArray(data) ? data : [data]] as const;
   }));
   return NextResponse.json({ mode: "cloud", data: { ...reference, ...Object.fromEntries(userResults) } }, { headers: noStoreHeaders });

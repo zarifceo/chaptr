@@ -18,7 +18,7 @@ export default function TermsPage() {
         {
           title: "1. About Chaptr",
           paragraphs: [
-            "Chaptr helps students organize an SSC 2027 study programme. The service can store and display subjects, chapters, chapter status, subject strengths and priorities, study windows, tasks, multi-step workflows, focused study sessions, exam sessions, journal entries, mistakes, mock results, study resources, in-app exam events, exam-plan phases, and planning summaries.",
+            "Chaptr helps students organize an SSC 2027 study programme. The service can store and display subjects, chapters, chapter status, subject strengths and priorities, daily study capacity, tasks, multi-step workflows, focused study sessions, exam sessions, journal entries, mistakes, mock results, study resources, in-app exam events, exam-plan phases, and planning summaries.",
             "Chaptr is an organizational and learning-support tool. It is not an official education board, examination authority, school, tutor, coaching provider, textbook publisher, or replacement for instructions from your school, teachers, NCTB, or the relevant examination authority. The exam year supported by the service is fixed to SSC 2027.",
           ],
         },
@@ -46,7 +46,7 @@ export default function TermsPage() {
         {
           title: "5. Planning recommendations and study workflows",
           paragraphs: [
-            "Chaptr uses the information and evidence you provide, including chapter progress, difficulty, subject strength, priority, preferred study methods, mistakes, mock results, feedback, and configured study windows, to generate planning suggestions and study workflows. All subjects are eligible for the same planning system; some mathematical subjects may receive a multi-stage workflow because their study commonly involves explanation, formulas, exercises, MCQs, and board-question practice.",
+            "Chaptr uses the information and evidence you provide, including chapter progress, difficulty, subject strength, priority, preferred study methods, weekday and weekend study capacity, mistakes, mock results, and feedback, to generate planning suggestions and study workflows. All subjects are eligible for the same planning system; some mathematical subjects may receive a multi-stage workflow because their study commonly involves explanation, formulas, exercises, MCQs, and board-question practice.",
             "Recommendations, priorities, timers, analytics, task durations, and reminders are aids rather than guarantees. They may be incomplete, incorrect, or unsuitable for your circumstances. You remain responsible for choosing what to study and for verifying important academic information against your current syllabus, teachers, official textbooks, and examination notices. Chaptr does not guarantee a particular grade, result, admission outcome, or examination performance.",
           ],
         },

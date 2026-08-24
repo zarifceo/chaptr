@@ -59,13 +59,13 @@ export const supportArticles: SupportArticle[] = [
     title: "What to do after creating your account",
     summary: "Complete your academic profile, map finished chapters, and start with one focused task.",
     category: "getting-started",
-    keywords: ["onboarding", "group", "religion", "fourth subject", "completed chapters"],
+    keywords: ["onboarding", "group", "religion", "fourth subject", "completed chapters", "daily capacity"],
     popular: true,
     readingMinutes: 2,
     updatedAt: "2026-08-21",
     body: [
-      { type: "paragraph", text: "Chaptr starts with your real situation rather than assuming you are beginning from zero. Your group, religion subject, fourth subject, difficult subject, study methods, and completed chapters shape the workspace." },
-      { type: "steps", items: ["Finish the academic profile so Chaptr can show the right subjects and Bangla books.", "Mark chapters you completed before joining. You can revise this map later from Syllabus.", "Choose the one subject that feels most difficult to you. This is a personal planning signal, not a universal ranking.", "Open Home and start the first Do Now task. Close the loop with a journal entry when you finish." ] },
+      { type: "paragraph", text: "Chaptr starts with your real situation rather than assuming you are beginning from zero. Your group, subjects, weekday and weekend capacity, preferred focus-block length, subject strength, study methods, and completed chapters shape the workspace." },
+      { type: "steps", items: ["Finish the academic profile so Chaptr can show the right subjects and Bangla books.", "Set the minutes you can realistically study each day. Chaptr treats this as a daily limit, not a timetable.", "Mark chapters you completed before joining and rate each subject honestly.", "Open Home and start the first Do Now task. Difficult and low-progress work receives extra weight, while the queue stays within today's capacity.", "Close the loop with a journal entry so tomorrow's plan can use real minutes, accuracy, mistakes, and confidence." ] },
       { type: "note", text: "You can change your academic and study preferences later from Settings." },
     ],
   },
@@ -80,7 +80,7 @@ export const supportArticles: SupportArticle[] = [
     updatedAt: "2026-08-21",
     body: [
       { type: "steps", items: ["Use Add task from Home or Calendar.", "Choose the subject and chapter, then set a date, time, and duration.", "Select the phase: learn, revise, practice, or exam.", "Review the personalized steps. They are suggestions, so edit, reorder, remove, or add steps for this task.", "Save the task. It appears in your plan and remains database-backed across devices." ] },
-      { type: "note", text: "Tasks cannot be saved without a date and planned time. This prevents unscheduled work from disappearing into an unclear queue." },
+      { type: "note", text: "Manual tasks use a date and time. Chaptr's adaptive daily queue is different: it orders the best work for today inside your saved capacity without asking you to maintain study windows." },
     ],
   },
   {
@@ -120,7 +120,7 @@ export const supportArticles: SupportArticle[] = [
     updatedAt: "2026-08-21",
     body: [
       { type: "steps", items: ["Open Calendar from the app navigation.", "Choose Add task or select a date in the month view to create study work.", "Use the date controls beside unscheduled tasks to place them into your plan.", "Open any scheduled task to continue it from the daily study flow." ] },
-      { type: "note", text: "The in-app calendar is the single source of truth for your study schedule. Your tasks and dates remain available across sessions through your account." },
+      { type: "note", text: "The calendar holds date-specific commitments. Home remains the source of truth for today's adaptive priority order and daily-capacity usage." },
     ],
   },
   {

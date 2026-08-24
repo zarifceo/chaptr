@@ -1039,6 +1039,30 @@ export type Database = {
           },
         ]
       }
+      study_resource_upload_reservations: {
+        Row: {
+          created_at: string
+          expires_at: string
+          reserved_bytes: number
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          reserved_bytes: number
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          reserved_bytes?: number
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       study_sessions: {
         Row: {
           chapter_id: string | null
@@ -1554,6 +1578,18 @@ export type Database = {
           p_source?: string
         }
         Returns: Json
+      }
+      reserve_study_resource_upload: {
+        Args: {
+          p_reserved_bytes: number
+          p_storage_path: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      verify_account_deletion_cron_token: {
+        Args: { candidate: string }
+        Returns: boolean
       }
     }
     Enums: {

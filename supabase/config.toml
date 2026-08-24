@@ -1,0 +1,7 @@
+project_id = "chaptr"
+
+# The scheduled request authenticates with a private x-cron-token that the
+# function verifies through a service-role-only RPC. The live deployment uses
+# the same setting; keeping it here prevents future CLI deploys from drifting.
+[functions.process-account-deletions]
+verify_jwt = false
