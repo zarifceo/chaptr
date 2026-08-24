@@ -1,7 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasCurrentPolicyConsent, POLICY_CONSENT_STATUS, POLICY_ROUTES, POLICY_VERSIONS, safeNextPath } from "@/lib/policy-config";
-import { productionSiteOrigin } from "@/lib/site-url";
 
 const noStoreHeaders = {
   "Cache-Control": "private, no-cache, no-store, must-revalidate, max-age=0",
@@ -28,12 +27,6 @@ function copyResponseCookies(source: NextResponse, target: NextResponse) {
 }
 
 export async function proxy(request: NextRequest) {
-  const canonicalHostname = new URL(productionSiteOrigin).hostname;
-  if (process.env.VERCEL_ENV === "production" && request.nextUrl.hostname !== canonicalHostname) {
-    const canonicalUrl = new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, productionSiteOrigin);
-    return NextResponse.redirect(canonicalUrl, 308);
-  }
-
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return NextResponse.next({ request });
