@@ -39,3 +39,14 @@
 - Iteration history: first implementation pass passed the focused visual and behavior check; no refinement pass was required.
 - Final result: passed.
 
+## Daily-capacity card responsiveness — 24 August 2026
+
+- Source visual truth: `C:\Users\iftkr\AppData\Local\Temp\codex-clipboard-ae3aa7c2-302e-4ffd-bf91-d805dd4f93be.png`.
+- Browser verification: isolated production markup rendered with the app's real CSS at 1536 × 797 and 390 × 844.
+- Desktop result: the 850 px card resolves to two balanced 394 px tracks; the copy remains readable and the controls no longer force the text into a narrow column.
+- Mobile result: copy, presets, custom-minutes input, action, and status messages resolve to one readable column with no horizontal overflow.
+- Reference comparison: the reported desktop screenshot and repaired desktop render were reviewed together; the visible hierarchy and spacing defect is removed without changing the card's visual language.
+- Functional structure: preset buttons remain a labelled group, the selected state remains exposed through `aria-pressed`, and status messages retain their live-region roles.
+- Severity review: no P0, P1, or P2 responsive defects remain in this card at the verified viewports.
+- Final result: passed.
+

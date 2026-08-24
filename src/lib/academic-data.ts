@@ -139,9 +139,12 @@ export let marksDistributions: MarksDistribution[] = [
 
 export type AcademicExam = { id: string; name: string; start: string; end: string };
 
+export const SSC_2027_START = "2027-03-14";
+export const SSC_2027_END = "2027-04-15";
+
 export let exams: AcademicExam[] = [
   { id: "test", name: "Full-Syllabus Test", start: "2026-10-28", end: "2026-11-12" },
-  { id: "ssc", name: "SSC 2027", start: "2027-01-07", end: "2027-02-06" },
+  { id: "ssc", name: "SSC 2027", start: SSC_2027_START, end: SSC_2027_END },
 ];
 
 export function replaceAcademicData(next: { subjects: Subject[]; chapters: Chapter[]; marksDistributions: MarksDistribution[]; exams: AcademicExam[]; workflowSteps?: typeof workflowSteps }) {

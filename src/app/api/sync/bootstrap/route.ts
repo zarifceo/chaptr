@@ -76,9 +76,8 @@ export async function GET() {
   const exams = (reference.exams ?? []) as Array<{ id: string; name: string; starts_on: string; ends_on: string }>;
   const referenceSubjects = catalogSubjects.filter((row) => activeSubjectIds.has(String(row.id))) as Array<{ id: string }>;
 
-  const [{ data: existingPreferences }, { data: existingEvents }, { data: existingPlanning }, { data: existingLearningPreferences }, { data: existingAssessments }, { data: existingWorkflows }] = await Promise.all([
+  const [{ data: existingPreferences }, { data: existingPlanning }, { data: existingLearningPreferences }, { data: existingAssessments }, { data: existingWorkflows }] = await Promise.all([
     supabase.from("chapter_preferences").select("chapter_id").eq("user_id", userId),
-    supabase.from("exam_events").select("id").eq("user_id", userId).eq("archived", false),
     supabase.from("planning_settings").select("user_id").eq("user_id", userId).maybeSingle(),
     supabase.from("learning_preferences").select("user_id").eq("user_id", userId).maybeSingle(),
     supabase.from("subject_assessments").select("subject_id").eq("user_id", userId),
@@ -89,7 +88,9 @@ export async function GET() {
   const missingPreferences = chapters.filter((chapter) => !existingChapterIds.has(chapter.id)).map((chapter) => ({ user_id: userId, chapter_id: chapter.id, included_for_ssc: true, excluded: false, priority: 3 }));
   if (missingPreferences.length) await supabase.from("chapter_preferences").upsert(missingPreferences);
 
-  if (!(existingEvents ?? []).length && exams.length) {
+  // Locked reference events are authoritative. Upserting on every bootstrap
+  // propagates government schedule changes without touching user-created events.
+  if (exams.length) {
     await supabase.from("exam_events").upsert(exams.map((exam) => ({ user_id: userId, id: exam.id, name: exam.name, starts_on: exam.starts_on, ends_on: exam.ends_on, kind: exam.id === "ssc" ? "official" : "mock", scope: exam.id === "ssc" ? ["All SSC 2027 syllabus", "Board exam conditions"] : ["Full syllabus diagnostic", "Written + MCQ practice"], locked: true, archived: false })));
   }
   if (!existingPlanning) await supabase.from("planning_settings").upsert({ user_id: userId, ...defaultPlanning });
