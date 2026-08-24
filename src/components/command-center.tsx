@@ -1136,13 +1136,17 @@ export default function CommandCenter() {
     if (file.size > 25 * 1024 * 1024) throw new Error("Each file must be 25 MB or smaller.");
     const client = createSupabaseClient();
     if (!client) throw new Error("Supabase is not configured for this deployment.");
-    const { data: userData } = await client.auth.getUser();
-    if (!userData.user) throw new Error("Sign in again before uploading a resource.");
-    const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "resource";
-    const storagePath = `${userData.user.id}/${crypto.randomUUID()}-${safeName}`;
-    const { error } = await client.storage.from("study-resources").upload(storagePath, file, { contentType: file.type || "application/octet-stream", upsert: false });
+    const mimeType = file.type || "application/octet-stream";
+    const tokenResponse = await fetch("/api/resources/upload-token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fileName: file.name, fileSize: file.size, mimeType }),
+    });
+    const tokenBody = await tokenResponse.json().catch(() => null) as { storagePath?: string; token?: string; error?: string } | null;
+    if (!tokenResponse.ok || !tokenBody?.storagePath || !tokenBody.token) throw new Error(tokenBody?.error ?? "Could not prepare the upload.");
+    const { error } = await client.storage.from("study-resources").uploadToSignedUrl(tokenBody.storagePath, tokenBody.token, file, { contentType: mimeType });
     if (error) throw new Error(error.message || "The file could not be uploaded.");
-    return { url: `storage://study-resources/${storagePath}`, storagePath, fileName: file.name, mimeType: file.type || "application/octet-stream", fileSize: file.size };
+    return { url: `storage://study-resources/${tokenBody.storagePath}`, storagePath: tokenBody.storagePath, fileName: file.name, mimeType, fileSize: file.size };
   };
 
   const openResource = async (resource: StudyResource) => {

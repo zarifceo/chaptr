@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { policyRequiredResponse } from "@/lib/policy-server";
 
@@ -63,7 +64,11 @@ export async function POST(request: Request) {
       ({ error } = await supabase.from("exam_sessions").upsert(rows as InsertRow<"exam_sessions">[]));
       break;
     case "study_resources":
-      ({ error } = await supabase.from("study_resources").upsert(rows as InsertRow<"study_resources">[]));
+      {
+        const admin = createAdminClient();
+        if (!admin) error = { message: "Secure resource saving is not configured for this deployment." };
+        else ({ error } = await admin.from("study_resources").upsert(rows as InsertRow<"study_resources">[]));
+      }
       break;
     case "exam_events":
       ({ error } = await supabase.from("exam_events").upsert(rows as InsertRow<"exam_events">[]));
