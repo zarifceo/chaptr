@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, CheckCircle, EnvelopeSimple, Key, MagnifyingGlass, ShieldCheck, Trash, Warning, X } from "@phosphor-icons/react";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+import { siteUrl } from "@/lib/site-url";
 import {
   ACTIVE_DELETION_STATUSES,
   categoryLabel,
@@ -120,7 +121,7 @@ function DeletionPanel({ email, current, googleAccount, onClose, onCreated, onCa
   const sendEmailCode = async () => {
     if (!client) return setError("Authentication is not configured for this deployment.");
     setBusy(true); setError("");
-    const result = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/auth/callback?next=/support` } });
+    const result = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: siteUrl("/auth/callback?next=/support") } });
     setBusy(false);
     if (result.error) return setError("We could not send the verification email. Check your email address and try again.");
     setOtpSent(true); setStatusMessage("Check your email for a six-digit code or open the verification link. Then return here to finish verification.");

@@ -2804,7 +2804,12 @@ label {
 }
 
 .task-workflow-heading > button,
-.task-workflow-add {
+.task-workflow-add,
+.task-workflow-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-height: 38px;
   padding: 9px 11px !important;
   border: 1px solid var(--stroke-strong) !important;
@@ -2817,10 +2822,45 @@ label {
 }
 
 .task-workflow-heading > button:hover,
-.task-workflow-add:hover:not(:disabled) {
+.task-workflow-add:hover:not(:disabled),
+.task-workflow-reset:hover:not(:disabled) {
   border-color: #b9cdf8 !important;
   background: var(--primary-soft) !important;
   color: var(--brand) !important;
+}
+
+.task-workflow-config {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.task-workflow-config label {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.task-workflow-config select {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px 34px 9px 11px !important;
+  border: 1px solid var(--stroke-strong) !important;
+  border-radius: 10px !important;
+  background-color: var(--surface-1) !important;
+  color: var(--ink-1) !important;
+}
+
+.task-workflow-config small {
+  color: var(--ink-3);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 .task-workflow-tabs {
@@ -2913,6 +2953,20 @@ label {
   justify-self: start;
 }
 
+.task-workflow-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-workflow-reset {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--brand) !important;
+}
+
 @media (max-width: 640px) {
   .task-workflow-heading {
     flex-direction: column;
@@ -2920,6 +2974,10 @@ label {
 
   .task-workflow-heading > button {
     width: 100%;
+  }
+
+  .task-workflow-config {
+    grid-template-columns: 1fr;
   }
 
   .task-workflow-tabs {
@@ -4834,6 +4892,12 @@ label {
   flex: 1;
 }
 
+.workflow-library-group {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
 .workflow-preset-library > div > small {
   display: block;
   margin-bottom: 8px;
@@ -4919,6 +4983,39 @@ label {
   resize: vertical;
 }
 
+.workflow-context-picker {
+  display: grid;
+  grid-template-columns: minmax(220px, .7fr) minmax(0, 1.3fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-muted);
+}
+
+.workflow-context-picker > label,
+.workflow-context-picker > div {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.workflow-context-picker select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.workflow-context-picker small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .workflow-preset-fields label > input:focus-visible,
 .workflow-preset-fields label > select:focus-visible,
 .workflow-preset-fields label > textarea:focus-visible {
@@ -4942,6 +5039,10 @@ label {
 
   .workflow-preset-fields label.wide {
     grid-column: auto;
+  }
+
+  .workflow-context-picker {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -7350,7 +7451,151 @@ label {
   }
 }
 
+/* Progress page: make the confidence signal explicit and keep the heading out of the row grid. */
+.progress-page .subject-progress > .section-title {
+  display: flex;
+  grid-template-columns: none;
+  min-height: auto;
+  margin-bottom: 8px;
+}
+
+.progress-page .subject-progress > .section-title > div {
+  width: 100%;
+  min-width: 0;
+}
+
+.progress-page .subject-progress > .section-title h2 {
+  max-width: none;
+  margin-top: 6px;
+  font-size: clamp(21px, 2vw, 26px);
+  line-height: 1.12;
+  letter-spacing: -.035em;
+}
+
+.progress-page .subject-progress-explainer {
+  max-width: 720px;
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.progress-page .subject-progress > .subject-progress-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 210px) minmax(160px, 1fr) 58px;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 7px 0;
+}
+
+.progress-page .subject-progress-name {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.progress-page .subject-progress-name > strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-page .subject-progress-name > small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.progress-page .subject-progress-row > i {
+  min-width: 0;
+}
+
+.progress-page .subject-progress-row > strong {
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .progress-page .subject-progress > .subject-progress-row {
+    grid-template-columns: minmax(0, 1fr) 58px;
+    gap: 8px 12px;
+    padding: 9px 0;
+  }
+
+  .progress-page .subject-progress-row > i {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .progress-page .subject-progress-row > strong {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+  }
+}
+
 /* Subject-strength onboarding step: keep every control inside the mobile viewport. */
+.adaptive-onboarding .subject-setup {
+  display: grid;
+  gap: 12px;
+}
+
+.adaptive-onboarding .subject-setup-key {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--stroke);
+  border-radius: 13px;
+  background: var(--surface-2);
+}
+
+.adaptive-onboarding .subject-setup-key > span,
+.adaptive-onboarding .priority-select {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.adaptive-onboarding .subject-setup-key strong {
+  color: var(--ink-1);
+  font-size: 11px;
+}
+
+.adaptive-onboarding .subject-setup-key small {
+  color: var(--ink-3);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.adaptive-onboarding .adaptive-subject-row {
+  grid-template-columns: minmax(180px, 1.3fr) minmax(150px, .85fr) minmax(150px, .85fr);
+}
+
+.adaptive-onboarding .priority-select > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.adaptive-onboarding .priority-select select {
+  width: 100%;
+  min-width: 0;
+}
+
 @media (max-width: 720px) {
   .adaptive-onboarding .adaptive-step,
   .adaptive-onboarding .adaptive-subject-list,
@@ -7373,6 +7618,7 @@ label {
 
   .adaptive-onboarding .adaptive-subject-row .subject-toggle,
   .adaptive-onboarding .adaptive-subject-row .strength-select,
+  .adaptive-onboarding .adaptive-subject-row .priority-select,
   .adaptive-onboarding .adaptive-subject-row > label {
     grid-column: 1;
     width: 100%;
@@ -7391,6 +7637,10 @@ label {
   .adaptive-onboarding .adaptive-subject-row small,
   .adaptive-onboarding .adaptive-subject-row label {
     overflow-wrap: anywhere;
+  }
+
+  .adaptive-onboarding .subject-setup-key {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -8190,6 +8440,15 @@ label {
   width: 100%;
   min-width: 180px;
   justify-content: center;
+}
+.adaptive-planner-actions .build-plan-button {
+  min-width: 198px;
+  gap: 8px;
+  white-space: nowrap;
+  line-height: 1;
+}
+.adaptive-planner-actions .build-plan-button > svg {
+  flex: 0 0 auto;
 }
 .adaptive-planner-actions .planner-result,
 .adaptive-planner-actions .planner-feedback {

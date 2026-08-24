@@ -8,6 +8,7 @@ import { ArrowRight, CheckCircle, EnvelopeSimple, LockKey, SignIn, UserPlus, X }
 import { Button } from "@/components/ui/button";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { POLICY_VERSIONS } from "@/lib/policy-config";
+import { siteUrl } from "@/lib/site-url";
 
 type AuthMode = "sign-in" | "sign-up" | "forgot" | "reset";
 
@@ -78,7 +79,7 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
     setBusy(true);
     const { error: authError } = await client.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=%2Fhome`, scopes: "openid email profile" },
+      options: { redirectTo: siteUrl("/auth/callback?next=%2Fhome"), scopes: "openid email profile" },
     });
     if (authError) { setError(friendlyError(authError.message)); setBusy(false); }
   };
@@ -106,7 +107,7 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
         email: email.trim(),
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=%2Fauth%3Fverified%3D1`,
+          emailRedirectTo: siteUrl("/auth/callback?next=%2Fauth%3Fverified%3D1"),
           data: {
             display_name: displayName.trim(),
             policy_consent: true,
@@ -133,7 +134,7 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
       return;
     }
     if (mode === "forgot") {
-      const result = await client.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password` });
+      const result = await client.auth.resetPasswordForEmail(email.trim(), { redirectTo: siteUrl("/auth/callback?next=/auth/reset-password") });
       if (result.error) setError(friendlyError(result.error.message));
       else setMessage("If an account exists for that email, a password reset link is on its way.");
       setBusy(false);

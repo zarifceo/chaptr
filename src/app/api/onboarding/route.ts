@@ -167,11 +167,18 @@ export async function POST(request: Request) {
     if (workflowError) return onboardingDatabaseError("save study workflows", workflowError, "Could not save your study workflow. Please try again.");
   }
   if (studyWorkflowPresets) {
-    const { error: deletePresetsError } = await supabase.from("study_workflow_presets").delete().eq("user_id", userId);
-    if (deletePresetsError) return onboardingDatabaseError("replace workflow presets", deletePresetsError, "Could not update your workflow presets. Please try again.");
+    const { data: existingPresets, error: readPresetsError } = await supabase.from("study_workflow_presets").select("id").eq("user_id", userId);
+    if (readPresetsError) return onboardingDatabaseError("read workflow presets before save", readPresetsError, "Could not update your workflow presets. Please try again.");
+    const incomingIds = new Set(studyWorkflowPresets.map((preset) => preset.id));
     if (studyWorkflowPresets.length) {
-      const { error: presetError } = await supabase.from("study_workflow_presets").insert(studyWorkflowPresets.map((preset) => ({ id: preset.id, user_id: userId, name: preset.name, description: preset.description, phase: preset.phase, subject_type: preset.subject_type, steps: preset.steps, updated_at: new Date().toISOString() })));
+      const { error: presetError } = await supabase.from("study_workflow_presets").upsert(studyWorkflowPresets.map((preset) => ({ id: preset.id, user_id: userId, name: preset.name, description: preset.description, phase: preset.phase, subject_type: preset.subject_type, steps: preset.steps, updated_at: new Date().toISOString() })), { onConflict: "id" });
+      if (presetError?.code === "23505") return NextResponse.json({ error: "A preset with this name already exists in this workflow." }, { status: 409, headers: noStoreHeaders });
       if (presetError) return onboardingDatabaseError("save workflow presets", presetError, "Could not save your workflow presets. Please try again.");
+    }
+    const staleIds = (existingPresets ?? []).map((preset) => preset.id).filter((id) => !incomingIds.has(id));
+    if (staleIds.length) {
+      const { error: deletePresetsError } = await supabase.from("study_workflow_presets").delete().eq("user_id", userId).in("id", staleIds);
+      if (deletePresetsError) return onboardingDatabaseError("delete removed workflow presets", deletePresetsError, "Your presets were saved, but an old preset could not be removed. Refresh and try again.");
     }
   }
   if (examPlanPhases) {
