@@ -14,7 +14,7 @@ import {
 } from "@/lib/academic-data";
 import { queueCloudSync } from "@/lib/offline-sync";
 import { Button } from "@/components/ui/button";
-import { recommendTasks } from "@/lib/recommendations";
+import { recommendTasks, rescoreStudyTasks } from "@/lib/recommendations";
 import { buildAdaptivePlan, revisionDelayDays, subjectProgressMap } from "@/lib/adaptive-planner";
 import { defaultWorkflowPresets, isMathematicalSubject, workflowForTask, workflowSubjectType, type CustomStudyWorkflow, type StudyPhase, recommendedWorkflow, studyPhases } from "@/lib/study-workflows";
 import { StudyAnalytics, SyllabusEvidenceMap, ExamModeFocus, ResourceLibrary, summarizeStudyEvidence } from "@/components/study-features";
@@ -410,6 +410,7 @@ function DailyTaskCard({ task, subject, index, featured, expanded, toggle, updat
     <div className="task-card">
       <div className="task-heading"><button className="task-summary" onClick={toggle} aria-expanded={expanded}><span className="subject-token">{subject.shortName.slice(0, 2)}</span><p><small>{subject.shortName}{task.pinned ? " · PINNED" : ""}</small><strong>{task.title}</strong><em>{task.reason}</em></p><CaretDown /></button><button className="remove-today" onClick={() => remove(task)} aria-label={`Remove ${task.title} from today's plan`} title="Remove from today"><X /></button></div>
       {expanded && <div className="steps">
+        <div className="recommendation-why"><Sparkle weight="fill" /><span><small>WHY THIS TASK</small><strong>{task.reason}</strong></span></div>
         <p className="method-note"><span>RECOMMENDED {studyPhases.find((phase) => phase.id === workflow.phase)?.label.toUpperCase()}</span><strong>{workflow.preset?.name ?? `${methodLabel(task.studyMethod)} · ${workflowPresets.some((item) => item.phase === workflow.phase && (item.subjectType === workflowSubjectType(task.subjectId) || item.subjectType === "custom")) ? "your preset" : "recommended steps"}`}</strong></p>
         <FocusTimer session={focusSession} baseSeconds={task.focusedSeconds ?? 0} onStart={startFocus} onChange={updateFocus} onReset={resetFocus} />
         <div className="task-actions"><button className={task.pinned ? "pinned" : ""} onClick={() => update({ ...task, pinned: !task.pinned, priorityScore: task.pinned ? task.priorityScore : 100 })}><PushPin weight={task.pinned ? "fill" : "regular"} />{task.pinned ? "Pinned" : "Pin first"}</button><button onClick={() => update({ ...task, status: "planned", plannedTime: "Tomorrow", deferredUntil: new Date(Date.now() + 86400000).toISOString() })}>Move to tomorrow</button></div>
@@ -1087,6 +1088,15 @@ export default function CommandCenter() {
 
   const persist = (table: string, rows: Record<string, unknown>[]) => { void queueCloudSync(table, rows).catch((error: unknown) => { setDatabaseStatus("error"); setDatabaseError(error instanceof Error ? error.message : "Database write failed"); }); };
 
+  const refreshPersonalizedTasks = ({ sourceTasks = tasks, nextChapters = chapterList, nextPreferences = preferences, nextAssessments = subjectAssessments, nextFeedback = recommendationFeedback, nextMistakes = mistakes, nextMocks = mocks, nextProfile = profile, nextLearningPreferences = learningPreferences }: { sourceTasks?: StudyTask[]; nextChapters?: Chapter[]; nextPreferences?: ChapterPreference[]; nextAssessments?: SubjectAssessment[]; nextFeedback?: RecommendationFeedback[]; nextMistakes?: Mistake[]; nextMocks?: MockResult[]; nextProfile?: UserProfile | null; nextLearningPreferences?: LearningPreferences } = {}) => {
+    const progressBySubject = subjectProgressMap(nextChapters.filter((chapter) => !preferenceFor(chapter.id, nextPreferences).excluded));
+    const rescored = rescoreStudyTasks(sourceTasks, subjects, nextChapters, { mistakes: nextMistakes, mocks: nextMocks, assessments: nextAssessments, preferences: nextPreferences, feedback: nextFeedback, mostDifficultSubjectId: nextProfile?.mostDifficultSubjectId, subjectStrengths: nextProfile?.subjectStrengths, targetGrade: nextLearningPreferences.targetGrade, preferredMethods: nextLearningPreferences.preferredMethods, preferredSessionMinutes: nextLearningPreferences.sessionLengthMinutes, subjectProgress: progressBySubject, examDate: SSC_2027_START, tasks: sourceTasks });
+    const changed = rescored.filter((task, index) => task.priorityScore !== sourceTasks[index]?.priorityScore || task.reason !== sourceTasks[index]?.reason || task.status !== sourceTasks[index]?.status);
+    setTasks(rescored);
+    if (changed.length) persist("study_tasks", changed.map(taskRow));
+    return rescored;
+  };
+
   const saveProfile = async (patch: Partial<UserProfile>) => {
     if (!profile) return;
     const body = {
@@ -1110,7 +1120,9 @@ export default function CommandCenter() {
     const payload = await response.json().catch(() => null) as { profile?: Record<string, unknown>; error?: string } | null;
     if (!response.ok || !payload?.profile) throw new Error(payload?.error ?? "Could not save your profile");
     const row = payload.profile;
-    setProfile(userProfileFromRow(row));
+    const nextProfile = userProfileFromRow(row);
+    setProfile(nextProfile);
+    refreshPersonalizedTasks({ nextProfile });
   };
 
   const updateQuickStartStatus = async (status: QuickStartStatus) => {
@@ -1124,6 +1136,7 @@ export default function CommandCenter() {
     setChapterList(updated);
     const changed = updated.filter((chapter) => completed.has(chapter.id));
     if (changed.length) persist("chapter_progress", changed.map(chapterRow));
+    refreshPersonalizedTasks({ nextChapters: updated });
   };
 
   const saveExamPlan = async (phases: ExamPlanPhase[]) => {
@@ -1138,11 +1151,18 @@ export default function CommandCenter() {
     const response = await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ learning_preferences: learningPreferencesRow(patch), subject_assessments: assessments?.map(subjectAssessmentRow) }) });
     const payload = await response.json().catch(() => null) as { learning_preferences?: Record<string, unknown>; subject_assessments?: Record<string, unknown>[]; error?: string } | null;
     if (!response.ok) throw new Error(payload?.error ?? "Could not save your study preferences");
+    let nextLearningPreferences = learningPreferences;
+    let nextAssessments = subjectAssessments;
     if (payload?.learning_preferences) {
       const row = payload.learning_preferences;
-      setLearningPreferences((current) => learningPreferencesFromRow(row, current));
+      nextLearningPreferences = learningPreferencesFromRow(row, learningPreferences);
+      setLearningPreferences(nextLearningPreferences);
     }
-    if (payload?.subject_assessments) setSubjectAssessments(payload.subject_assessments.map((row) => ({ id: String(row.id), userId: String(row.user_id), subjectId: String(row.subject_id), difficulty: Number(row.difficulty) as SubjectAssessment["difficulty"], confidence: Number(row.confidence) as SubjectAssessment["confidence"], priority: Number(row.priority) as SubjectAssessment["priority"], startingPoint: String(row.starting_point) as SubjectAssessment["startingPoint"], preferredMethods: Array.isArray(row.preferred_methods) ? row.preferred_methods.map(String) as SubjectAssessment["preferredMethods"] : [], createdAt: String(row.created_at), updatedAt: String(row.updated_at) })));
+    if (payload?.subject_assessments) {
+      nextAssessments = payload.subject_assessments.map((row) => ({ id: String(row.id), userId: String(row.user_id), subjectId: String(row.subject_id), difficulty: Number(row.difficulty) as SubjectAssessment["difficulty"], confidence: Number(row.confidence) as SubjectAssessment["confidence"], priority: Number(row.priority) as SubjectAssessment["priority"], startingPoint: String(row.starting_point) as SubjectAssessment["startingPoint"], preferredMethods: Array.isArray(row.preferred_methods) ? row.preferred_methods.map(String) as SubjectAssessment["preferredMethods"] : [], createdAt: String(row.created_at), updatedAt: String(row.updated_at) }));
+      setSubjectAssessments(nextAssessments);
+    }
+    refreshPersonalizedTasks({ nextAssessments, nextLearningPreferences });
   };
 
   const saveSubjectPriority = async (subjectId: string, priority: SubjectAssessment["priority"]) => {
@@ -1152,8 +1172,10 @@ export default function CommandCenter() {
   };
 
   const saveFeedback = (feedback: RecommendationFeedback) => {
-    setRecommendationFeedback([feedback, ...recommendationFeedback]);
+    const nextFeedback = [feedback, ...recommendationFeedback];
+    setRecommendationFeedback(nextFeedback);
     persist("recommendation_feedback", [feedbackRow(feedback)]);
+    refreshPersonalizedTasks({ nextFeedback });
   };
 
   const saveWorkflowPresets = async (presets: WorkflowPreset[]) => {
@@ -1295,61 +1317,59 @@ export default function CommandCenter() {
 
   const updatePreferences = (updates: ChapterPreference[]) => {
     const updatedIds = new Set(updates.map((item) => item.chapterId));
-    setPreferences([...preferences.filter((item) => !updatedIds.has(item.chapterId)), ...updates]);
+    const nextPreferences = [...preferences.filter((item) => !updatedIds.has(item.chapterId)), ...updates];
+    const updatesByChapter = new Map(updates.map((item) => [item.chapterId, item]));
+    const sourceTasks = tasks.map((task) => {
+      const preference = updatesByChapter.get(task.chapterId);
+      return preference?.excluded && task.status !== "completed" && task.status !== "skipped" ? { ...task, status: "skipped" as const, pinned: false, plannedStart: undefined, plannedEnd: undefined } : task;
+    });
+    const selectionChanges = sourceTasks.filter((task, index) => task.status !== tasks[index]?.status || task.pinned !== tasks[index]?.pinned);
+    setPreferences(nextPreferences);
     persist("chapter_preferences", updates.map(preferenceRow));
+    if (selectionChanges.length) persist("study_tasks", selectionChanges.map(taskRow));
+    refreshPersonalizedTasks({ sourceTasks, nextPreferences });
   };
 
-  const updatePreference = (updated: ChapterPreference) => {
-    updatePreferences([updated]);
-    if (updated.excluded) {
-      const affected = tasks.filter((task) => task.chapterId === updated.chapterId && task.status !== "completed" && task.status !== "skipped").map((task) => ({ ...task, status: "skipped" as const, plannedStart: undefined, plannedEnd: undefined }));
-      if (affected.length) {
-        const byId = new Map(affected.map((task) => [task.id, task]));
-        setTasks(tasks.map((task) => byId.get(task.id) ?? task));
-        void queueCloudSync("study_tasks", affected.map(taskRow));
-      }
-    }
-  };
+  const updatePreference = (updated: ChapterPreference) => updatePreferences([updated]);
 
   const completeChapter = (chapter: Chapter) => {
     const completedAt = chapter.lastStudied ?? new Date().toISOString();
     const updated: Chapter = { ...chapter, status: "exam-ready", confidence: Math.max(4, chapter.confidence) as Chapter["confidence"], lastStudied: completedAt, nextReview: new Date(Date.now() + 7 * 86400000).toISOString() };
-    setChapterList(chapterList.map((item) => item.id === chapter.id ? updated : item));
+    const nextChapters = chapterList.map((item) => item.id === chapter.id ? updated : item);
+    setChapterList(nextChapters);
     persist("chapter_progress", [chapterRow(updated)]);
+    refreshPersonalizedTasks({ nextChapters });
   };
 
   const uncompleteChapter = (chapter: Chapter) => {
     const updated: Chapter = { ...chapter, status: "learning", nextReview: undefined };
-    setChapterList(chapterList.map((item) => item.id === chapter.id ? updated : item));
+    const nextChapters = chapterList.map((item) => item.id === chapter.id ? updated : item);
+    setChapterList(nextChapters);
     persist("chapter_progress", [chapterRow(updated)]);
+    refreshPersonalizedTasks({ nextChapters });
   };
 
   const setChapterDifficulty = (chapter: Chapter, difficulty: ChapterDifficulty) => {
     const updated = { ...chapter, difficulty };
-    setChapterList(chapterList.map((item) => item.id === chapter.id ? updated : item));
+    const nextChapters = chapterList.map((item) => item.id === chapter.id ? updated : item);
+    setChapterList(nextChapters);
     persist("chapter_progress", [chapterRow(updated)]);
+    refreshPersonalizedTasks({ nextChapters });
   };
 
   const buildGoalQueue = (selected: Chapter[], label: string) => {
     const openChapterIds = new Set(tasks.filter((task) => task.status !== "completed" && task.status !== "skipped").map((task) => task.chapterId));
-    const candidates = selected
-      .filter((chapter) => chapter.status !== "exam-ready" && !openChapterIds.has(chapter.id) && !preferenceFor(chapter.id, preferences).excluded)
-      .sort((a, b) => preferenceFor(b.id, preferences).priority - preferenceFor(a.id, preferences).priority || a.confidence - b.confidence)
-      .slice(0, 5);
+    const candidates = selected.filter((chapter) => !openChapterIds.has(chapter.id));
     const progressBySubject = subjectProgressMap(chapterList.filter((chapter) => !preferenceFor(chapter.id, preferences).excluded));
-    const generated = candidates.map((chapter) => {
-      const base = recommendTasks(subjects, [chapter], { mistakes, mocks, assessments: subjectAssessments, feedback: recommendationFeedback, mostDifficultSubjectId: profile?.mostDifficultSubjectId, subjectStrengths: profile?.subjectStrengths, targetGrade: learningPreferences.targetGrade, preferredMethods: learningPreferences.preferredMethods, preferredSessionMinutes: learningPreferences.sessionLengthMinutes, subjectProgress: progressBySubject, examDate: SSC_2027_START, tasks })[0];
-      const priority = preferenceFor(chapter.id, preferences).priority;
-      return {
-        ...base,
+    const ranked = recommendTasks(subjects, candidates, { mistakes, mocks, assessments: subjectAssessments, preferences, feedback: recommendationFeedback, mostDifficultSubjectId: profile?.mostDifficultSubjectId, subjectStrengths: profile?.subjectStrengths, targetGrade: learningPreferences.targetGrade, preferredMethods: learningPreferences.preferredMethods, preferredSessionMinutes: learningPreferences.sessionLengthMinutes, subjectProgress: progressBySubject, examDate: SSC_2027_START, tasks }).slice(0, 5);
+    const generated = ranked.map((task) => ({
+        ...task,
         id: crypto.randomUUID(),
         plannedTime: "Unscheduled",
         plannedStart: undefined,
         plannedEnd: undefined,
-        reason: `${label} · priority ${priority}/5`,
-        priorityScore: Math.max(base.priorityScore, 65 + priority * 6),
-      };
-    });
+        reason: `${label} · ${task.reason}`,
+      }));
     if (!generated.length) return;
     const next = [...generated, ...tasks];
     setTasks(next);
@@ -1369,14 +1389,14 @@ export default function CommandCenter() {
     const updatedChapters = chapterList.map((chapter) => chapter.id === entry.chapterId ? updatedChapter : chapter);
     const nextMistakes = isMathematicalSubject(entry.subjectId) && entry.mistakesText ? [{ id: crypto.randomUUID(), chapterId: entry.chapterId, prompt: entry.mistakesText, errorType: "Session mistake", reattemptDate: dhakaDateAfter(1), resolved: false, revisionCount: 0 }, ...mistakes] : mistakes;
     const allowedChapters = updatedChapters.filter((chapter) => !preferenceFor(chapter.id, preferences).excluded);
-    const recommended = recommendTasks(subjects, allowedChapters, { mistakes: nextMistakes, mocks, assessments: subjectAssessments, feedback: recommendationFeedback, mostDifficultSubjectId: profile?.mostDifficultSubjectId, subjectStrengths: profile?.subjectStrengths, targetGrade: learningPreferences.targetGrade, preferredMethods: learningPreferences.preferredMethods, preferredSessionMinutes: learningPreferences.sessionLengthMinutes, subjectProgress: subjectProgressMap(allowedChapters), examDate: SSC_2027_START, tasks: updatedTasks }).find((candidate) => !updatedTasks.some((task) => task.status !== "completed" && task.status !== "skipped" && task.chapterId === candidate.chapterId && (!isMathematicalSubject(candidate.subjectId) || (task.workflowGroupId === candidate.workflowGroupId && task.workflowStage === candidate.workflowStage))));
+    const recommended = recommendTasks(subjects, allowedChapters, { mistakes: nextMistakes, mocks, assessments: subjectAssessments, preferences, feedback: recommendationFeedback, mostDifficultSubjectId: profile?.mostDifficultSubjectId, subjectStrengths: profile?.subjectStrengths, targetGrade: learningPreferences.targetGrade, preferredMethods: learningPreferences.preferredMethods, preferredSessionMinutes: learningPreferences.sessionLengthMinutes, subjectProgress: subjectProgressMap(allowedChapters), examDate: SSC_2027_START, tasks: updatedTasks }).find((candidate) => !updatedTasks.some((task) => task.status !== "completed" && task.status !== "skipped" && task.chapterId === candidate.chapterId && (!isMathematicalSubject(candidate.subjectId) || (task.workflowGroupId === candidate.workflowGroupId && task.workflowStage === candidate.workflowStage))));
     if (recommended) updatedTasks.push({ ...recommended, plannedTime: "Tomorrow", deferredUntil: new Date(Date.now() + 86400000).toISOString() });
     setEntries([entry, ...entries]);
-    setTasks(updatedTasks);
     setChapterList(updatedChapters);
     persist("journal_entries", [journalRow(entry)]);
     persist("chapter_progress", [chapterRow(updatedChapter)]);
     persist("study_tasks", updatedTasks.filter((task) => task.id === entry.taskId || task.id === recommended?.id).map(taskRow));
+    refreshPersonalizedTasks({ sourceTasks: updatedTasks, nextChapters: updatedChapters, nextMistakes });
     if (nextMistakes !== mistakes) {
       const mistake = nextMistakes[0];
       setMistakes(nextMistakes);
@@ -1396,8 +1416,10 @@ export default function CommandCenter() {
   };
 
   const saveMock = (result: MockResult) => {
-    setMocks([result, ...mocks]);
+    const nextMocks = [result, ...mocks];
+    setMocks(nextMocks);
     persist("mock_results", [{ id: result.id, subject_id: result.subjectId, paper_type: result.paperType, score: result.score, total: result.total, duration_minutes: result.durationMinutes ?? null, taken_at: result.takenAt }]);
+    refreshPersonalizedTasks({ nextMocks });
     setMockOpen(false);
   };
 
@@ -1405,8 +1427,10 @@ export default function CommandCenter() {
     const nextCount = (mistake.revisionCount ?? 0) + 1;
     const solved = outcome === "solved";
     const updated = { ...mistake, resolved: solved, revisionCount: nextCount, lastReattemptedAt: new Date().toISOString(), reattemptDate: solved ? "" : new Date(Date.now() + revisionDelayDays(nextCount) * 86400000).toISOString().slice(0, 10), lastAttemptNote: note || mistake.lastAttemptNote };
-    setMistakes(mistakes.map((item) => item.id === mistake.id ? updated : item));
+    const nextMistakes = mistakes.map((item) => item.id === mistake.id ? updated : item);
+    setMistakes(nextMistakes);
     persist("mistakes", [mistakeRow(updated)]);
+    refreshPersonalizedTasks({ nextMistakes });
     setRevisionMistake(null);
   };
 

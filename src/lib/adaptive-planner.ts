@@ -1,6 +1,6 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import type { Chapter, ChapterPreference, Mistake, MockResult, StudyTask, Subject, LearningPreferences, SubjectAssessment, RecommendationFeedback, StrengthLevel } from "./types";
-import { recommendTasks } from "./recommendations";
+import { recommendTasks, scoreChapter } from "./recommendations";
 import { isMathematicalSubject } from "./study-workflows";
 import { dailyCapacityMinutes } from "./daily-capacity";
 
@@ -47,10 +47,6 @@ function chapterMap(chapters: Chapter[]) {
   return new Map(chapters.map((chapter) => [chapter.id, chapter]));
 }
 
-function preferenceMap(preferences: ChapterPreference[]) {
-  return new Map(preferences.map((preference) => [preference.chapterId, preference]));
-}
-
 function isOpenTask(task: StudyTask, now: Date) {
   return (task.status === "planned" || task.status === "in-progress") && (!task.deferredUntil || parseISO(task.deferredUntil).getTime() <= now.getTime());
 }
@@ -60,15 +56,6 @@ export function revisionDelayDays(attempts: number) {
   if (attempts === 1) return 2;
   if (attempts === 2) return 4;
   return 7;
-}
-
-function priorityBonus(priority?: number) {
-  return Math.max(0, ((priority ?? 3) - 1) * 4);
-}
-
-function protectedSubjectBonus(subjectId: string, mostDifficultSubjectId?: string, subjectStrengths?: Record<string, StrengthLevel>) {
-  const selfRatingBonus = subjectStrengths?.[subjectId] === "toughest" ? 9 : subjectStrengths?.[subjectId] === "moderate" ? 5 : subjectStrengths?.[subjectId] === "very-strong" ? 2 : 0;
-  return mostDifficultSubjectId === subjectId ? 14 + selfRatingBonus : selfRatingBonus;
 }
 
 function scheduleTask(task: StudyTask, dateKey: string, index: number, rationale: string) {
@@ -107,6 +94,27 @@ export function subjectProgressMap(chapters: Chapter[]) {
   return Object.fromEntries([...grouped].map(([subjectId, value]) => [subjectId, Math.round(value.total / Math.max(1, value.count))]));
 }
 
+function diversifyCandidates(candidates: PlanCandidate[], scoreWindow = 12) {
+  const remaining = [...candidates];
+  const ordered: PlanCandidate[] = [];
+  let interleaved = 0;
+  while (remaining.length) {
+    let selectedIndex = 0;
+    const last = ordered.at(-1);
+    const previous = ordered.at(-2);
+    const top = remaining[0];
+    if (last && previous && last.task.subjectId === previous.task.subjectId && top.task.subjectId === last.task.subjectId && top.source !== "revision" && !top.task.pinned) {
+      const alternativeIndex = remaining.findIndex((candidate) => candidate.task.subjectId !== top.task.subjectId && candidate.source !== "revision" && !candidate.task.pinned && top.score - candidate.score <= scoreWindow);
+      if (alternativeIndex > 0) {
+        selectedIndex = alternativeIndex;
+        interleaved += 1;
+      }
+    }
+    ordered.push(remaining.splice(selectedIndex, 1)[0]);
+  }
+  return { ordered, interleaved };
+}
+
 export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult {
   const now = input.now ?? new Date();
   const dateKey = dhakaDateKey(now);
@@ -116,11 +124,12 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
   const selectedSubjects = new Set(input.selectedSubjectIds?.length ? input.selectedSubjectIds : input.subjects.map((subject) => subject.id));
   const eligibleChapters = input.chapters.filter((chapter) => selectedSubjects.has(chapter.subjectId));
   const chapters = chapterMap(eligibleChapters);
-  const preferences = preferenceMap(input.preferences);
-  const assessmentsBySubject = new Map((input.assessments ?? []).map((assessment) => [assessment.subjectId, assessment]));
   const excluded = new Set(input.preferences.filter((preference) => preference.excluded).map((preference) => preference.chapterId));
   const trackableChapters = eligibleChapters.filter((chapter) => !excluded.has(chapter.id));
-  const openTasks = input.tasks.filter((task) => selectedSubjects.has(task.subjectId) && !excluded.has(task.chapterId) && isOpenTask(task, now));
+  const progressBySubject = subjectProgressMap(trackableChapters);
+  const scoringEvidence = { mistakes: input.mistakes, mocks: input.mocks, assessments: input.assessments, preferences: input.preferences, feedback: input.feedback, mostDifficultSubjectId: input.mostDifficultSubjectId, subjectStrengths: input.subjectStrengths, preferredMethods: input.learningPreferences?.preferredMethods, preferredSessionMinutes: input.learningPreferences?.sessionLengthMinutes, subjectProgress: progressBySubject, examDate: input.examDate, targetGrade: input.learningPreferences?.targetGrade, tasks: input.tasks, now };
+  const staleCompletedTaskIds = new Set(input.tasks.filter((task) => isOpenTask(task, now) && chapters.get(task.chapterId)?.status === "exam-ready" && task.workflowPhase !== "revise").map((task) => task.id));
+  const openTasks = input.tasks.filter((task) => selectedSubjects.has(task.subjectId) && !excluded.has(task.chapterId) && !staleCompletedTaskIds.has(task.id) && isOpenTask(task, now));
   const openChapterIds = new Set(openTasks.map((task) => task.chapterId));
   const candidates: PlanCandidate[] = [];
   const rationale: string[] = [];
@@ -129,8 +138,9 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     const chapter = chapters.get(task.chapterId);
     const subject = input.subjects.find((item) => item.id === task.subjectId);
     if (!chapter || !subject) continue;
-    const bonus = protectedSubjectBonus(task.subjectId, input.mostDifficultSubjectId, input.subjectStrengths) + priorityBonus(assessmentsBySubject.get(task.subjectId)?.priority);
-    candidates.push({ task, score: task.priorityScore + (task.pinned ? 70 : 0) + bonus + workflowRatioBonus(task, input.learningPreferences), rationale: task.pinned ? "Pinned unfinished work" : `Continue unfinished ${subject.shortName} work`, source: "existing" });
+    const scored = scoreChapter(subject, chapter, now, scoringEvidence);
+    const rescoredTask = { ...task, priorityScore: scored.score, reason: `${task.pinned ? "Pinned by you" : "Continue unfinished work"} · ${scored.explanation}`, recommendationFactors: scored.factors };
+    candidates.push({ task: rescoredTask, score: scored.score + (task.pinned ? 70 : 0) + workflowRatioBonus(task, input.learningPreferences), rationale: rescoredTask.reason, source: "existing" });
   }
 
   const revisionIds = new Set<string>();
@@ -162,25 +172,23 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     candidates.push({ task: revisionTask, score: revisionTask.priorityScore + workflowRatioBonus(revisionTask, input.learningPreferences), rationale: `Repair ${subject.shortName}: ${mistake.errorType}`, source: "revision" });
   }
 
-  const progressBySubject = subjectProgressMap(trackableChapters);
-  const recommendations = recommendTasks(input.subjects.filter((subject) => selectedSubjects.has(subject.id)), trackableChapters, { mistakes: input.mistakes, mocks: input.mocks, assessments: input.assessments, feedback: input.feedback, mostDifficultSubjectId: input.mostDifficultSubjectId, subjectStrengths: input.subjectStrengths, preferredMethods: input.learningPreferences?.preferredMethods, preferredSessionMinutes: input.learningPreferences?.sessionLengthMinutes, subjectProgress: progressBySubject, examDate: input.examDate, targetGrade: input.learningPreferences?.targetGrade, tasks: input.tasks });
+  const recommendations = recommendTasks(input.subjects.filter((subject) => selectedSubjects.has(subject.id)), trackableChapters, scoringEvidence);
   for (const task of recommendations) {
     const chapter = chapters.get(task.chapterId);
     const subject = input.subjects.find((item) => item.id === task.subjectId);
-    if (!chapter || !subject || openChapterIds.has(task.chapterId) || (chapter.status === "exam-ready" && !task.workflowStage)) continue;
-    const preference = preferences.get(chapter.id);
-    const assessment = input.assessments?.find((item) => item.subjectId === task.subjectId);
+    if (!chapter || !subject || openChapterIds.has(task.chapterId)) continue;
     const methodBonus = input.learningPreferences?.preferredMethods.includes(task.studyMethod ?? "textbook") ? 8 : 0;
-    const score = task.priorityScore + protectedSubjectBonus(task.subjectId, input.mostDifficultSubjectId, input.subjectStrengths) + (preference?.priority ?? 3) * 3 + (assessment?.priority ?? 3) * 2 + methodBonus + workflowRatioBonus(task, input.learningPreferences);
-    candidates.push({       task: { ...task, id: `adaptive-${task.chapterId}-${dateKey}` }, score, rationale: `Adaptive recommendation · ${task.reason}`, source: "recommendation" });
+    const score = task.priorityScore + methodBonus + workflowRatioBonus(task, input.learningPreferences);
+    candidates.push({ task: { ...task, id: `adaptive-${task.chapterId}-${dateKey}` }, score, rationale: task.reason, source: "recommendation" });
   }
 
   const deduped = [...new Map(candidates.map((candidate) => [candidate.task.chapterId + ":" + candidate.source + ":" + (candidate.task.workflowStage ?? candidate.task.id), candidate])).values()]
     .sort((a, b) => b.score - a.score || Number(Boolean(b.task.pinned)) - Number(Boolean(a.task.pinned)));
+  const diversified = diversifyCandidates(deduped);
   const selectedCandidates: PlanCandidate[] = [];
   let remaining = budget;
   const minimumUsefulSlice = input.learningPreferences?.planStrictness === "strict" ? 10 : input.learningPreferences?.planStrictness === "flexible" ? 20 : 15;
-  for (const candidate of deduped) {
+  for (const candidate of diversified.ordered) {
     if (candidate.task.duration <= remaining) {
       selectedCandidates.push(candidate);
       remaining -= candidate.task.duration;
@@ -195,6 +203,7 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
   const selectedIds = new Set(selected.map((task) => task.id));
   const activeIds = new Set(openTasks.map((task) => task.id));
   const updatedTasks = input.tasks.map((task) => {
+    if (staleCompletedTaskIds.has(task.id)) return { ...task, status: "skipped" as const, plannedStart: undefined, plannedEnd: undefined };
     if (selectedIds.has(task.id)) return selected.find((item) => item.id === task.id)!;
     if (activeIds.has(task.id)) return { ...task, plannedTime: "Tomorrow", plannedStart: undefined, plannedEnd: undefined, deferredUntil: new Date(`${tomorrowKey}T00:00:00+06:00`).toISOString() };
     return task;
@@ -208,6 +217,7 @@ export function buildAdaptivePlan(input: AdaptivePlanInput): AdaptivePlanResult 
     const subject = input.subjects.find((item) => item.id === lowestProgress[0]);
     if (subject) rationale.push(`${subject.shortName} receives extra weight because it has the lowest current progress (${lowestProgress[1]}%).`);
   }
+  if (diversified.interleaved) rationale.push("Close-score tasks were balanced across subjects so one weak subject does not consume the whole day.");
   rationale.push(`The plan is capped at ${budget} minutes and uses ${input.learningPreferences?.sessionLengthMinutes ?? 45}-minute focus blocks where possible.`);
   if (deferredCount) rationale.push(`${deferredCount} lower-priority task${deferredCount === 1 ? " was" : "s were"} moved to tomorrow.`);
   if (!selected.length) rationale.push("No task fit the current time budget; increase available minutes or add a revision item.");

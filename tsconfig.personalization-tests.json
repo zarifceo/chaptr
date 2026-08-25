@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "incremental": false,
+    "isolatedModules": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "outDir": "node_modules/.cache/chaptr-personalization-tests",
+    "rootDir": ".",
+    "target": "ES2022",
+    "types": ["node"]
+  },
+  "include": [
+    "tests/personalization.test.ts",
+    "src/lib/adaptive-planner.ts",
+    "src/lib/daily-capacity.ts",
+    "src/lib/recommendations.ts",
+    "src/lib/study-workflows.ts",
+    "src/lib/types.ts"
+  ]
+}

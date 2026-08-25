@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:personalization": "tsc -p tsconfig.personalization-tests.json && node scripts/run-personalization-tests.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
