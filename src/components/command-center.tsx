@@ -1280,11 +1280,38 @@ export default function CommandCenter() {
   const resetFocus = (task: StudyTask) => {
     const existing = sessions.find((session) => session.taskId === task.id && session.mode === "focus" && session.timerState !== "completed");
     if (existing) {
-      const reset = { ...existing, focusedSeconds: 0, timerState: "paused" as const, lastResumedAt: undefined, completed: false, endedAt: undefined };
-      setSessions([reset, ...sessions.filter((item) => item.id !== reset.id)]);
-      persist("study_sessions", [sessionRow(reset)]);
+      const resetAt = new Date();
+      const recordedSeconds = focusElapsedSeconds(existing, resetAt.getTime());
+      if (recordedSeconds > 0) {
+        const completedSession: StudySession = {
+          ...existing,
+          focusedSeconds: recordedSeconds,
+          timerState: "completed",
+          lastResumedAt: undefined,
+          completed: true,
+          endedAt: resetAt.toISOString(),
+        };
+        const freshSession: StudySession = {
+          id: crypto.randomUUID(),
+          taskId: task.id,
+          subjectId: task.subjectId,
+          chapterId: task.chapterId,
+          mode: "focus",
+          startedAt: resetAt.toISOString(),
+          timerState: "paused",
+          focusedSeconds: 0,
+          pauseSeconds: 0,
+          completed: false,
+        };
+        setSessions((current) => [freshSession, completedSession, ...current.filter((item) => item.id !== existing.id)]);
+        persist("study_sessions", [sessionRow(completedSession), sessionRow(freshSession)]);
+      } else {
+        const resetSession: StudySession = { ...existing, focusedSeconds: 0, timerState: "paused", lastResumedAt: undefined, completed: false, endedAt: undefined };
+        setSessions((current) => [resetSession, ...current.filter((item) => item.id !== existing.id)]);
+        persist("study_sessions", [sessionRow(resetSession)]);
+      }
     }
-    updateTask({ ...task, focusedSeconds: 0, status: task.status === "in-progress" ? "planned" : task.status });
+    updateTask({ ...task, focusedSeconds: 0 });
   };
 
   const removeTaskFromToday = (task: StudyTask) => {
