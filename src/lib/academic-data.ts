@@ -100,6 +100,22 @@ export function orderChapters(items: Chapter[]) {
   return [...items].sort((a, b) => (a.number ?? Number.MAX_SAFE_INTEGER) - (b.number ?? Number.MAX_SAFE_INTEGER) || a.title.localeCompare(b.title, "bn"));
 }
 
+export function chapterIdentityKey(chapter: Pick<Chapter, "subjectId" | "number" | "title">) {
+  return [chapter.subjectId, chapter.number ?? "", chapter.title.trim().normalize("NFC")].join("|");
+}
+
+export function deduplicateChapters(items: Chapter[]) {
+  const unique = new Map<string, Chapter>();
+
+  for (const chapter of items) {
+    const key = chapterIdentityKey(chapter);
+    const current = unique.get(key);
+    if (!current || chapter.id.localeCompare(current.id) < 0) unique.set(key, chapter);
+  }
+
+  return [...unique.values()];
+}
+
 export let chapters: Chapter[] = seed.map(([subjectId, title, number, division, note], index) => ({
   id: `${subjectId}-${index + 1}`, subjectId, title, number, division, note, ...infer(note), difficulty: inferDifficulty(note),
   formats: defaultFormats[subjectId] ?? ["MCQ", "Short", "Creative"], questionsAttempted: 0, questionsCorrect: 0,
@@ -139,17 +155,19 @@ export let marksDistributions: MarksDistribution[] = [
 
 export type AcademicExam = { id: string; name: string; start: string; end: string };
 
+export const TEST_EXAM_START = "2026-10-28";
+export const TEST_EXAM_END = "2026-11-12";
 export const SSC_2027_START = "2027-03-14";
 export const SSC_2027_END = "2027-04-15";
 
 export let exams: AcademicExam[] = [
-  { id: "test", name: "Full-Syllabus Test", start: "2026-10-28", end: "2026-11-12" },
+  { id: "test", name: "School Test Exam", start: TEST_EXAM_START, end: TEST_EXAM_END },
   { id: "ssc", name: "SSC 2027", start: SSC_2027_START, end: SSC_2027_END },
 ];
 
 export function replaceAcademicData(next: { subjects: Subject[]; chapters: Chapter[]; marksDistributions: MarksDistribution[]; exams: AcademicExam[]; workflowSteps?: typeof workflowSteps }) {
   subjects = next.subjects;
-  chapters = next.chapters;
+  chapters = orderChapters(deduplicateChapters(next.chapters));
   marksDistributions = next.marksDistributions;
   exams = next.exams;
   if (next.workflowSteps) workflowSteps = next.workflowSteps;

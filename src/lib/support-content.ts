@@ -169,11 +169,11 @@ export const supportArticles: SupportArticle[] = [
     category: "account-privacy",
     keywords: ["delete", "deletion", "privacy", "account", "remove data"],
     readingMinutes: 2,
-    updatedAt: "2026-08-21",
+    updatedAt: "2026-08-25",
     body: [
       { type: "paragraph", text: "A verified deletion request starts a 14-day grace period. If you sign in again during that window, the pending request is cancelled automatically and your account and Chaptr data are preserved." },
-      { type: "steps", items: ["Open Account and privacy, then choose Request account deletion.", "Read the data-impact summary and confirm the signed-in email shown on screen.", "Type DELETE MY ACCOUNT exactly.", "Choose Request deletion once. The system blocks duplicate active requests and gives you a reference code.", "If you change your mind, sign in during the 14-day window or use Cancel deletion request from Support." ] },
-      { type: "note", text: "After the grace period ends, the system removes your Chaptr account and owned data automatically. Do not enter a password, token, calendar credential, or other secret in a support or deletion request." },
+      { type: "steps", items: ["Open Account and privacy, then choose Request account deletion.", "Verify your identity with your current Chaptr password. Google-only accounts confirm through Google because Chaptr never receives their Google password.", "Type DELETE MY ACCOUNT exactly.", "Choose Request deletion once. The system blocks duplicate active requests and gives you a reference code.", "If you change your mind, sign in during the 14-day window or use Cancel deletion request from Support." ] },
+      { type: "note", text: "After the grace period ends, the system removes your Chaptr account and owned data automatically. Enter a password only in the dedicated password field—never put a password, token, calendar credential, or other secret in a support description." },
     ],
   },
   {

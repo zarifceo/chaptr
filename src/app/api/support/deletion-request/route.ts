@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { createClient as createSupabaseAuthClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -10,8 +11,14 @@ export const runtime = "nodejs";
 const noStoreHeaders = { "Cache-Control": "private, no-store, max-age=0", Expires: "0", Pragma: "no-cache" };
 const selectColumns = "id, reference_code, status, requested_at, confirmed_at, scheduled_for, completed_at, cancelled_at";
 const internalSelectColumns = `${selectColumns}, audit_metadata`;
-const deletionSchema = z.object({ confirmation: z.literal("DELETE MY ACCOUNT"), reauth_method: z.enum(["password", "email_otp"]) });
-const reauthSchema = z.object({ method: z.enum(["password", "email_otp"]) });
+const deletionSchema = z.discriminatedUnion("reauth_method", [
+  z.object({ confirmation: z.literal("DELETE MY ACCOUNT"), reauth_method: z.literal("password"), password: z.string().min(1).max(256) }),
+  z.object({ confirmation: z.literal("DELETE MY ACCOUNT"), reauth_method: z.literal("google") }),
+]);
+const reauthSchema = z.discriminatedUnion("method", [
+  z.object({ method: z.literal("password"), password: z.string().min(1).max(256) }),
+  z.object({ method: z.literal("google") }),
+]);
 const reauthLifetimeMs = 5 * 60 * 1000;
 const gracePeriodMs = 14 * 24 * 60 * 60 * 1000;
 
@@ -29,6 +36,17 @@ function hasFreshReauthentication(user: { last_sign_in_at?: string }) {
 
 function isGoogleUser(user: { app_metadata?: { provider?: string }; identities?: Array<{ provider?: string }> | null }) {
   return user.app_metadata?.provider === "google" || Boolean(user.identities?.some((identity) => identity.provider === "google"));
+}
+
+async function verifyCurrentPassword(user: { id: string; email?: string }, password: string) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key || !user.email) return { verified: false, configured: false };
+  const verifier = createSupabaseAuthClient(url, key, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
+  const { data, error } = await verifier.auth.signInWithPassword({ email: user.email, password });
+  const verified = !error && data.user?.id === user.id;
+  if (data.session) await verifier.auth.signOut({ scope: "local" }).catch(() => undefined);
+  return { verified, configured: true };
 }
 
 function signedInDuringGracePeriod(user: { last_sign_in_at?: string }, row: { requested_at: string; scheduled_for: string | null }) {
@@ -84,7 +102,14 @@ export async function PUT(request: Request) {
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Request body must be valid JSON" }, { status: 400, headers: noStoreHeaders }); }
   const parsed = reauthSchema.safeParse(body);
-  if (!parsed.success || (parsed.data.method === "password" && isGoogleUser(user)) || !hasFreshReauthentication(user)) return NextResponse.json({ error: isGoogleUser(user) ? "Google accounts must use email-code verification." : "Verify your password or email code again before continuing.", reauthenticationRequired: true }, { status: 403, headers: noStoreHeaders });
+  if (!parsed.success) return NextResponse.json({ error: "Choose a valid identity verification method." }, { status: 400, headers: noStoreHeaders });
+  if (parsed.data.method === "password") {
+    const result = await verifyCurrentPassword(user, parsed.data.password);
+    if (!result.configured) return NextResponse.json({ error: "Password verification is not configured for this deployment." }, { status: 503, headers: noStoreHeaders });
+    if (!result.verified) return NextResponse.json({ error: "That password is not correct.", reauthenticationRequired: true }, { status: 403, headers: noStoreHeaders });
+    return NextResponse.json({ verified: true, method: "password" }, { headers: noStoreHeaders });
+  }
+  if (!isGoogleUser(user) || !hasFreshReauthentication(user)) return NextResponse.json({ error: "Confirm your Google account again before continuing.", reauthenticationRequired: true }, { status: 403, headers: noStoreHeaders });
   return NextResponse.json({ verified: true, method: parsed.data.method }, { headers: noStoreHeaders });
 }
 
@@ -96,8 +121,13 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Request body must be valid JSON" }, { status: 400, headers: noStoreHeaders }); }
   const parsed = deletionSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Type DELETE MY ACCOUNT to confirm the request and verify your identity first." }, { status: 400, headers: noStoreHeaders });
-  if (parsed.data.reauth_method === "password" && isGoogleUser(user)) return NextResponse.json({ error: "Google accounts must use email-code verification.", reauthenticationRequired: true }, { status: 403, headers: noStoreHeaders });
-  if (!hasFreshReauthentication(user)) return NextResponse.json({ error: "Verify your password or email code again before submitting the deletion request.", reauthenticationRequired: true }, { status: 403, headers: noStoreHeaders });
+  if (parsed.data.reauth_method === "password") {
+    const result = await verifyCurrentPassword(user, parsed.data.password);
+    if (!result.configured) return NextResponse.json({ error: "Password verification is not configured for this deployment." }, { status: 503, headers: noStoreHeaders });
+    if (!result.verified) return NextResponse.json({ error: "That password is not correct.", reauthenticationRequired: true }, { status: 403, headers: noStoreHeaders });
+  } else {
+    if (!isGoogleUser(user) || !hasFreshReauthentication(user)) return NextResponse.json({ error: "Confirm your Google account again before submitting the deletion request.", reauthenticationRequired: true }, { status: 403, headers: noStoreHeaders });
+  }
   const { data: existing } = await supabase.from("account_deletion_requests").select(selectColumns).eq("user_id", user.id).in("status", ["requested", "pending_review", "processing"]).order("requested_at", { ascending: false }).limit(1).maybeSingle();
   if (existing) return NextResponse.json({ request: existing, alreadyRequested: true }, { status: 200, headers: noStoreHeaders });
   const admin = createAdminClient();

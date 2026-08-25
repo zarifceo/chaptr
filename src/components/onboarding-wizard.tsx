@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, CaretDown, CaretUp, Check, CheckCircle, Clock, GraduationCap, Lightning, PlayCircle, Plus, Sparkle, Target } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { orderChapters, SSC_2027_START } from "@/lib/academic-data";
-import type { Chapter, ExamPlanPhase, LearningMethod, LearningPreferences, Subject, SubjectAssessment, StrengthLevel, UserProfile } from "@/lib/types";
+import { orderChapters, SSC_2027_START, TEST_EXAM_END, TEST_EXAM_START } from "@/lib/academic-data";
+import type { Chapter, ExamEvent, ExamPlanPhase, LearningMethod, LearningPreferences, Subject, SubjectAssessment, StrengthLevel, UserProfile } from "@/lib/types";
 import { recommendedExamPlan } from "@/lib/exam-plan";
 import { commonSubjectIds, fourthSubjectOptions, groupSubjectIds, religionOptions, studyGroupOptions, subjectIdsForProfile } from "@/lib/academic-profile";
 import type { FourthSubject, ReligionSubject, StudyGroup } from "@/lib/types";
@@ -20,7 +20,7 @@ const methodOptions: Array<{ id: LearningMethod; label: string; detail: string }
   { id: "group-study", label: "Group study", detail: "Discuss and explain to friends" },
 ];
 
-const steps = ["Study group", "Religion subject", "Fourth subject", "Your target", "Your time", "Subject setup", "Completed chapters", "How you learn", "Your rhythm", "Your exam plan", "Your first week"];
+const steps = ["Study group", "Religion subject", "Fourth subject", "Your target", "Your time", "Subject setup", "Completed chapters", "How you learn", "Your rhythm", "Exam dates & plan", "Your first week"];
 const strengthOptions: Array<{ value: StrengthLevel; label: string; detail: string }> = [
   { value: "strongest", label: "Strongest", detail: "I feel confident here" },
   { value: "very-strong", label: "Very Strong", detail: "Usually comfortable" },
@@ -46,9 +46,10 @@ const assessmentForStrength = (strength?: StrengthLevel): Pick<SubjectAssessment
 type AdaptiveSave = (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => Promise<void>;
 type CompletedChapterSave = (chapterIds: string[]) => Promise<void>;
 type ExamPlanSave = (phases: ExamPlanPhase[]) => Promise<void>;
-type OnboardingWizardProps = { profile: UserProfile; subjects: Subject[]; chapters: Chapter[]; learningPreferences: LearningPreferences; subjectAssessments: SubjectAssessment[]; save: (patch: Partial<UserProfile>) => Promise<void>; saveAdaptive: AdaptiveSave; saveCompletedChapters: CompletedChapterSave; examPlan: ExamPlanPhase[]; saveExamPlan: ExamPlanSave };
+type ExamEventSave = (events: ExamEvent[]) => Promise<void>;
+type OnboardingWizardProps = { profile: UserProfile; subjects: Subject[]; chapters: Chapter[]; learningPreferences: LearningPreferences; subjectAssessments: SubjectAssessment[]; save: (patch: Partial<UserProfile>) => Promise<void>; saveAdaptive: AdaptiveSave; saveCompletedChapters: CompletedChapterSave; examEvents: ExamEvent[]; saveExamEvents: ExamEventSave; examPlan: ExamPlanPhase[]; saveExamPlan: ExamPlanSave };
 
-export function OnboardingWizard({ profile, subjects: academicSubjects, chapters: academicChapters, learningPreferences, subjectAssessments, save, saveAdaptive, saveCompletedChapters, examPlan, saveExamPlan }: OnboardingWizardProps) {
+export function OnboardingWizard({ profile, subjects: academicSubjects, chapters: academicChapters, learningPreferences, subjectAssessments, save, saveAdaptive, saveCompletedChapters, examEvents, saveExamEvents, examPlan, saveExamPlan }: OnboardingWizardProps) {
   const [step, setStep] = useState(() => Math.min(10, Math.max(0, profile.onboardingStep ?? 0)));
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [board, setBoard] = useState(profile.board || "Dhaka");
@@ -68,6 +69,9 @@ export function OnboardingWizard({ profile, subjects: academicSubjects, chapters
   const [assessments, setAssessments] = useState<SubjectAssessment[]>(academicSubjects.map((subject) => subjectAssessments.find((assessment) => assessment.subjectId === subject.id) ?? defaultAssessment(profile.userId, subject.id)));
   const [completedChapterIds, setCompletedChapterIds] = useState<string[]>([]);
   const [historySubjectIndex, setHistorySubjectIndex] = useState(0);
+  const existingTestExam = examEvents.find((event) => event.id === "test");
+  const [testExamStart, setTestExamStart] = useState(existingTestExam?.start ?? TEST_EXAM_START);
+  const [testExamEnd, setTestExamEnd] = useState(existingTestExam?.end ?? TEST_EXAM_END);
   const [examPlanDraft, setExamPlanDraft] = useState<ExamPlanPhase[]>(() => examPlan.length ? examPlan : recommendedExamPlan(SSC_2027_START));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -126,7 +130,35 @@ export function OnboardingWizard({ profile, subjects: academicSubjects, chapters
     if (step === 6) { await saveCompletedChapters(completedChapterIds); return commit(7); }
     if (step === 7) return commit(8, { preferredMethods: methods, preferredResourceKinds: resourceKindsFromMethods(methods), instructionRatio: 30, practiceRatio: 50, reviewRatio: 20 });
     if (step === 8) return commit(9, { guidanceMode, planStrictness: strictness });
-    if (step === 9) { await saveExamPlan(examPlanDraft); return commit(10, { targetGrade, weekdayMinutes, weekendMinutes, sessionLengthMinutes: sessionLength, preferredMethods: methods, preferredResourceKinds: resourceKindsFromMethods(methods), guidanceMode, planStrictness: strictness }, selectedAssessments); }
+    if (step === 9) {
+      if (!testExamStart || !testExamEnd || testExamEnd < testExamStart) {
+        setError("Your Test Exam end date must be on or after its start date.");
+        return;
+      }
+      setBusy(true);
+      setError("");
+      try {
+        const testExam: ExamEvent = {
+          id: "test",
+          name: "School Test Exam",
+          start: testExamStart,
+          end: testExamEnd,
+          kind: "school",
+          scope: existingTestExam?.scope.length ? existingTestExam.scope : ["Full school Test Exam syllabus", "School exam conditions"],
+          note: existingTestExam?.note,
+          locked: true,
+          archived: false,
+        };
+        await saveExamEvents([...examEvents.filter((event) => event.id !== "test"), testExam]);
+        await saveExamPlan(examPlanDraft);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Could not save your exam dates and plan.");
+        return;
+      } finally {
+        setBusy(false);
+      }
+      return commit(10, { targetGrade, weekdayMinutes, weekendMinutes, sessionLengthMinutes: sessionLength, preferredMethods: methods, preferredResourceKinds: resourceKindsFromMethods(methods), guidanceMode, planStrictness: strictness }, selectedAssessments);
+    }
     await commit(10, { targetGrade, weekdayMinutes, weekendMinutes, sessionLengthMinutes: sessionLength, preferredMethods: methods, preferredResourceKinds: resourceKindsFromMethods(methods), guidanceMode, planStrictness: strictness }, selectedAssessments);
   };
 
@@ -159,8 +191,8 @@ export function OnboardingWizard({ profile, subjects: academicSubjects, chapters
     }
   };
 
-  const visibleStepTitle = ["Which study group are you in?", "Which religion subject do you study?", "Which fourth subject will you take?", "What result are you working toward?", "How much study time is available each day?", "Set difficulty and priority for each subject.", "Which chapters have you already completed?", "What study methods do you already use?", "How should the plan behave?", "How do you want to reach the exam?", "Your first week is ready."][step];
-  const visibleStepDescription = ["This choice controls which group-specific books and chapters appear. We will never assign a group for you.", "Choose the one religion textbook you prepare for. This is used only to show the correct academic subject and book.", "Choose one fourth subject. You can change it later in your academic profile settings.", "This sets the direction. It is not a promise or a judgement.", "Choose your daily study-time limit for each kind of day. In Bangladesh, Friday and Saturday are the weekend, so you can set a different amount for them.", "Strength tells Chaptr how difficult a subject feels now. Priority tells it how much extra attention you intentionally want that subject to receive. Both shape your daily plan.", "This is your baseline map, not a test. Mark chapters you finished before joining; they will not be treated as new learning, and you can add more later from Syllabus.", "You do not need NotebookLM or any one tool. Choose what you actually use.", "The plan can be strict, flexible, quiet, or guided. You remain in control.", "Set the phases, dates, and purpose yourself. The planner will work inside this timeline instead of replacing it.", "Every day starts with one action, optional extra work, and a short close-the-loop check-in."][step];
+  const visibleStepTitle = ["Which study group are you in?", "Which religion subject do you study?", "Which fourth subject will you take?", "What result are you working toward?", "How much study time is available each day?", "Set difficulty and priority for each subject.", "Which chapters have you already completed?", "What study methods do you already use?", "How should the plan behave?", "When are your Test Exams, and how will you prepare?", "Your first week is ready."][step];
+  const visibleStepDescription = ["This choice controls which group-specific books and chapters appear. We will never assign a group for you.", "Choose the one religion textbook you prepare for. This is used only to show the correct academic subject and book.", "Choose one fourth subject. You can change it later in your academic profile settings.", "This sets the direction. It is not a promise or a judgement.", "Choose your daily study-time limit for each kind of day. In Bangladesh, Friday and Saturday are the weekend, so you can set a different amount for them.", "Strength tells Chaptr how difficult a subject feels now. Priority tells it how much extra attention you intentionally want that subject to receive. Both shape your daily plan.", "This is your baseline map, not a test. Mark chapters you finished before joining; they will not be treated as new learning, and you can add more later from Syllabus.", "You do not need NotebookLM or any one tool. Choose what you actually use.", "The plan can be strict, flexible, quiet, or guided. You remain in control.", "Your school Test Exam is an official exam, but schools use different dates. Confirm yours first, then shape the preparation phases around it and SSC 2027.", "Every day starts with one action, optional extra work, and a short close-the-loop check-in."][step];
 
   return (
     <main className="onboarding-page adaptive-onboarding">
@@ -182,7 +214,7 @@ export function OnboardingWizard({ profile, subjects: academicSubjects, chapters
           {step === 6 && <div className="completed-history-step">{historySubject ? <><div className="history-subject-header"><div><strong>{historySubject.name}</strong><small>{historySubjectIndex + 1} of {historySubjects.length} selected subjects · {completedChapterIds.filter((id) => historyChapters.some((chapter) => chapter.id === id)).length} marked complete</small></div><div><button type="button" onClick={() => markSubjectHistory(true)} disabled={!historyChapters.length}>Mark all</button><button type="button" onClick={() => markSubjectHistory(false)} disabled={!historyChapters.length}>Clear</button></div></div>{historyChapters.length ? <div className="history-chapter-list">{historyChapters.map((chapter) => <button type="button" key={chapter.id} className={completedChapterIds.includes(chapter.id) ? "selected" : ""} onClick={() => toggleCompletedChapter(chapter.id)}><span>{completedChapterIds.includes(chapter.id) && <Check weight="bold" />}</span><strong>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</strong></button>)}</div> : <div className="coverage-summary" role="status"><strong>Chapter list unavailable.</strong><small>Refresh the page. If this remains empty, the subject catalog needs attention.</small></div>}<div className="history-subject-nav"><button type="button" disabled={historySubjectIndex === 0} onClick={() => setHistorySubjectIndex((index) => Math.max(0, index - 1))}><ArrowLeft />Previous subject</button><button type="button" disabled={historySubjectIndex >= historySubjects.length - 1} onClick={() => setHistorySubjectIndex((index) => Math.min(historySubjects.length - 1, index + 1))}>Next subject<ArrowRight /></button></div></> : <div className="coverage-summary"><strong>Choose subjects first.</strong></div>}</div>}
           {step === 7 && <div className="adaptive-method-grid">{methodOptions.map((method) => <button type="button" key={method.id} className={methods.includes(method.id) ? "selected" : ""} onClick={() => toggleMethod(method.id)}><strong>{method.label}</strong><small>{method.detail}</small>{methods.includes(method.id) && <Check weight="bold" />}</button>)}</div>}
           {step === 8 && <div className="adaptive-choice-grid"><button type="button" className={guidanceMode === "guided" ? "selected" : ""} onClick={() => setGuidanceMode("guided")}><Lightning weight="fill" /><strong>Guide me</strong><small>Tell me the next action and why.</small></button><button type="button" className={guidanceMode === "balanced" ? "selected" : ""} onClick={() => setGuidanceMode("balanced")}><Target weight="fill" /><strong>Keep it balanced</strong><small>Show priorities without over-directing me.</small></button><button type="button" className={guidanceMode === "quiet" ? "selected" : ""} onClick={() => setGuidanceMode("quiet")}><Clock weight="fill" /><strong>Keep it quiet</strong><small>Give me a queue; I will choose when.</small></button><label className="adaptive-wide-choice">Plan style<select value={strictness} onChange={(event) => setStrictness(event.target.value as LearningPreferences["planStrictness"])}><option value="flexible">Flexible — recover missed days calmly</option><option value="balanced">Balanced — keep a steady rhythm</option><option value="strict">Strict — protect my planned blocks</option></select></label></div>}
-          {step === 9 && <div className="onboarding-exam-plan"><div className="onboarding-plan-toolbar"><div className="onboarding-fixed-field"><strong>SSC starts</strong><span>14 March 2027</span><small>Official board schedule</small></div><button type="button" onClick={() => setExamPlanDraft(recommendedExamPlan(SSC_2027_START))}>Use recommended phases</button></div><div className="onboarding-plan-list">{examPlanDraft.map((phase, index) => <article key={phase.id}><span>{index + 1}</span><div><label>Phase name<input value={phase.title} onChange={(event) => updateExamPhase(phase.id, { title: event.target.value })} /></label><label>Purpose<textarea rows={2} value={phase.objective} onChange={(event) => updateExamPhase(phase.id, { objective: event.target.value })} /></label><div className="onboarding-plan-dates"><label>Starts<input type="date" value={phase.start} onChange={(event) => updateExamPhase(phase.id, { start: event.target.value })} /></label><label>Ends<input type="date" value={phase.end} onChange={(event) => updateExamPhase(phase.id, { end: event.target.value })} /></label></div></div><div className="onboarding-plan-move"><button type="button" disabled={index === 0} onClick={() => moveExamPhase(index, -1)} aria-label="Move phase up"><CaretUp /></button><button type="button" disabled={index === examPlanDraft.length - 1} onClick={() => moveExamPhase(index, 1)} aria-label="Move phase down"><CaretDown /></button></div></article>)}<button type="button" className="onboarding-plan-add" onClick={addExamPhase}><Plus />Add phase</button></div></div>}
+          {step === 9 && <div className="onboarding-exam-plan"><section className="onboarding-test-exam"><div><small>OFFICIAL SCHOOL EXAM</small><strong>School Test Exam</strong><p>Every school holds this exam, but your dates may differ. The defaults are 28 October–12 November 2026.</p></div><div className="onboarding-test-exam-dates"><label>Starts<input required type="date" value={testExamStart} onChange={(event) => { setTestExamStart(event.target.value); if (testExamEnd < event.target.value) setTestExamEnd(event.target.value); }} /></label><label>Ends<input required type="date" min={testExamStart} value={testExamEnd} onChange={(event) => setTestExamEnd(event.target.value)} /></label></div></section><div className="onboarding-plan-toolbar"><div className="onboarding-fixed-field"><strong>SSC starts</strong><span>14 March 2027</span><small>Official board schedule</small></div><button type="button" onClick={() => setExamPlanDraft(recommendedExamPlan(SSC_2027_START))}>Use recommended phases</button></div><div className="onboarding-plan-list">{examPlanDraft.map((phase, index) => <article key={phase.id}><span>{index + 1}</span><div><label>Phase name<input value={phase.title} onChange={(event) => updateExamPhase(phase.id, { title: event.target.value })} /></label><label>Purpose<textarea rows={2} value={phase.objective} onChange={(event) => updateExamPhase(phase.id, { objective: event.target.value })} /></label><div className="onboarding-plan-dates"><label>Starts<input type="date" value={phase.start} onChange={(event) => updateExamPhase(phase.id, { start: event.target.value })} /></label><label>Ends<input type="date" value={phase.end} onChange={(event) => updateExamPhase(phase.id, { end: event.target.value })} /></label></div></div><div className="onboarding-plan-move"><button type="button" disabled={index === 0} onClick={() => moveExamPhase(index, -1)} aria-label="Move phase up"><CaretUp /></button><button type="button" disabled={index === examPlanDraft.length - 1} onClick={() => moveExamPhase(index, 1)} aria-label="Move phase down"><CaretDown /></button></div></article>)}<button type="button" className="onboarding-plan-add" onClick={addExamPhase}><Plus />Add phase</button></div></div>}
           {step === 10 && <div className="adaptive-first-week"><article><span><PlayCircle weight="fill" /></span><div><strong>Start with the greatest need</strong><p>{starterSubjectId ? academicSubjects.find((subject) => subject.id === starterSubjectId)?.name : "Choose a subject"} · up to {Math.min(sessionLength, weekdayMinutes)} minutes, based on your ratings</p></div></article><article><span><GraduationCap weight="fill" /></span><div><strong>Use the full daily capacity</strong><p>Chaptr fills the day with difficult, low-progress work first, then adds practice only while time remains.</p></div></article><article><span><CheckCircle weight="fill" /></span><div><strong>Close the loop</strong><p>Record minutes, questions, confidence, and what felt too easy or too hard. Tomorrow&apos;s priorities adapt to that evidence.</p></div></article></div>}
           {error && <p className="form-error" role="alert">{error}</p>}
         </section>

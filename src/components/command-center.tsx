@@ -10,7 +10,7 @@ import {
   SignOut, SlidersHorizontal, Sparkle, Target, Timer, Warning, X,
 } from "@phosphor-icons/react";
 import {
-  chapters, marksDistributions, subjects, workflowSteps, replaceAcademicData, orderChapters, SSC_2027_START,
+  chapters, marksDistributions, subjects, workflowSteps, replaceAcademicData, orderChapters, deduplicateChapters, SSC_2027_START,
 } from "@/lib/academic-data";
 import { queueCloudSync } from "@/lib/offline-sync";
 import { Button } from "@/components/ui/button";
@@ -1048,7 +1048,7 @@ export default function CommandCenter() {
       if (cancelled || payload?.mode !== "cloud" || !payload.data) { setDatabaseStatus("error"); setDatabaseError("The database returned an invalid workspace response."); return; }
       const data = payload.data;
       const loadedSubjects: Subject[] = (data.subjects ?? []).map((row) => ({ id: String(row.id), name: String(row.name), shortName: String(row.short_name), strength: String(row.strength_level) as Subject["strength"], weaknessScore: Number(row.priority), workflow: String(row.workflow_kind) as Subject["workflow"], accent: subjectAccent[String(row.id)] ?? "blue", category: row.category as Subject["category"], studyGroup: row.study_group as Subject["studyGroup"], religionSubject: row.religion_subject as Subject["religionSubject"], fourthSubject: row.fourth_subject as Subject["fourthSubject"], bookLanguage: "bn" }));
-      const loadedChapters: Chapter[] = orderChapters((data.chapters ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), number: row.chapter_number == null ? undefined : Number(row.chapter_number), title: String(row.title), division: row.division ? String(row.division) : undefined, note: row.note ? String(row.note) : undefined, status: "not-started" as const, confidence: 1 as const, difficulty: 3 as ChapterDifficulty, formats: Array.isArray(row.question_formats) ? row.question_formats.map(String) : [], questionsAttempted: 0, questionsCorrect: 0 })));
+      const loadedChapters: Chapter[] = orderChapters(deduplicateChapters((data.chapters ?? []).map((row) => ({ id: String(row.id), subjectId: String(row.subject_id), number: row.chapter_number == null ? undefined : Number(row.chapter_number), title: String(row.title), division: row.division ? String(row.division) : undefined, note: row.note ? String(row.note) : undefined, status: "not-started" as const, confidence: 1 as const, difficulty: 3 as ChapterDifficulty, formats: Array.isArray(row.question_formats) ? row.question_formats.map(String) : [], questionsAttempted: 0, questionsCorrect: 0 }))));
       const loadedSubjectIds = new Set(loadedSubjects.map((subject) => subject.id));
       const loadedChapterIds = new Set(loadedChapters.map((chapter) => chapter.id));
       const loadedMarks: MarksDistribution[] = (data.marks_distributions ?? []).map((row) => ({ subjectId: String(row.subject_id), part: row.part ? String(row.part) : undefined, questionType: String(row.question_type), rule: String(row.choice_rule), marks: Number(row.marks) }));
@@ -1202,11 +1202,11 @@ export default function CommandCenter() {
     persist("planning_settings", [planningRow(value)]);
   };
 
-  const saveExamEvents = (next: ExamEvent[]) => {
+  const saveExamEvents = async (next: ExamEvent[]) => {
     const nextIds = new Set(next.map((event) => event.id));
     const archived = examEvents.filter((event) => !nextIds.has(event.id)).map((event) => ({ ...event, archived: true }));
     setExamEvents(next);
-    persist("exam_events", [...next, ...archived].map(examEventRow));
+    await queueCloudSync("exam_events", [...next, ...archived].map(examEventRow));
   };
 
   const saveResource = async (resource: StudyResource) => {
@@ -1473,7 +1473,7 @@ export default function CommandCenter() {
 
   if (databaseStatus !== "ready") return <DatabaseGate status={databaseStatus} error={databaseError} />;
   if (!profile) return <DatabaseGate status="loading" error="Preparing your private workspace…" />;
-  if (!profile.onboardingCompleted || !profile.academicProfileCompleted) return <OnboardingWizard profile={profile} subjects={subjects} chapters={chapterList} learningPreferences={learningPreferences} subjectAssessments={subjectAssessments} save={saveProfile} saveAdaptive={saveAdaptiveProfile} saveCompletedChapters={saveCompletedChapters} examPlan={examPlan} saveExamPlan={saveExamPlan} />;
+  if (!profile.onboardingCompleted || !profile.academicProfileCompleted) return <OnboardingWizard profile={profile} subjects={subjects} chapters={chapterList} learningPreferences={learningPreferences} subjectAssessments={subjectAssessments} save={saveProfile} saveAdaptive={saveAdaptiveProfile} saveCompletedChapters={saveCompletedChapters} examEvents={examEvents} saveExamEvents={saveExamEvents} examPlan={examPlan} saveExamPlan={saveExamPlan} />;
   const home = <Home tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} learningPreferences={learningPreferences} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} plannerState={plannerState} plannerMessage={plannerMessage} sessions={sessions} startFocus={startFocus} updateFocus={updateFocus} resetFocus={resetFocus} go={navigate} startStudy={startStudy} feedback={recordFeedback} goJournal={() => navigate("Journal")} workflows={studyWorkflows} workflowPresets={workflowPresets} preferredMethods={learningPreferences.preferredMethods} quickStartStatus={profile.quickStartStatus ?? "active"} onQuickStartStatusChange={updateQuickStartStatus} />;
   const content = (() => {
     switch (active) {

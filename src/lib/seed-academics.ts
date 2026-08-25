@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chapters, exams, marksDistributions, subjects, workflowSteps } from "@/lib/academic-data";
+import { chapterIdentityKey, chapters, exams, marksDistributions, subjects, workflowSteps } from "@/lib/academic-data";
 import { mathsFormulaSeeds } from "@/lib/maths-formula-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -31,8 +31,31 @@ async function runSeed() {
     fourth_subject: subject.fourthSubject ?? null,
     book_language: "bn",
   }));
+  const { data: existingChapterRows, error: existingChapterError } = await admin
+    .from("chapters")
+    .select("id,subject_id,chapter_number,title");
+  if (existingChapterError) throw new Error(`Could not load existing chapters: ${existingChapterError.message}`);
+
+  const existingChapterIds = new Map<string, string>();
+  for (const row of existingChapterRows ?? []) {
+    const key = chapterIdentityKey({
+      subjectId: String(row.subject_id),
+      number: row.chapter_number == null ? undefined : Number(row.chapter_number),
+      title: String(row.title),
+    });
+    const currentId = existingChapterIds.get(key);
+    const rowId = String(row.id);
+    if (!currentId || rowId.localeCompare(currentId) < 0) existingChapterIds.set(key, rowId);
+  }
+
+  const resolvedChapterIds = new Map<string, string>();
   const chapterRows = chapters.map((chapter) => ({
-    id: chapter.id,
+    id: (() => {
+      const id = existingChapterIds.get(chapterIdentityKey(chapter))
+        ?? stableUuid(["chapter", chapter.subjectId, chapter.number ?? "", chapter.title.trim().normalize("NFC")].join("|"));
+      resolvedChapterIds.set(chapter.id, id);
+      return id;
+    })(),
     subject_id: chapter.subjectId,
     chapter_number: chapter.number ?? null,
     title: chapter.title,
@@ -53,7 +76,9 @@ async function runSeed() {
   const formulaRows = mathsFormulaSeeds.map((formula) => ({
     id: stableUuid(["maths-formula", formula.division, formula.chapterTitle ?? "", formula.title].join("|")),
     subject_id: "mathematics",
-    chapter_id: formula.chapterTitle ? chapters.find((chapter) => chapter.title === formula.chapterTitle)?.id ?? null : null,
+    chapter_id: formula.chapterTitle
+      ? resolvedChapterIds.get(chapters.find((chapter) => chapter.title === formula.chapterTitle)?.id ?? "") ?? null
+      : null,
     division: formula.division,
     title: formula.title,
     expression: formula.expression,
@@ -67,7 +92,7 @@ async function runSeed() {
     starts_on: exam.start,
     ends_on: exam.end,
     stage: exam.id === "test" ? "test-exam" : "ssc-exam",
-    syllabus_scope: "Complete SSC syllabus",
+    syllabus_scope: exam.id === "test" ? "School Test Exam syllabus" : "Complete SSC syllabus",
   }));
   const textbookRows = [
     ["nctb-2026-bangla-literature", "bangla-1", "বাংলা সাহিত্য", "https://drive.google.com/file/d/1yjdxHcyFeQLBKLD8tykuqGABh_CaCXIn/view?usp=drive_link", "https://drive.egovcloud.gov.bd/index.php/s/bspYlB4Rwd4VFUM", 10],

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, CheckCircle, EnvelopeSimple, Key, MagnifyingGlass, ShieldCheck, Trash, Warning, X } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle, GoogleLogo, Key, MagnifyingGlass, ShieldCheck, Trash, Warning, X } from "@phosphor-icons/react";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import { siteUrl } from "@/lib/site-url";
 import {
   ACTIVE_DELETION_STATUSES,
   categoryLabel,
@@ -29,7 +28,7 @@ const categoryExamples: Record<SupportCategory, string> = {
   "planning-recommendations": "Adaptive plan, preferences, recommendations",
 };
 
-type ReauthMethod = "password" | "email_otp";
+type ReauthMethod = "password" | "google";
 
 type AuthProviderKind = "google" | "password";
 
@@ -90,66 +89,45 @@ function RequestForm({ close, onCreated }: { close: () => void; onCreated: (requ
 
 function DeletionPanel({ email, current, googleAccount, onClose, onCreated, onCancelled }: { email: string; current?: AccountDeletionRequest; googleAccount: boolean; onClose: () => void; onCreated: (request: AccountDeletionRequest) => void; onCancelled: (request: AccountDeletionRequest) => void }) {
   const panelRef = useRef<HTMLElement>(null);
-  const client = createSupabaseClient();
-  const [method, setMethod] = useState<ReauthMethod>(googleAccount ? "email_otp" : "password");
+  const method: ReauthMethod = googleAccount ? "google" : "password";
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
   const [reauthenticated, setReauthenticated] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const active = current && ACTIVE_DELETION_STATUSES.includes(current.status);
+  const googleReauthenticationUrl = `/auth/google?next=${encodeURIComponent("/support?accountDeletion=1&deletionVerified=google")}&reauth=deletion`;
 
   useEffect(() => { panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); panelRef.current?.focus(); }, []);
 
+  useEffect(() => {
+    if (!googleAccount || new URLSearchParams(window.location.search).get("deletionVerified") !== "google") return;
+    let cancelled = false;
+    const completeGoogleVerification = async () => {
+      setBusy(true); setError("");
+      const verification = await fetch("/api/support/deletion-request", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "google" }) });
+      const payload = await verification.json().catch(() => null) as { error?: string } | null;
+      if (cancelled) return;
+      setBusy(false);
+      if (!verification.ok) return setError(payload?.error ?? "Google verification could not be completed. Try again.");
+      window.history.replaceState({}, "", "/support");
+      setReauthenticated(true);
+      setStatusMessage("Google account verified. You can now submit the deletion request.");
+    };
+    void completeGoogleVerification();
+    return () => { cancelled = true; };
+  }, [googleAccount]);
+
   const verifyPassword = async () => {
-    if (googleAccount) return setError("Google accounts do not use a Chaptr password. Verify with an email code instead.");
-    if (!client) return setError("Authentication is not configured for this deployment.");
-    if (!password) return setError("Enter your password to continue.");
+    if (!password) return setError("Enter your current password to continue.");
     setBusy(true); setError("");
-    const result = await client.auth.signInWithPassword({ email, password });
+    const verification = await fetch("/api/support/deletion-request", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "password", password }) });
+    const payload = await verification.json().catch(() => null) as { error?: string } | null;
     setBusy(false);
-    if (result.error) return setError("That password could not be verified. Try again or use an email code.");
-    const verification = await fetch("/api/support/deletion-request", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "password" }) });
-    const verificationPayload = await verification.json().catch(() => null) as { error?: string } | null;
-    if (!verification.ok) return setError(verificationPayload?.error ?? "The password was accepted, but secure verification could not be completed.");
-    setReauthenticated(true); setStatusMessage("Password verified. You can now submit the deletion request.");
-  };
-
-  const sendEmailCode = async () => {
-    if (!client) return setError("Authentication is not configured for this deployment.");
-    setBusy(true); setError("");
-    const result = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: siteUrl("/auth/callback?next=/support") } });
-    setBusy(false);
-    if (result.error) return setError("We could not send the verification email. Check your email address and try again.");
-    setOtpSent(true); setStatusMessage("Check your email for a six-digit code or open the verification link. Then return here to finish verification.");
-  };
-
-  const checkEmailVerification = async () => {
-    if (!client) return setError("Authentication is not configured for this deployment.");
-    setBusy(true); setError("");
-    const { data } = await client.auth.getUser();
-    if (!data.user) { setBusy(false); return setError("Open the verification link from your email first, then come back and try again."); }
-    const verification = await fetch("/api/support/deletion-request", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "email_otp" }) });
-    const verificationPayload = await verification.json().catch(() => null) as { error?: string } | null;
-    setBusy(false);
-    if (!verification.ok) return setError(verificationPayload?.error ?? "The email verification has not completed yet. Open the link and try again.");
-    setReauthenticated(true); setStatusMessage("Email verified. You can now submit the deletion request.");
-  };
-
-  const verifyEmailCode = async () => {
-    if (!client) return setError("Authentication is not configured for this deployment.");
-    if (!/^\d{6}$/.test(otp.trim())) return setError("Enter the six-digit code from your email.");
-    setBusy(true); setError("");
-    const result = await client.auth.verifyOtp({ email, token: otp.trim(), type: "email" });
-    setBusy(false);
-    if (result.error) return setError("That code is invalid or expired. Request a new code and try again.");
-    const verification = await fetch("/api/support/deletion-request", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "email_otp" }) });
-    const verificationPayload = await verification.json().catch(() => null) as { error?: string } | null;
-    if (!verification.ok) return setError(verificationPayload?.error ?? "The email code was accepted, but secure verification could not be completed.");
-    setReauthenticated(true); setStatusMessage("Email verified. You can now submit the deletion request.");
+    if (!verification.ok) return setError(payload?.error ?? "That password could not be verified.");
+    setReauthenticated(true);
+    setStatusMessage("Password verified. You can now submit the deletion request.");
   };
 
   const cancelDeletion = async () => {
@@ -165,11 +143,11 @@ function DeletionPanel({ email, current, googleAccount, onClose, onCreated, onCa
 
   const submitDeletion = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!reauthenticated) return setError("Verify your password or email code before continuing.");
+    if (!reauthenticated) return setError(googleAccount ? "Confirm your Google account before continuing." : "Verify your password before continuing.");
     if (confirmation !== "DELETE MY ACCOUNT") return setError("Type DELETE MY ACCOUNT exactly to continue.");
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/support/deletion-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmation, reauth_method: method }) });
+      const response = await fetch("/api/support/deletion-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(method === "password" ? { confirmation, reauth_method: method, password } : { confirmation, reauth_method: method }) });
       const payload = await response.json().catch(() => null) as { request?: Record<string, unknown>; error?: string; reauthenticationRequired?: boolean } | null;
       if (!response.ok || !payload?.request) {
         if (payload?.reauthenticationRequired) setReauthenticated(false);
@@ -180,7 +158,59 @@ function DeletionPanel({ email, current, googleAccount, onClose, onCreated, onCa
     finally { setBusy(false); }
   };
 
-  return <section ref={panelRef} tabIndex={-1} className="support-flow-card support-delete-flow" aria-labelledby="deletion-title"><FlowHeader kicker="ACCOUNT AND PRIVACY" title="Request account deletion" description="This starts a 14-day grace period. Signing in again during that window cancels the request automatically." onClose={onClose} />{active ? <div className="support-deletion-existing"><CheckCircle size={20} weight="fill" /><p><strong>{current.status === "processing" ? "Deletion is being processed" : "Deletion request is active"}</strong><span>{current.referenceCode} · {statusLabel(current.status)}</span>{current.status === "processing" ? <small>Cleanup is in progress. This account cannot be restored from this state.</small> : current.scheduledFor ? <small>{remainingDays(current.scheduledFor)} days left · scheduled for {formatDate(current.scheduledFor)}</small> : null}</p>{current.status !== "processing" && <button type="button" className="support-secondary-button" onClick={() => void cancelDeletion()} disabled={busy}>{busy ? "Cancelling…" : "Cancel deletion request"}</button>}</div> : <><div className="support-warning"><Warning size={19} weight="fill" /><span>This may affect your profile, tasks, chapter progress, journals, resources, planning data, calendar links, and support history. Your request will be reviewed before any destructive action.</span></div><div className="support-delete-identity"><span className="support-delete-step">1</span><div><strong>Verify it is really you</strong><p>Verify with your current password or with a one-time email verification sent to <b>{email}</b>.</p>{googleAccount ? <p className="support-provider-note"><EnvelopeSimple size={17} />Google sign-in detected. We will verify you with an email code or verification link sent to this address.</p> : <div className="support-method-tabs" role="tablist" aria-label="Choose verification method"><button type="button" className={method === "password" ? "active" : ""} onClick={() => { setMethod("password"); setError(""); }}><Key size={18} />Password</button><button type="button" className={method === "email_otp" ? "active" : ""} onClick={() => { setMethod("email_otp"); setError(""); }}><EnvelopeSimple size={18} />Email code</button></div>}{method === "password" && !googleAccount ? <div className="support-verification-row"><label className="support-grow">Current password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your current password" /></label><button type="button" className="support-secondary-button" onClick={() => void verifyPassword()} disabled={busy || reauthenticated}>{reauthenticated ? "Verified" : busy ? "Checking…" : "Verify password"}</button></div> : <div className="support-verification-row"><label className="support-grow">Six-digit email code<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} placeholder={otpSent ? "123456" : "Send a code first"} disabled={!otpSent} /></label>{otpSent ? <><button type="button" className="support-secondary-button" onClick={() => void verifyEmailCode()} disabled={busy || reauthenticated}>{reauthenticated ? "Verified" : busy ? "Checking…" : "Verify code"}</button><button type="button" className="support-text-button support-check-email" onClick={() => void checkEmailVerification()} disabled={busy || reauthenticated}>I opened the link</button></> : <button type="button" className="support-secondary-button" onClick={() => void sendEmailCode()} disabled={busy}>{busy ? "Sending…" : "Send verification email"}</button>}</div>}{statusMessage && <p className="support-success-message" role="status"><CheckCircle weight="fill" />{statusMessage}</p>}</div></div><form className={`support-delete-confirm ${reauthenticated ? "ready" : "locked"}`} onSubmit={submitDeletion}><span className="support-delete-step">2</span><div><strong>Confirm the request</strong><p>{reauthenticated ? "Type the phrase below. This confirms that you understand what you are asking us to review." : "Complete identity verification above to unlock this step."}</p><label>Type <b>DELETE MY ACCOUNT</b><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder="DELETE MY ACCOUNT" autoComplete="off" disabled={!reauthenticated} /></label>{error && <p className="support-form-error" role="alert">{error}</p>}<div className="support-flow-actions"><button type="button" className="support-secondary-button" onClick={onClose}>Cancel</button><button type="submit" className="support-danger-button" disabled={busy || !reauthenticated}>{busy ? "Submitting…" : "Request deletion"}<Trash /></button></div></div></form></>}</section>;
+  return (
+    <section ref={panelRef} tabIndex={-1} className="support-flow-card support-delete-flow" aria-labelledby="deletion-title">
+      <FlowHeader kicker="ACCOUNT AND PRIVACY" title="Request account deletion" description="This starts a 14-day grace period. Signing in again during that window cancels the request automatically." onClose={onClose} />
+      {active ? (
+        <div className="support-deletion-existing">
+          <CheckCircle size={20} weight="fill" />
+          <p>
+            <strong>{current.status === "processing" ? "Deletion is being processed" : "Deletion request is active"}</strong>
+            <span>{current.referenceCode} · {statusLabel(current.status)}</span>
+            {current.status === "processing" ? <small>Cleanup is in progress. This account cannot be restored from this state.</small> : current.scheduledFor ? <small>{remainingDays(current.scheduledFor)} days left · scheduled for {formatDate(current.scheduledFor)}</small> : null}
+          </p>
+          {current.status !== "processing" && <button type="button" className="support-secondary-button" onClick={() => void cancelDeletion()} disabled={busy}>{busy ? "Cancelling…" : "Cancel deletion request"}</button>}
+        </div>
+      ) : (
+        <>
+          <div className="support-warning"><Warning size={19} weight="fill" /><span>This may affect your profile, tasks, chapter progress, journals, resources, planning data, calendar links, and support history. Your request will be reviewed before any destructive action.</span></div>
+          <div className="support-delete-identity">
+            <span className="support-delete-step">1</span>
+            <div>
+              <strong>Verify it is really you</strong>
+              {googleAccount ? (
+                <>
+                  <p>This account uses Google sign-in, so Chaptr does not have a password for it. Confirm the same Google account to continue—no verification email is sent.</p>
+                  <div className="support-verification-row">
+                    {reauthenticated ? <button type="button" className="support-secondary-button" disabled><GoogleLogo size={18} weight="bold" />Google verified</button> : <a className="support-secondary-button" href={googleReauthenticationUrl}><GoogleLogo size={18} weight="bold" />{busy ? "Checking…" : "Continue with Google"}</a>}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p>Enter the current Chaptr password for <b>{email}</b>. We will verify it securely and will not send an email code.</p>
+                  <div className="support-verification-row">
+                    <label className="support-grow">Current password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your current password" disabled={reauthenticated} /></label>
+                    <button type="button" className="support-secondary-button" onClick={() => void verifyPassword()} disabled={busy || reauthenticated}><Key size={18} />{reauthenticated ? "Verified" : busy ? "Checking…" : "Verify password"}</button>
+                  </div>
+                </>
+              )}
+              {statusMessage && <p className="support-success-message" role="status"><CheckCircle weight="fill" />{statusMessage}</p>}
+            </div>
+          </div>
+          <form className={`support-delete-confirm ${reauthenticated ? "ready" : "locked"}`} onSubmit={submitDeletion}>
+            <span className="support-delete-step">2</span>
+            <div>
+              <strong>Confirm the request</strong>
+              <p>{reauthenticated ? "Type the phrase below. This confirms that you understand what you are asking us to review." : "Complete identity verification above to unlock this step."}</p>
+              <label>Type <b>DELETE MY ACCOUNT</b><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder="DELETE MY ACCOUNT" autoComplete="off" disabled={!reauthenticated} /></label>
+              {error && <p className="support-form-error" role="alert">{error}</p>}
+              <div className="support-flow-actions"><button type="button" className="support-secondary-button" onClick={onClose}>Cancel</button><button type="submit" className="support-danger-button" disabled={busy || !reauthenticated}>{busy ? "Submitting…" : "Request deletion"}<Trash /></button></div>
+            </div>
+          </form>
+        </>
+      )}
+    </section>
+  );
 }
 
 export function SupportPage() {
@@ -188,7 +218,7 @@ export function SupportPage() {
   const [selectedCategory, setSelectedCategory] = useState<SupportCategory | null>(null);
   const [article, setArticle] = useState<SupportArticle | null>(null);
   const [requestFormOpen, setRequestFormOpen] = useState(false);
-  const [deletionOpen, setDeletionOpen] = useState(false);
+  const [deletionOpen, setDeletionOpen] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("accountDeletion") === "1");
   const [requests, setRequests] = useState<SupportRequest[]>([]);
   const [deletionRequests, setDeletionRequests] = useState<AccountDeletionRequest[]>([]);
   const [email, setEmail] = useState("Your signed-in email");

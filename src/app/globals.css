@@ -3427,6 +3427,13 @@ label {
 .exam-plan-add { display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; border-style: dashed; background: transparent; color: var(--brand); }
 .exam-plan-message { margin: 10px 0 0; color: var(--brand); font-size: 11px; }
 .onboarding-exam-plan { display: grid; gap: 12px; }
+.onboarding-test-exam { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .85fr); gap: 18px; align-items: end; padding: 16px; border: 1px solid #b9d2ff; border-radius: 14px; background: linear-gradient(120deg, var(--primary-soft), var(--surface-1)); }
+.onboarding-test-exam > div:first-child { display: grid; gap: 5px; min-width: 0; }
+.onboarding-test-exam > div:first-child > small { color: var(--brand); font-size: 9px; font-weight: 800; letter-spacing: .13em; }
+.onboarding-test-exam > div:first-child > strong { color: var(--ink-1); font-size: 17px; }
+.onboarding-test-exam > div:first-child > p { margin: 0; color: var(--ink-3); font-size: 11px; line-height: 1.55; }
+.onboarding-test-exam-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.onboarding-test-exam-dates label { display: grid; gap: 5px; color: var(--ink-3); font-size: 10px; font-weight: 700; }
 .onboarding-plan-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 10px; }
 .onboarding-plan-list { display: grid; gap: 8px; }
 .onboarding-plan-list article { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 12px; border: 1px solid var(--stroke); border-radius: 13px; background: var(--surface-1); }
@@ -3438,7 +3445,8 @@ label {
 .onboarding-plan-move button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--stroke-strong); border-radius: 9px; background: var(--surface-1); color: var(--ink-3); }
 .onboarding-plan-add { margin-top: 2px; }
 @media (max-width: 800px) { .exam-plan-actions { justify-content: flex-start; } .exam-plan-intro { align-items: stretch; flex-direction: column; } .exam-plan-intro > span { text-align: left; } .exam-plan-phase { grid-template-columns: 44px minmax(0, 1fr); } .exam-plan-phase-actions { grid-column: 2; display: flex; } .exam-plan-phase-actions button:last-child { margin-left: auto; } }
-@media (max-width: 560px) { .exam-plan-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; } .exam-plan-actions label { grid-column: 1 / -1; } .exam-plan-actions > button { width: 100%; } .exam-plan-date-row, .onboarding-plan-dates { grid-template-columns: 1fr; } .onboarding-plan-toolbar { align-items: stretch; flex-direction: column; } .onboarding-plan-toolbar > button { width: 100%; } .onboarding-plan-list article { grid-template-columns: 30px minmax(0, 1fr); } .onboarding-plan-move { grid-column: 2; display: flex; } }
+@media (max-width: 700px) { .onboarding-test-exam { grid-template-columns: 1fr; align-items: stretch; } }
+@media (max-width: 560px) { .exam-plan-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; } .exam-plan-actions label { grid-column: 1 / -1; } .exam-plan-actions > button { width: 100%; } .exam-plan-date-row, .onboarding-plan-dates, .onboarding-test-exam-dates { grid-template-columns: 1fr; } .onboarding-plan-toolbar { align-items: stretch; flex-direction: column; } .onboarding-plan-toolbar > button { width: 100%; } .onboarding-plan-list article { grid-template-columns: 30px minmax(0, 1fr); } .onboarding-plan-move { grid-column: 2; display: flex; } }
 
 
 /* Syllabus hierarchy cleanup */

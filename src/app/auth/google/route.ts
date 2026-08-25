@@ -11,6 +11,7 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const origin = process.env.NODE_ENV === "production" ? productionSiteOrigin : requestUrl.origin;
   const next = safeNextPath(requestUrl.searchParams.get("next"));
+  const isDeletionReauthentication = requestUrl.searchParams.get("reauth") === "deletion";
   const callbackUrl = new URL("/auth/callback", origin);
   callbackUrl.searchParams.set("next", next);
 
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
     options: {
       redirectTo: callbackUrl.toString(),
       scopes: "openid email profile",
+      queryParams: isDeletionReauthentication ? { prompt: "select_account" } : undefined,
       skipBrowserRedirect: true,
     },
   });

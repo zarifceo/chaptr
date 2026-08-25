@@ -76,22 +76,30 @@ export async function GET() {
   const exams = (reference.exams ?? []) as Array<{ id: string; name: string; starts_on: string; ends_on: string }>;
   const referenceSubjects = catalogSubjects.filter((row) => activeSubjectIds.has(String(row.id))) as Array<{ id: string }>;
 
-  const [{ data: existingPreferences }, { data: existingPlanning }, { data: existingLearningPreferences }, { data: existingAssessments }, { data: existingWorkflows }] = await Promise.all([
+  const [{ data: existingPreferences }, { data: existingPlanning }, { data: existingLearningPreferences }, { data: existingAssessments }, { data: existingWorkflows }, { data: existingExamEvents }] = await Promise.all([
     supabase.from("chapter_preferences").select("chapter_id").eq("user_id", userId),
     supabase.from("planning_settings").select("user_id").eq("user_id", userId).maybeSingle(),
     supabase.from("learning_preferences").select("user_id").eq("user_id", userId).maybeSingle(),
     supabase.from("subject_assessments").select("subject_id").eq("user_id", userId),
     supabase.from("study_workflows").select("phase").eq("user_id", userId),
+    supabase.from("exam_events").select("id").eq("user_id", userId),
   ]);
 
   const existingChapterIds = new Set((existingPreferences ?? []).map((row) => row.chapter_id));
   const missingPreferences = chapters.filter((chapter) => !existingChapterIds.has(chapter.id)).map((chapter) => ({ user_id: userId, chapter_id: chapter.id, included_for_ssc: true, excluded: false, priority: 3 }));
   if (missingPreferences.length) await supabase.from("chapter_preferences").upsert(missingPreferences);
 
-  // Locked reference events are authoritative. Upserting on every bootstrap
-  // propagates government schedule changes without touching user-created events.
-  if (exams.length) {
-    await supabase.from("exam_events").upsert(exams.map((exam) => ({ user_id: userId, id: exam.id, name: exam.name, starts_on: exam.starts_on, ends_on: exam.ends_on, kind: exam.id === "ssc" ? "official" : "mock", scope: exam.id === "ssc" ? ["All SSC 2027 syllabus", "Board exam conditions"] : ["Full syllabus diagnostic", "Written + MCQ practice"], locked: true, archived: false })));
+  // The government SSC window is authoritative and should follow reference
+  // updates. A school Test Exam varies by student, so its reference dates are
+  // inserted only once and are never overwritten during later bootstraps.
+  const sscExam = exams.find((exam) => exam.id === "ssc");
+  if (sscExam) {
+    await supabase.from("exam_events").upsert({ user_id: userId, id: sscExam.id, name: sscExam.name, starts_on: sscExam.starts_on, ends_on: sscExam.ends_on, kind: "official", scope: ["All SSC 2027 syllabus", "Board exam conditions"], locked: true, archived: false });
+  }
+  const existingExamEventIds = new Set((existingExamEvents ?? []).map((event) => String(event.id)));
+  const testExam = exams.find((exam) => exam.id === "test");
+  if (testExam && !existingExamEventIds.has("test")) {
+    await supabase.from("exam_events").insert({ user_id: userId, id: testExam.id, name: testExam.name, starts_on: testExam.starts_on, ends_on: testExam.ends_on, kind: "school", scope: ["Full school Test Exam syllabus", "School exam conditions"], locked: true, archived: false });
   }
   if (!existingPlanning) await supabase.from("planning_settings").upsert({ user_id: userId, ...defaultPlanning });
   if (!existingLearningPreferences) await supabase.from("learning_preferences").upsert({ user_id: userId });
