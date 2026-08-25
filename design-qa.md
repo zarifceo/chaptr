@@ -130,3 +130,49 @@
 - Static verification: ESLint, the optimized Next.js production build, and whitespace validation pass.
 - Final result: passed.
 
+
+# Design QA — Home daily loop balance
+
+## Source
+
+- Reference: `C:\Users\iftkr\Downloads\WhatsApp Image 2026-08-25 at 20.57.01.jpeg`
+- Reference dimensions: 1059 × 730
+- Reference: `C:\Users\iftkr\OneDrive\Pictures\Screenshots\Screenshot 2026-08-25 212836.png`
+- Reference dimensions: 1920 × 1080
+- Target state: authenticated Home page, scrolled to the expanded **Do Now** task beside **If you have more time**
+
+## Implementation
+
+- Route: `http://127.0.0.1:3000/home`
+- Intended desktop viewport: 1920 × 1080
+- Intended compact viewport: 1059 × 730
+- Implementation screenshot: unavailable because both the in-app browser and the connected Brave control session rejected local navigation during this run
+
+## Comparison findings
+
+1. **High — unused right-side column:** the Home daily loop inherited the legacy `320px` aside column even though this composition renders no aside. Fixed by making the nested Home `today-page` a single full-width grid column.
+2. **High — uneven card widths:** the daily loop used a `1.18fr / .82fr` split. Fixed with two equal `minmax(0, 1fr)` columns.
+3. **High — compact-width text collapse:** the two-column layout remained active until `960px`, leaving too little room beside the persistent desktop navigation. Fixed by stacking the cards at `1200px` and moving the current-step action below the text at mobile widths.
+4. **Medium — excessive weight:** headings, supporting copy, task labels, steps, and buttons relied on heavy inherited weights. Reduced to a 400–650 range while preserving action hierarchy.
+5. **Medium — cramped spacing:** the cards and section headings had tight padding and gaps. Increased outer gap, card padding, heading rhythm, and line height.
+
+## Verification history
+
+- Static source comparison completed against both supplied screenshots.
+- TypeScript check passed.
+- Next.js 16.3 production build with webpack passed.
+- `git diff --check` passed.
+- Browser screenshot comparison is blocked by the browser-control connection, so visual QA is not marked fully passed.
+
+## Final result
+
+**BLOCKED — implementation and build checks pass, but the mandatory browser screenshot comparison could not be captured in this run.**
+
+## Progress chart hour scale — 26 August 2026
+
+- Source visual truth: `C:\Users\iftkr\OneDrive\Pictures\Screenshots\Screenshot 2026-08-25 213839.png`.
+- Finding: the chart data is valid (40 recorded minutes), but the former minute scale was visually cramped and its negative left margin clipped the leading digits from the tick labels.
+- Fix implemented: aggregate each day in decimal hours, label the chart and tooltip series in hours, show `h` on every axis tick, use whole-hour tick steps, and keep a minimum one-hour domain so short sessions remain proportional without producing a tiny scale.
+- Static verification: targeted ESLint, TypeScript, the optimized Next.js production build, and whitespace validation pass.
+- Browser evidence: post-fix screenshot comparison remains blocked by the unavailable browser-control connection during this run.
+- Final result: functional fix passed; rendered comparison pending.

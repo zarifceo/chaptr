@@ -18,6 +18,9 @@ function formatDuration(seconds: number) {
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
+const formatHourTick = (value: number) => `${value}h`;
+const hourDomainMax = (dataMax: number) => Math.max(1, Math.ceil(dataMax));
+
 function formatClock(seconds: number) {
   return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
@@ -133,13 +136,13 @@ export function StudyAnalytics({ sessions, entries, tasks }: { sessions: StudySe
     date.setUTCDate(date.getUTCDate() - (6 - index));
     const key = evidenceDateKey(date.toISOString());
     const seconds = evidence.filter((record) => evidenceDateKey(record.happenedAt) === key).reduce((sum, record) => sum + record.focusedSeconds, 0);
-    return { key, label: date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "Asia/Dhaka" }), minutes: Math.round(seconds / 60) };
+    return { key, label: date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "Asia/Dhaka" }), hours: Number((seconds / 3600).toFixed(2)) };
   });
   const subjectRows = subjects.map((subject) => {
     const mine = evidence.filter((record) => record.subjectId === subject.id);
     return { subject, seconds: mine.reduce((sum, record) => sum + record.focusedSeconds, 0), sessions: mine.length };
   }).filter((row) => row.seconds || row.sessions).sort((a, b) => b.seconds - a.seconds);
-  const chartConfig = { minutes: { label: "Recorded minutes", color: "#167EFA" } } satisfies ChartConfig;
+  const chartConfig = { hours: { label: "Recorded hours", color: "#167EFA" } } satisfies ChartConfig;
   const statCards = [
     { label: "Recorded study time", value: formatDuration(focusedSeconds), detail: `${evidence.length} evidence block${evidence.length === 1 ? "" : "s"} · timer + journal`, tone: "blue" },
     { label: "Average study block", value: evidence.length ? formatDuration(Math.round(focusedSeconds / evidence.length)) : "0m", detail: pauseSeconds ? `${Math.round(pauseSeconds / 60)}m paused` : "No pause data yet", tone: "violet" },
@@ -148,7 +151,7 @@ export function StudyAnalytics({ sessions, entries, tasks }: { sessions: StudySe
   ];
   return <section className="analytics-panel">
     <div className="analytics-stat-grid">{statCards.map((stat) => <Card className={`analytics-stat-card ${stat.tone}`} key={stat.label}><CardHeader><CardDescription>{stat.label}</CardDescription><CardTitle>{stat.value}</CardTitle></CardHeader><CardContent><p>{stat.detail}</p></CardContent></Card>)}</div>
-    <div className="analytics-grid"><Card className="analytics-chart-card"><CardHeader><CardDescription>LAST 7 DAYS</CardDescription><CardTitle>Recorded study minutes</CardTitle></CardHeader><CardContent><ChartContainer config={chartConfig} className="h-[260px] w-full"><BarChart accessibilityLayer data={lastSeven} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}><CartesianGrid vertical={false} strokeDasharray="4 4" /><XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} /><YAxis tickLine={false} axisLine={false} width={34} allowDecimals={false} /><ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} /><Bar dataKey="minutes" fill="var(--color-minutes)" radius={[8, 8, 3, 3]} /></BarChart></ChartContainer></CardContent></Card><Card className="analytics-subjects-card"><CardHeader><CardDescription>WHERE TIME GOES</CardDescription><CardTitle>Subject balance</CardTitle></CardHeader><CardContent>{subjectRows.length ? <div className="subject-analytics-list">{subjectRows.slice(0, 6).map(({ subject, seconds, sessions: count }) => <div className="subject-analytics-row" key={subject.id}><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><p><strong>{subject.shortName}</strong><small>{count} study block{count === 1 ? "" : "s"}</small></p><b>{Math.round(seconds / 60)}m</b></div>)}</div> : <div className="feature-empty"><Timer /><p>Record a journal entry or focused session to see your real time balance.</p></div>}</CardContent></Card></div>
+    <div className="analytics-grid"><Card className="analytics-chart-card"><CardHeader><CardDescription>LAST 7 DAYS</CardDescription><CardTitle>Recorded study hours</CardTitle></CardHeader><CardContent><ChartContainer config={chartConfig} className="h-[260px] w-full"><BarChart accessibilityLayer data={lastSeven} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}><CartesianGrid vertical={false} strokeDasharray="4 4" /><XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} /><YAxis tickLine={false} axisLine={false} width={44} allowDecimals={false} domain={[0, hourDomainMax]} tickFormatter={formatHourTick} /><ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} /><Bar dataKey="hours" fill="var(--color-hours)" radius={[8, 8, 3, 3]} /></BarChart></ChartContainer></CardContent></Card><Card className="analytics-subjects-card"><CardHeader><CardDescription>WHERE TIME GOES</CardDescription><CardTitle>Subject balance</CardTitle></CardHeader><CardContent>{subjectRows.length ? <div className="subject-analytics-list">{subjectRows.slice(0, 6).map(({ subject, seconds, sessions: count }) => <div className="subject-analytics-row" key={subject.id}><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><p><strong>{subject.shortName}</strong><small>{count} study block{count === 1 ? "" : "s"}</small></p><b>{Math.round(seconds / 60)}m</b></div>)}</div> : <div className="feature-empty"><Timer /><p>Record a journal entry or focused session to see your real time balance.</p></div>}</CardContent></Card></div>
   </section>;
 }
 

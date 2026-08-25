@@ -8760,3 +8760,126 @@ label {
     grid-column: 2;
   }
 }
+
+/* Daily loop balance: use the full Home canvas and keep both paths equally readable. */
+.home-page > .today-page {
+  grid-template-columns: minmax(0, 1fr);
+}
+.home-page > .today-page > .section-title,
+.home-page > .today-page > .adaptive-planner,
+.home-page > .today-page > .daily-loop-grid,
+.home-page > .today-page > .close-loop-section {
+  grid-column: 1;
+}
+.daily-loop-grid {
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+.daily-loop-section {
+  min-width: 0;
+  padding: clamp(20px, 2vw, 28px);
+}
+.daily-loop-heading {
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.daily-loop-index {
+  font-weight: 650;
+}
+.daily-loop-heading small {
+  font-weight: 650;
+  letter-spacing: .12em;
+}
+.daily-loop-heading h3 {
+  margin: 6px 0;
+  font-size: clamp(18px, 1.7vw, 22px);
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -.02em;
+}
+.daily-loop-heading p {
+  max-width: 58ch;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.65;
+}
+.daily-loop-section .daily-task-card {
+  padding: 20px !important;
+}
+.daily-loop-section .daily-task-meta span,
+.daily-loop-section .task-summary small,
+.daily-loop-section .method-note span,
+.daily-loop-section .recommendation-feedback small,
+.daily-task-card .recommendation-why small {
+  font-weight: 650;
+}
+.daily-loop-section .task-summary strong {
+  font-weight: 600;
+  line-height: 1.35;
+}
+.daily-loop-section .task-summary em,
+.daily-task-card .recommendation-why strong,
+.daily-loop-section .method-note strong {
+  font-weight: 450;
+  line-height: 1.55;
+}
+.daily-loop-section .timer-box button,
+.daily-loop-section .task-actions button,
+.daily-loop-section .recommendation-feedback button,
+.daily-loop-section .finish,
+.daily-loop-section .study-step.current > button {
+  font-weight: 600;
+}
+.daily-loop-section .study-step {
+  grid-template-columns: 28px 40px minmax(0, 1fr) auto;
+  column-gap: 12px;
+}
+.daily-loop-section .study-step p strong,
+.daily-loop-section .study-step.current p strong {
+  font-weight: 550;
+}
+.daily-loop-section .study-step p small,
+.daily-loop-section .study-step > em {
+  font-weight: 550;
+}
+.daily-loop-empty {
+  width: 100%;
+  padding: 24px;
+}
+.daily-loop-empty strong {
+  font-weight: 550;
+}
+.daily-loop-empty p {
+  font-weight: 400;
+}
+
+@media (max-width: 1200px) {
+  .daily-loop-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .daily-loop-grid {
+    gap: 16px;
+  }
+  .daily-loop-section {
+    padding: 18px;
+  }
+  .daily-loop-heading {
+    margin-bottom: 18px;
+  }
+  .daily-loop-heading h3 {
+    font-size: 18px;
+  }
+  .daily-loop-section .daily-task-card {
+    padding: 16px !important;
+  }
+  .daily-loop-section .study-step.current > button {
+    grid-column: 2 / -1;
+    justify-self: stretch;
+    width: 100%;
+  }
+}
