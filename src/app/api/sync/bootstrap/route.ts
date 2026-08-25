@@ -55,7 +55,7 @@ export async function GET() {
   }));
   const reference = Object.fromEntries(referenceResults) as Record<string, Record<string, unknown>[]>;
   const catalogSubjects = reference.subjects ?? [];
-  const catalogChapters = reference.chapters ?? [];
+  const catalogChapters = (reference.chapters ?? []).filter((row) => row.syllabus_eligible !== false);
   const catalogMarks = reference.marks_distributions ?? [];
   const catalogTextbooks = (reference.curated_textbooks ?? []).filter((row) => String(row.language ?? "bn") === "bn");
 
