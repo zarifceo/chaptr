@@ -70,10 +70,8 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
   };
 
   const signInWithGoogle = async () => {
-    if (mode === "sign-up" && !acceptPolicies) {
-      setError("Please agree to the Terms and Privacy Policy before creating an account.");
-      return;
-    }
+    setError("");
+    setMessage("");
     const client = createSupabaseClient();
     if (!client) return setError("Supabase is not configured for this deployment.");
     setBusy(true);
@@ -146,8 +144,8 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
     setBusy(false);
   };
 
-  const title = mode === "sign-up" ? "Create your study workspace" : mode === "forgot" ? "Reset your password" : mode === "reset" ? "Choose a new password" : "Welcome back";
-  const subtitle = mode === "sign-up" ? "Create your account, then we’ll guide you through your SSC setup." : mode === "forgot" ? "We’ll send a secure reset link if this email has an account." : mode === "reset" ? "Use a password you will remember and do not reuse elsewhere." : "Sign in to continue your study plan.";
+  const title = mode === "sign-up" ? "Create your study workspace" : mode === "forgot" ? "Reset your password" : mode === "reset" ? "Choose a new password" : "Continue to Chaptr";
+  const subtitle = mode === "sign-up" ? "Use Google to continue immediately, or create an account with email." : mode === "forgot" ? "We’ll send a secure reset link if this email has an account." : mode === "reset" ? "Use a password you will remember and do not reuse elsewhere." : "Google works for new and existing accounts. Or sign in with email.";
 
   return (
     <main className="auth-screen">
@@ -170,8 +168,8 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
             <p>{subtitle}</p>
           </div>
         </div>
-        {mode !== "forgot" && mode !== "reset" && <Button type="button" variant="outline" className="auth-google" onClick={signInWithGoogle} disabled={busy}><span className="google-dot">G</span>{busy ? "Opening Google…" : "Continue with Google"}</Button>}
-        {mode !== "forgot" && mode !== "reset" && <div className="auth-divider"><span>or use email</span></div>}
+        {mode !== "forgot" && mode !== "reset" && <><Button type="button" variant="outline" className="auth-google" onClick={signInWithGoogle} disabled={busy}><span className="google-dot">G</span>{busy ? "Opening Google…" : "Continue with Google"}</Button><p className="auth-google-note">For new and existing accounts</p></>}
+        {mode !== "forgot" && mode !== "reset" && <div className="auth-divider"><span>{mode === "sign-up" ? "or create with email" : "or sign in with email"}</span></div>}
         <form onSubmit={submit} className="auth-form">
           {mode === "sign-up" && <label><span>Full name</span><div className="auth-input"><UserPlus /><input type="text" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name" autoComplete="name" required /></div></label>}
           {mode !== "reset" && <label><span>Email address</span><div className="auth-input"><EnvelopeSimple /><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" autoComplete={mode === "sign-in" ? "username" : "email"} autoCapitalize="none" spellCheck={false} inputMode="email" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" required /></div></label>}

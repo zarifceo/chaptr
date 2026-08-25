@@ -100,3 +100,19 @@
 - Visual verification: source layout and responsive rules were reviewed at desktop/mobile breakpoints. A post-fix authenticated screenshot remains blocked until the code is deployed because this workspace has no local Supabase environment values.
 - Final result: functional pass; post-deploy visual comparison pending.
 
+## Unified Google authentication — 25 August 2026
+
+- Source visual truth: `C:\Users\iftkr\CrossDevice\realme 9 (1)\storage\Pictures\Screenshots\Screenshot_2026-08-25-15-15-55-02_e4424258c8b8649f6e67d283a50a2cbc.jpg` (1080 × 2400 px, scrolled mobile browser capture).
+- Implementation evidence: `audit-evidence/18-auth-unified-google-mobile.png` (378 × 1067 px from a 394 × 852 CSS viewport at device scale 1) and `audit-evidence/19-auth-unified-google-desktop.png` (1000 × 900 px from a 1000 × 900 CSS viewport at device scale 1).
+- Focused comparison: `audit-evidence/20-auth-unified-google-comparison.png`; the source and implementation auth regions were cropped from their respective mobile captures and normalized to equal 378 px widths. Browser chrome and the source's earlier scroll position were excluded from the judgment.
+- State: signed out, email fields empty, Google available, no loading or error state.
+- Initial P1 finding: the mobile breakpoint changed the two secondary actions into a vertical grid, placing `Create a new account` below `Forgot password?`; the `Welcome back` language also made the visible Google action appear intended only for returning users, and sign-up mode blocked Google behind an email-form consent checkbox.
+- Fix: keep both actions on one flex row at mobile and desktop widths, describe Google as valid for new and existing accounts, use mode-specific email divider copy, and let first-time Google users proceed to the existing dedicated consent screen after OAuth.
+- Post-fix evidence: both mobile links render at `y = 953.04` with 32 px heights; the create-account page exposes an enabled Google button before the email consent checkbox is selected; Create account and Forgot password both open their intended modes.
+- Full-view comparison: the existing Chaptr background, typography, field sizing, blue CTA treatment, logo, and legal footer remain unchanged; the intentional copy and action-hierarchy changes remove the reported friction without introducing overflow.
+- Focused-region comparison: the before/after plate shows the stacked links replaced by a balanced single row and the universal Google purpose stated directly above the email path.
+- Required fidelity surfaces: the existing font family, weights, spacing rhythm, color tokens, Phosphor input icons, logo asset, and field/button geometry were preserved. Only the requested hierarchy and explanatory copy changed; no placeholder or substitute assets were introduced.
+- Accessibility and interaction: both secondary actions remain semantic links with 32 px minimum heights, the Google control remains a semantic button, and mobile and desktop browser consoles reported no errors or warnings.
+- Comparison history: the first implementation pass resolved the P1 issue. No actionable P0, P1, or P2 findings remained after the rendered mobile and desktop checks.
+- Final result: passed.
+
