@@ -8381,8 +8381,6 @@ label {
     padding: 0 12px;
     justify-content: center;
   }
-  .goals-page .remove-goal[title="Remove from goal"]::after { content: "Remove"; }
-  .goals-page .remove-goal[title="Restore chapter"]::after { content: "Restore"; }
 }
 @media (max-width: 420px) {
   .goals-page .complete-inline {
@@ -8401,6 +8399,168 @@ label {
   .goals-page .goal-difficulty > .difficulty-picker {
     width: 100%;
     justify-content: flex-end;
+  }
+}
+
+/* Goals: one full-width, subject-by-subject chapter manager. */
+.goals-page .goals-structured {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+.goals-page .goal-selected {
+  width: 100%;
+  min-height: 0;
+}
+.goals-page .goal-subjects {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.goals-page .goal-selected-subject {
+  margin-top: 0;
+}
+.goals-page .goal-selected-subject > header {
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 68px;
+  padding: 13px 14px;
+}
+.goals-page .goal-selected-subject-heading {
+  display: flex !important;
+  align-items: center;
+  gap: 10px !important;
+  min-width: 0;
+}
+.goals-page .goal-selected-subject-heading > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.goals-page .goal-selected-subject-heading strong,
+.goals-page .goal-selected-subject-heading small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.goals-page .goal-subject-toggle {
+  display: inline-grid;
+  flex: 0 0 38px;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--ink-2);
+}
+.goals-page .goal-subject-toggle:hover {
+  border-color: #b8dcff;
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.goals-page .goal-subject-toggle svg {
+  transition: transform 180ms var(--ease-out);
+}
+.goals-page .goal-subject-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.goals-page .goal-selected-content {
+  animation: coverage-open 180ms var(--ease-out);
+}
+.goals-page .goal-subject-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: #f8fbff;
+}
+.goals-page .goal-subject-toolbar span {
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 700;
+}
+.goals-page .goal-subject-toolbar button,
+.goals-page .add-goal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid #b8dcff;
+  border-radius: 9px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.goals-page .goal-subject-toolbar button:hover,
+.goals-page .add-goal:hover {
+  border-color: var(--brand);
+  background: #e6f1ff;
+}
+.goals-page .goal-row.not-selected {
+  background: #fbfcfe;
+}
+.goals-page .goal-row.not-selected > .number,
+.goals-page .goal-row.not-selected .goal-row-main {
+  opacity: .72;
+}
+.goals-page .goal-row.not-selected .goal-row-actions {
+  border-top-color: transparent;
+}
+
+@media (max-width: 640px) {
+  .goals-page .goal-selected-subject > header {
+    align-items: center !important;
+    flex-direction: row !important;
+    gap: 10px;
+    min-height: 64px;
+    padding: 11px 12px;
+  }
+  .goals-page .goal-selected-subject-heading {
+    flex: 1 1 auto;
+  }
+  .goals-page .goal-selected-subject-heading strong,
+  .goals-page .goal-selected-subject-heading small {
+    white-space: normal;
+  }
+  .goals-page .goal-subject-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 10px 12px;
+  }
+  .goals-page .goal-subject-toolbar button {
+    width: 100%;
+    min-height: 40px;
+  }
+  .goals-page .goal-row-actions {
+    grid-template-columns: minmax(0, 1fr) 44px !important;
+  }
+  .goals-page .goal-row-actions .add-goal {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 44px;
+  }
+  .goals-page .remove-goal {
+    width: 44px !important;
+    min-width: 44px !important;
+    padding: 0 !important;
+  }
+  .goals-page .remove-goal::after {
+    display: none !important;
+    content: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goals-page .goal-subject-toggle svg {
+    transition: none;
+  }
+  .goals-page .goal-selected-content {
+    animation: none;
   }
 }
 

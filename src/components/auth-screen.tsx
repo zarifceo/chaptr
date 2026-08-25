@@ -8,7 +8,7 @@ import { ArrowRight, CheckCircle, EnvelopeSimple, LockKey, SignIn, UserPlus, X }
 import { Button } from "@/components/ui/button";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { POLICY_VERSIONS } from "@/lib/policy-config";
-import { siteUrl } from "@/lib/site-url";
+import { productionSiteOrigin, siteUrl } from "@/lib/site-url";
 
 type AuthMode = "sign-in" | "sign-up" | "forgot" | "reset";
 
@@ -69,17 +69,12 @@ export function AuthScreen({ initialMode = "sign-in" }: AuthScreenProps) {
     if (!response.ok) throw new Error("Your account was created, but your profile could not be initialized. Please sign in again.");
   };
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = () => {
     setError("");
     setMessage("");
-    const client = createSupabaseClient();
-    if (!client) return setError("Supabase is not configured for this deployment.");
     setBusy(true);
-    const { error: authError } = await client.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: siteUrl("/auth/callback?next=%2Fhome"), scopes: "openid email profile" },
-    });
-    if (authError) { setError(friendlyError(authError.message)); setBusy(false); }
+    const oauthOrigin = process.env.NODE_ENV === "production" ? productionSiteOrigin : window.location.origin;
+    window.location.assign(new URL("/auth/google?next=%2Fhome", oauthOrigin).toString());
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {

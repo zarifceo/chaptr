@@ -116,3 +116,17 @@
 - Comparison history: the first implementation pass resolved the P1 issue. No actionable P0, P1, or P2 findings remained after the rendered mobile and desktop checks.
 - Final result: passed.
 
+## Goals subject accordion and full-width chapter manager — 25 August 2026
+
+- Source visual truth: `C:\Users\iftkr\AppData\Local\Temp\codex-clipboard-3c2f983f-a944-4783-b9f4-0ff5b7ea22a3.png`.
+- Desktop verification: checked at 1280 × 720. The redundant `Choose your coverage` panel is absent, and `Selected chapters` occupies the complete available content width without horizontal overflow.
+- Mobile verification: checked at 390 × 844. The collapsed selected-chapters card is 215 px tall, has no unused minimum-height void, and the document remains within the viewport (`375 px` content width inside a `390 px` viewport).
+- Default state: all 23 subject sections are collapsed so the page presents a compact subject index instead of rendering hundreds of chapter controls immediately.
+- Interaction result: expanding two different subjects leaves both open independently; each subject exposes its own chapter management controls, bulk action, and collapse button.
+- Selection safety: removing the old coverage panel does not remove functionality. Expanded subject sections include unselected chapters with `Add to goal` or `Exclude chapter` actions.
+- Mobile action hierarchy: chapter removal remains an icon-only button with an accessible `Remove ... from goal` label; no visible `Remove` text is rendered.
+- Accessibility: every subject toggle exposes `aria-expanded`, an individual `aria-controls` target, and a subject-specific expand/collapse label.
+- Console result: no browser errors were present during desktop or mobile verification.
+- Static verification: ESLint, the optimized Next.js production build, and whitespace validation pass.
+- Final result: passed.
+

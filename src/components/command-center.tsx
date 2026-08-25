@@ -581,9 +581,9 @@ function GoalMetrics({ chapters }: { chapters: Chapter[] }) {
 
 function Goals({ list, preferences, updatePreference, updatePreferences, completeChapter, uncompleteChapter, setDifficulty, buildQueue }: { list: Chapter[]; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; updatePreferences: (values: ChapterPreference[]) => void; completeChapter: (chapter: Chapter) => void; uncompleteChapter: (chapter: Chapter) => void; setDifficulty: (chapter: Chapter, difficulty: ChapterDifficulty) => void; buildQueue: (chapters: Chapter[], label: string) => void }) {
   const [month, setMonth] = useState(currentMonthKey());
-  const [subjectId, setSubjectId] = useState(() => subjects.find((subject) => list.some((chapter) => chapter.subjectId === subject.id))?.id ?? "all");
+  const [subjectId, setSubjectId] = useState("all");
   const [mode, setMode] = useState<"monthly" | "ssc" | "excluded">("ssc");
-  const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
+  const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(() => new Set());
   const monthly = orderChapters(list.filter((chapter) => preferenceFor(chapter.id, preferences).targetMonth === month && !preferenceFor(chapter.id, preferences).excluded));
   const ssc = orderChapters(list.filter((chapter) => preferenceFor(chapter.id, preferences).includedForSsc && !preferenceFor(chapter.id, preferences).excluded));
   const excluded = orderChapters(list.filter((chapter) => preferenceFor(chapter.id, preferences).excluded));
@@ -605,14 +605,65 @@ function Goals({ list, preferences, updatePreference, updatePreferences, complet
     const allChosen = group.length > 0 && group.every(isChosen);
     updatePreferences(group.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); const chosen = !allChosen; if (mode === "monthly") return { ...preference, excluded: false, exclusionReason: undefined, targetMonth: chosen ? month : undefined }; if (mode === "ssc") return { ...preference, excluded: false, exclusionReason: undefined, includedForSsc: chosen }; return { ...preference, excluded: chosen, includedForSsc: false, targetMonth: undefined, exclusionReason: chosen ? "Strategic skip" : undefined }; }));
   };
+  const toggleExpandedSubject = (subjectIdToChange: string) => {
+    setExpandedSubjects((current) => {
+      const next = new Set(current);
+      if (next.has(subjectIdToChange)) next.delete(subjectIdToChange);
+      else next.add(subjectIdToChange);
+      return next;
+    });
+  };
   const toggleAll = (chosen: boolean) => updatePreferences(candidates.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); if (mode === "monthly") return { ...preference, excluded: false, exclusionReason: undefined, targetMonth: chosen ? month : undefined }; if (mode === "ssc") return { ...preference, excluded: false, exclusionReason: undefined, includedForSsc: chosen }; return { ...preference, excluded: chosen, includedForSsc: false, targetMonth: undefined, exclusionReason: chosen ? "Strategic skip" : undefined }; }));
   const subjectGroups = subjects.map((subject) => ({ subject, chapters: orderChapters(candidates.filter((chapter) => chapter.subjectId === subject.id)) })).filter((group) => group.chapters.length);
+  const subjectSections = subjectGroups.map(({ subject, chapters }) => {
+    const chosenChapters = chapters.filter(isChosen);
+    const allChosen = chapters.length > 0 && chosenChapters.length === chapters.length;
+    const expanded = expandedSubjects.has(subject.id);
+    const contentId = `goal-subject-${subject.id}`;
+    return <section className="goal-selected-subject" key={subject.id}>
+      <header>
+        <div className="goal-selected-subject-heading">
+          <span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span>
+          <div>
+            <strong>{subject.name}</strong>
+            <small>{chosenChapters.length} of {chapters.length} {mode === "excluded" ? "excluded" : "selected"} · {chosenChapters.filter((chapter) => chapter.status === "exam-ready").length} complete</small>
+          </div>
+        </div>
+        <button type="button" className="goal-subject-toggle" aria-expanded={expanded} aria-controls={contentId} aria-label={`${expanded ? "Collapse" : "Expand"} ${subject.name} chapters`} onClick={() => toggleExpandedSubject(subject.id)}><CaretDown weight="bold" /></button>
+      </header>
+      {expanded && <div className="goal-selected-content" id={contentId}>
+        <div className="goal-subject-toolbar">
+          <span>Manage this subject&apos;s chapters</span>
+          <button type="button" onClick={() => toggleSubject(subject.id)}>{allChosen ? (mode === "excluded" ? "Clear exclusions" : "Clear subject") : (mode === "excluded" ? "Exclude all" : "Select subject")}</button>
+        </div>
+        {chapters.map((chapter) => {
+          const chosen = isChosen(chapter);
+          const preference = preferenceFor(chapter.id, preferences);
+          return <div className={`goal-row ${chosen ? "" : "not-selected"}`} key={chapter.id}>
+            <span className="number">{chapter.number ?? "•"}</span>
+            <div className="goal-row-main">
+              <p><strong>{chapter.title}</strong><small>{chapter.status === "exam-ready" ? "Completed before or during this app" : chapter.status.replace("-", " ")}</small></p>
+              <span className="goal-row-summary">{chosen ? `Priority ${preference.priority} · Difficulty ${chapter.difficulty}/5` : mode === "excluded" ? "Not excluded" : "Not selected for this goal"}</span>
+            </div>
+            <div className="goal-row-actions">
+              {chosen ? <>
+                {mode !== "excluded" && <label className="priority-control"><span>Priority</span><strong className="priority-value">{preference.priority}</strong><select aria-label={`Set priority for ${chapter.title}`} value={preference.priority} onChange={(event) => updatePreference({ ...preference, priority: Number(event.target.value) as ChapterPreference["priority"] })}>{[1, 2, 3, 4, 5].map((level) => <option value={level} key={level}>{level}</option>)}</select></label>}
+                <div className="goal-difficulty"><DifficultyPicker value={chapter.difficulty} onChange={(difficulty) => setDifficulty(chapter, difficulty)} /></div>
+                <button className={chapter.status === "exam-ready" ? "complete-inline undo-complete" : "complete-inline"} onClick={() => chapter.status === "exam-ready" ? uncompleteChapter(chapter) : completeChapter(chapter)}>{chapter.status === "exam-ready" ? <><ArrowCounterClockwise />Undo complete</> : <><Check />Mark complete</>}</button>
+                <button className="remove-goal" onClick={() => updateSelection(chapter, false)} aria-label={mode === "excluded" ? `Restore ${chapter.title}` : `Remove ${chapter.title} from goal`} title={mode === "excluded" ? "Restore chapter" : "Remove from goal"}>{mode === "excluded" ? <ArrowCounterClockwise /> : <X />}</button>
+              </> : <button type="button" className="add-goal" onClick={() => updateSelection(chapter, true)}><Plus />{mode === "excluded" ? "Exclude chapter" : "Add to goal"}</button>}
+            </div>
+          </div>;
+        })}
+      </div>}
+    </section>;
+  });
   return <main id="main-content" tabIndex={-1} className="page goals-page">
     <SectionTitle kicker="BUILD THE SYLLABUS YOU WILL ACTUALLY STUDY" title="Strategic chapter goals"><span><Target weight="fill" />{pace} chapter{pace === 1 ? "" : "s"}/week needed</span></SectionTitle>
     <section className="panel goal-intro"><div><small>SSC 2027 TARGET CAMPAIGN</small><h3>{mode === "ssc" ? "Every chapter is included by default." : mode === "monthly" ? `${monthLabel(month)} campaign` : "Your reversible exclusions"}</h3><p>{mode === "ssc" ? "Keep all chapters selected, then exclude only the chapters you deliberately do not want in your plan." : "Use subject sections and bulk actions instead of managing a long undifferentiated list."}</p></div><div className="goal-bulk-actions">{mode !== "excluded" && <button className="accent" onClick={() => toggleAll(true)}><CheckCircle weight="fill" />Select all visible</button>}<button onClick={() => toggleAll(false)}><X />{mode === "excluded" ? "Clear exclusions" : "Clear visible"}</button></div></section>
     <section className="goal-controls"><div className="segmented">{(["monthly", "ssc", "excluded"] as const).map((item) => <button className={mode === item ? "active" : ""} key={item} onClick={() => setMode(item)}>{item === "monthly" ? "Monthly goal" : item === "ssc" ? "Before SSC" : "Excluded"}</button>)}</div>{mode === "monthly" && <label>Target month<input type="month" value={month.slice(0, 7)} onChange={(event) => setMonth(`${event.target.value}-01`)} /></label>}<label>Subject<select value={subjectId} onChange={(event) => setSubjectId(event.target.value)}><option value="all">All subjects</option>{subjects.map((subject) => <option value={subject.id} key={subject.id}>{subject.name}</option>)}</select></label></section>
     <GoalMetrics chapters={selected} />
-    <section className="goals-structured"><article className="panel goal-selected"><SectionTitle kicker={mode === "monthly" ? monthLabel(month) : mode === "ssc" ? "SSC 2027 TARGET SET" : "REVERSIBLE STRATEGIC SKIPS"} title={mode === "excluded" ? "Chapters you chose not to prepare" : "Selected chapters"}>{mode !== "excluded" && selected.length > 0 && <button className="accent" onClick={() => buildQueue(selected, mode === "monthly" ? `${monthLabel(month)} goal` : "SSC target")}><ListChecks />Build next 5</button>}</SectionTitle>{selected.length ? subjectGroups.map(({ subject }) => { const mine = selected.filter((chapter) => chapter.subjectId === subject.id); if (!mine.length) return null; return <section className="goal-selected-subject" key={subject.id}><header><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><div><strong>{subject.name}</strong><small>{mine.length} selected · {mine.filter((chapter) => chapter.status === "exam-ready").length} complete</small></div></header>{mine.map((chapter) => { const preference = preferenceFor(chapter.id, preferences); return <div className="goal-row" key={chapter.id}><span className="number">{chapter.number ?? "•"}</span><div className="goal-row-main"><p><strong>{chapter.title}</strong><small>{chapter.status === "exam-ready" ? "Completed before or during this app" : chapter.status.replace("-", " ")}</small></p><span className="goal-row-summary">Priority {preference.priority} · Difficulty {chapter.difficulty}/5</span></div><div className="goal-row-actions">{mode !== "excluded" && <label className="priority-control"><span>Priority</span><strong className="priority-value">{preference.priority}</strong><select aria-label={`Set priority for ${chapter.title}`} value={preference.priority} onChange={(event) => updatePreference({ ...preference, priority: Number(event.target.value) as ChapterPreference["priority"] })}>{[1, 2, 3, 4, 5].map((level) => <option value={level} key={level}>{level}</option>)}</select></label>}<div className="goal-difficulty"><DifficultyPicker value={chapter.difficulty} onChange={(difficulty) => setDifficulty(chapter, difficulty)} /></div><button className={chapter.status === "exam-ready" ? "complete-inline undo-complete" : "complete-inline"} onClick={() => chapter.status === "exam-ready" ? uncompleteChapter(chapter) : completeChapter(chapter)}>{chapter.status === "exam-ready" ? <><ArrowCounterClockwise />Undo complete</> : <><Check />Mark complete</>}</button><button className="remove-goal" onClick={() => updateSelection(chapter, false)} aria-label={mode === "excluded" ? `Restore ${chapter.title}` : `Remove ${chapter.title} from goal`} title={mode === "excluded" ? "Restore chapter" : "Remove from goal"}>{mode === "excluded" ? <ArrowCounterClockwise /> : <X />}</button></div></div>; })}</section>; }) : <div className="empty compact"><Target /><h3>No chapters selected yet.</h3><p>Choose a subject group from the right to add chapters back into this campaign.</p></div>}</article><aside className="panel goal-picker"><SectionTitle kicker="STRUCTURED BY SUBJECT" title="Choose your coverage" />{subjectGroups.map(({ subject, chapters }) => { const chosenCount = chapters.filter(isChosen).length; const allChosen = chapters.length > 0 && chosenCount === chapters.length; return <section className="goal-subject-section" key={subject.id}><header><div><span className={`subject-token ${subject.accent}`}>{subject.shortName.slice(0, 2)}</span><div><strong>{subject.name}</strong><small>{chosenCount}/{chapters.length} {mode === "excluded" ? "excluded" : "selected"}</small></div></div><div className="subject-group-actions"><button type="button" onClick={() => toggleSubject(subject.id)}>{allChosen ? "Clear subject" : "Select subject"}</button><button type="button" className="expand-subject" aria-expanded={expandedSubject === subject.id} aria-controls={`coverage-${subject.id}`} onClick={() => setExpandedSubject((current) => current === subject.id ? null : subject.id)}>{expandedSubject === subject.id ? "Hide chapters" : "View chapters"}<CaretDown weight="bold" /></button></div></header>{expandedSubject === subject.id && <div className="goal-chapter-list" id={`coverage-${subject.id}`}>{chapters.map((chapter) => { const chosen = isChosen(chapter); return <label className={`goal-chapter-option ${chosen ? "chosen" : ""}`} key={chapter.id}><input type="checkbox" checked={chosen} onChange={(event) => updateSelection(chapter, event.target.checked)} /><span><strong>{chapter.number ? `${chapter.number}. ` : ""}{chapter.title}</strong><small>{chapter.status === "exam-ready" ? "Completed" : chapter.status.replace("-", " ")}</small></span>{chosen ? <CheckCircle weight="fill" /> : <Plus />}</label>; })}</div>}</section>; })}</aside></section>
+    <section className="goals-structured"><article className="panel goal-selected"><SectionTitle kicker={mode === "monthly" ? monthLabel(month) : mode === "ssc" ? "SSC 2027 TARGET SET" : "REVERSIBLE STRATEGIC SKIPS"} title={mode === "excluded" ? "Chapters you chose not to prepare" : "Selected chapters"}>{mode !== "excluded" && selected.length > 0 && <button className="accent" onClick={() => buildQueue(selected, mode === "monthly" ? `${monthLabel(month)} goal` : "SSC target")}><ListChecks />Build next 5</button>}</SectionTitle><div className="goal-subjects">{subjectSections.length ? subjectSections : <div className="empty compact"><Target /><h3>No chapters available.</h3><p>Choose another subject to manage its chapters.</p></div>}</div></article></section>
   </main>;
 }
 
