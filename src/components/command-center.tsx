@@ -57,6 +57,8 @@ const subjectAccent: Record<string, Subject["accent"]> = { "bangla-1": "pink", "
 const officialTotalFor = (subjectId: string) => marksDistributions.filter((mark) => mark.subjectId === subjectId).reduce((sum, mark) => sum + mark.marks, 0);
 
 type BootstrapRow = Record<string, unknown>;
+type GoalTaskDraft = { task: StudyTask; included: boolean; date: string };
+const learningMethods: LearningMethod[] = ["textbook", "question-bank", "guidebook", "notes", "video", "online-class", "tutor", "group-study", "flashcards"];
 const chapterDifficulty = (value: unknown): ChapterDifficulty => Math.max(1, Math.min(5, Number(value ?? 3))) as ChapterDifficulty;
 const numericValue = (value: unknown, fallback: number) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
@@ -132,6 +134,13 @@ const displayTime = (value: string) => {
   if (hour > 23 || Number(minute) > 59) return "3:00 PM";
   const suffix = hour >= 12 ? "PM" : "AM";
   return `${hour % 12 || 12}:${minute} ${suffix}`;
+};
+const timeInputValue = (value: string) => {
+  const match = value.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return "15:00";
+  let hour = Number(match[1]) % 12;
+  if (match[3].toUpperCase() === "PM") hour += 12;
+  return `${String(hour).padStart(2, "0")}:${match[2]}`;
 };
 
 const scheduleOn = (task: StudyTask, date: string, time = task.plannedTime) => {
@@ -583,8 +592,10 @@ function GoalMetrics({ chapters }: { chapters: Chapter[] }) {
 function Goals({ list, preferences, updatePreference, updatePreferences, completeChapter, uncompleteChapter, setDifficulty, buildQueue }: { list: Chapter[]; preferences: ChapterPreference[]; updatePreference: (value: ChapterPreference) => void; updatePreferences: (values: ChapterPreference[]) => void; completeChapter: (chapter: Chapter) => void; uncompleteChapter: (chapter: Chapter) => void; setDifficulty: (chapter: Chapter, difficulty: ChapterDifficulty) => void; buildQueue: (chapters: Chapter[], label: string) => void }) {
   const [month, setMonth] = useState(currentMonthKey());
   const [subjectId, setSubjectId] = useState("all");
-  const [mode, setMode] = useState<"monthly" | "ssc" | "excluded">("ssc");
+  const [mode, setMode] = useState<"monthly" | "ssc" | "excluded">("monthly");
   const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(() => new Set());
+  const [selectedOpen, setSelectedOpen] = useState(true);
+  const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
   const monthly = orderChapters(list.filter((chapter) => preferenceFor(chapter.id, preferences).targetMonth === month && !preferenceFor(chapter.id, preferences).excluded));
   const ssc = orderChapters(list.filter((chapter) => preferenceFor(chapter.id, preferences).includedForSsc && !preferenceFor(chapter.id, preferences).excluded));
   const excluded = orderChapters(list.filter((chapter) => preferenceFor(chapter.id, preferences).excluded));
@@ -648,10 +659,13 @@ function Goals({ list, preferences, updatePreference, updatePreferences, complet
             </div>
             <div className="goal-row-actions">
               {chosen ? <>
-                {mode !== "excluded" && <label className="priority-control"><span>Priority</span><strong className="priority-value">{preference.priority}</strong><select aria-label={`Set priority for ${chapter.title}`} value={preference.priority} onChange={(event) => updatePreference({ ...preference, priority: Number(event.target.value) as ChapterPreference["priority"] })}>{[1, 2, 3, 4, 5].map((level) => <option value={level} key={level}>{level}</option>)}</select></label>}
-                <div className="goal-difficulty"><DifficultyPicker value={chapter.difficulty} onChange={(difficulty) => setDifficulty(chapter, difficulty)} /></div>
-                <button className={chapter.status === "exam-ready" ? "complete-inline undo-complete" : "complete-inline"} onClick={() => chapter.status === "exam-ready" ? uncompleteChapter(chapter) : completeChapter(chapter)}>{chapter.status === "exam-ready" ? <><ArrowCounterClockwise />Undo complete</> : <><Check />Mark complete</>}</button>
-                <button className="remove-goal" onClick={() => updateSelection(chapter, false)} aria-label={mode === "excluded" ? `Restore ${chapter.title}` : `Remove ${chapter.title} from goal`} title={mode === "excluded" ? "Restore chapter" : "Remove from goal"}>{mode === "excluded" ? <ArrowCounterClockwise /> : <X />}</button>
+                <button type="button" className="edit-goal" aria-expanded={editingChapterId === chapter.id} onClick={() => setEditingChapterId((current) => current === chapter.id ? null : chapter.id)}><NotePencil />Edit</button>
+                {editingChapterId === chapter.id && <>
+                  {mode !== "excluded" && <label className="priority-control"><span>Priority</span><strong className="priority-value">{preference.priority}</strong><select aria-label={`Set priority for ${chapter.title}`} value={preference.priority} onChange={(event) => updatePreference({ ...preference, priority: Number(event.target.value) as ChapterPreference["priority"] })}>{[1, 2, 3, 4, 5].map((level) => <option value={level} key={level}>{level}</option>)}</select></label>}
+                  <div className="goal-difficulty"><DifficultyPicker value={chapter.difficulty} onChange={(difficulty) => setDifficulty(chapter, difficulty)} /></div>
+                  <button className={chapter.status === "exam-ready" ? "complete-inline undo-complete" : "complete-inline"} onClick={() => chapter.status === "exam-ready" ? uncompleteChapter(chapter) : completeChapter(chapter)}>{chapter.status === "exam-ready" ? <><ArrowCounterClockwise />Undo complete</> : <><Check />Mark complete</>}</button>
+                  <button className="remove-goal" onClick={() => { updateSelection(chapter, false); setEditingChapterId(null); }} aria-label={mode === "excluded" ? `Restore ${chapter.title}` : `Remove ${chapter.title} from goal`} title={mode === "excluded" ? "Restore chapter" : "Remove from goal"}>{mode === "excluded" ? <ArrowCounterClockwise /> : <X />}</button>
+                </>}
               </> : <button type="button" className="add-goal" onClick={() => updateSelection(chapter, true)}><Plus />{mode === "excluded" ? "Exclude chapter" : "Add to goal"}</button>}
             </div>
           </div>;
@@ -664,11 +678,11 @@ function Goals({ list, preferences, updatePreference, updatePreferences, complet
     <section className="panel goal-intro"><div><small>SSC 2027 TARGET CAMPAIGN</small><h3>{mode === "ssc" ? "Every chapter is included by default." : mode === "monthly" ? `${monthLabel(month)} campaign` : "Your reversible exclusions"}</h3><p>{mode === "ssc" ? "Keep all chapters selected, then exclude only the chapters you deliberately do not want in your plan." : "Use subject sections and bulk actions instead of managing a long undifferentiated list."}</p></div><div className="goal-bulk-actions">{mode !== "excluded" && <button className="accent" onClick={() => toggleAll(true)}><CheckCircle weight="fill" />Select all visible</button>}<button onClick={() => toggleAll(false)}><X />{mode === "excluded" ? "Clear exclusions" : "Clear visible"}</button></div></section>
     <section className="goal-controls"><div className="segmented">{(["monthly", "ssc", "excluded"] as const).map((item) => <button className={mode === item ? "active" : ""} key={item} onClick={() => setMode(item)}>{item === "monthly" ? "Monthly goal" : item === "ssc" ? "Before SSC" : "Excluded"}</button>)}</div>{mode === "monthly" && <label>Target month<input type="month" value={month.slice(0, 7)} onChange={(event) => setMonth(`${event.target.value}-01`)} /></label>}<label>Subject<select value={subjectId} onChange={(event) => setSubjectId(event.target.value)}><option value="all">All subjects</option>{subjects.map((subject) => <option value={subject.id} key={subject.id}>{subject.name}</option>)}</select></label></section>
     <GoalMetrics chapters={selected} />
-    <section className="goals-structured"><article className="panel goal-selected"><SectionTitle kicker={mode === "monthly" ? monthLabel(month) : mode === "ssc" ? "SSC 2027 TARGET SET" : "REVERSIBLE STRATEGIC SKIPS"} title={mode === "excluded" ? "Chapters you chose not to prepare" : "Selected chapters"}>{mode !== "excluded" && selected.length > 0 && <button className="accent" onClick={() => buildQueue(selected, mode === "monthly" ? `${monthLabel(month)} goal` : "SSC target")}><ListChecks />Build next 5</button>}</SectionTitle><div className="goal-subjects">{subjectSections.length ? subjectSections : <div className="empty compact"><Target /><h3>No chapters available.</h3><p>Choose another subject to manage its chapters.</p></div>}</div></article></section>
+    <section className="goals-structured"><article className="panel goal-selected"><SectionTitle kicker={mode === "monthly" ? monthLabel(month) : mode === "ssc" ? "SSC 2027 TARGET SET" : "REVERSIBLE STRATEGIC SKIPS"} title={mode === "monthly" ? "Monthly goal chapters" : mode === "excluded" ? "Chapters you chose not to prepare" : "Selected chapters"}><div className="goal-section-actions">{mode === "monthly" && selected.length > 0 && <button className="accent" onClick={() => buildQueue(selected, `${monthLabel(month)} goal`)}><ListChecks />Review next 5</button>}<button type="button" className="goal-section-toggle" aria-expanded={selectedOpen} onClick={() => setSelectedOpen((open) => !open)}><CaretDown weight="bold" />{selectedOpen ? "Collapse" : "Expand"}</button></div></SectionTitle>{selectedOpen && <div className="goal-subjects">{subjectSections.length ? subjectSections : <div className="empty compact"><Target /><h3>No chapters available.</h3><p>Choose another subject to manage its chapters.</p></div>}</div>}</article></section>
   </main>;
 }
 
-function StudyCalendar({ tasks, preferences, update, add, openTask }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; add: (date?: string) => void; openTask: (task: StudyTask) => void }) {
+function StudyCalendar({ tasks, preferences, update, add, openTask, editTask, removeTask }: { tasks: StudyTask[]; preferences: ChapterPreference[]; update: (task: StudyTask) => void; add: (date?: string) => void; openTask: (task: StudyTask) => void; editTask: (task: StudyTask) => void; removeTask: (task: StudyTask) => void }) {
   const [month, setMonth] = useState(currentMonthKey());
   const excluded = new Set(preferences.filter((item) => item.excluded).map((item) => item.chapterId));
   const activeTasks = tasks.filter((task) => !excluded.has(task.chapterId) && task.status !== "skipped");
@@ -683,7 +697,7 @@ function StudyCalendar({ tasks, preferences, update, add, openTask }: { tasks: S
   return <main id="main-content" tabIndex={-1} className="page calendar-page">
     <SectionTitle kicker="APP-OWNED STUDY BLOCKS ONLY" title="Study calendar"><div className="calendar-actions"><button onClick={() => moveMonth(-1)} aria-label="Previous month"><CaretLeft /></button><strong>{monthLabel(month)}</strong><button onClick={() => moveMonth(1)} aria-label="Next month"><CaretRight /></button><button className="accent" onClick={() => add()}><Plus />Add task</button></div></SectionTitle>
     <section className="calendar-health ok"><CalendarBlank weight="fill" /><p><strong>Your in-app study calendar</strong><small>Add, move, and manage study tasks here. This calendar is the source of truth for your plan.</small></p><span className="calendar-local-badge">In-app only</span></section>
-    <section className="calendar-layout"><div className="month-grid"><div className="weekday-row">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}</div><div className="day-grid">{cells.map((day, index) => { if (!day) return <div className="day empty-cell" key={`blank-${index}`} />; const date = `${month.slice(0, 8)}${String(day).padStart(2, "0")}`; const items = activeTasks.filter((task) => plannedDate(task) === date); return <article className="day" key={date}><button className="day-number" onClick={() => add(date)}>{day}<Plus /></button>{items.slice(0, 3).map((task) => <button className={`calendar-task ${bySubject(task.subjectId).accent}`} key={task.id} onClick={() => openTask(task)} aria-label={`Open ${task.title} in today's timeline`}><strong>{task.plannedTime}</strong><span>{bySubject(task.subjectId).shortName}</span></button>)}{items.length > 3 && <small>+{items.length - 3} more</small>}</article>; })}</div></div><aside className="panel unscheduled"><SectionTitle kicker="NEEDS A DATE" title={`${unscheduled.length} unscheduled`} />{unscheduled.slice(0, 12).map((task) => <div key={task.id}><p><strong>{task.title}</strong><small>{bySubject(task.subjectId).shortName} · {task.duration} min</small></p><input type="date" aria-label={`Schedule ${task.title}`} onChange={(event) => event.target.value && update(scheduleOn(task, event.target.value))} /></div>)}{!unscheduled.length && <div className="empty compact"><CheckCircle /><h3>Everything is placed.</h3><p>Use the date controls or add a task directly in this calendar to keep your study plan up to date.</p></div>}</aside></section>
+    <section className="calendar-layout"><div className="month-grid"><div className="weekday-row">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}</div><div className="day-grid">{cells.map((day, index) => { if (!day) return <div className="day empty-cell" key={`blank-${index}`} />; const date = `${month.slice(0, 8)}${String(day).padStart(2, "0")}`; const items = activeTasks.filter((task) => plannedDate(task) === date); return <article className="day" key={date}><button className="day-number" onClick={() => add(date)}>{day}<Plus /></button>{items.slice(0, 3).map((task) => <button className={`calendar-task ${bySubject(task.subjectId).accent}`} key={task.id} onClick={() => openTask(task)} aria-label={`Open ${task.title} in today's timeline`}><strong>{task.plannedTime}</strong><span>{bySubject(task.subjectId).shortName}</span></button>)}{items.length > 3 && <small>+{items.length - 3} more</small>}</article>; })}</div></div><aside className="panel unscheduled"><SectionTitle kicker="NEEDS A DATE" title={`${unscheduled.length} unscheduled`} />{unscheduled.slice(0, 12).map((task) => <div className="unscheduled-task" key={task.id}><p><strong>{task.title}</strong><small>{bySubject(task.subjectId).shortName} · {task.duration} min · {methodLabel(task.studyMethod)}</small></p><input type="date" aria-label={`Schedule ${task.title}`} onChange={(event) => event.target.value && update(scheduleOn(task, event.target.value))} /><div className="unscheduled-actions"><button type="button" onClick={() => editTask(task)}><NotePencil />Edit</button><button type="button" className="danger" onClick={() => removeTask(task)}><X />Remove</button></div></div>)}{!unscheduled.length && <div className="empty compact"><CheckCircle /><h3>Everything is placed.</h3><p>Use the date controls or add a task directly in this calendar to keep your study plan up to date.</p></div>}</aside></section>
   </main>;
 }
 
@@ -771,8 +785,7 @@ function WorkflowPresetEditor({ presets, save }: { presets: WorkflowPreset[]; sa
   return <article id="study-workflows" className="settings-editor workflow-editor"><span className="blue"><ListChecks /></span><div className="workflow-editor-body"><p><strong>Task workflows and presets</strong><small>Chaptr automatically chooses a theoretical or mathematical workflow from the task subject. Create a preset here only when you want a reusable alternative, then choose it while adding a task.</small></p><div className="workflow-context-picker"><label>1. Workflow type<select value={subjectType} onChange={(event) => chooseContext(phase, event.target.value as WorkflowPreset["subjectType"])}><option value="theory">Theoretical workflow</option><option value="mathematical">Mathematical workflow</option><option value="custom">Custom mixed workflow</option></select><small>Mathematical is the automatic default for Mathematics, Higher Mathematics, and Accounting.</small></label><div><small>2. Study goal</small><div className="workflow-tabs" role="tablist" aria-label="Study goal"><span>{studyPhases.map((item) => <button type="button" key={item.id} role="tab" aria-selected={phase === item.id} className={phase === item.id ? "active" : ""} onClick={() => chooseContext(item.id, subjectType)}>{item.label}</button>)}</span></div></div></div><div className="workflow-preset-library"><div className="workflow-library-group"><small>YOUR SAVED PRESETS</small><div className="workflow-preset-list">{visibleUserPresets.length ? visibleUserPresets.map((preset) => <button type="button" key={preset.id} className={selectedId === preset.id ? "active" : ""} onClick={() => loadPreset(preset)}><strong>{preset.name}</strong><span>Edit saved preset</span></button>) : <small>No saved presets for this workflow yet.</small>}</div></div><div className="workflow-library-group"><small>SYSTEM STARTING POINT</small><div className="workflow-preset-list">{visibleBuiltInPresets.length ? visibleBuiltInPresets.map((preset) => <button type="button" key={preset.id} className={selectedId === preset.id ? "active" : ""} onClick={() => loadPreset(preset)}><strong>{preset.name}</strong><span>Copy and customize</span></button>) : <small>Use the practical starting flow below.</small>}</div></div><button type="button" onClick={reset}><Plus />New preset</button></div><div className="workflow-preset-fields"><label>3. Preset name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Tutor + textbook + board questions" /></label><label className="wide">When should you use it?<textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} placeholder="Optional note shown when you choose this preset." /></label></div><div className="workflow-editor-heading"><div><strong>4. Edit the steps</strong><small>{studyPhases.find((item) => item.id === phase)?.detail}</small></div><button type="button" onClick={reset}>Reset starting steps</button></div><div className="workflow-step-editor">{draft.map((step, index) => <div className="workflow-step-row" key={`${selectedId || "draft"}-${index}`}><span>{index + 1}</span><input value={step} onChange={(event) => updateStep(index, event.target.value)} aria-label={`Step ${index + 1}`} /><button type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label="Move step up"><CaretUp /></button><button type="button" onClick={() => moveStep(index, 1)} disabled={index === draft.length - 1} aria-label="Move step down"><CaretDown /></button><button type="button" onClick={() => removeStep(index)} disabled={draft.length <= 1} aria-label="Remove step"><X /></button></div>)}</div><div className="workflow-editor-actions"><button type="button" onClick={() => draft.length < 8 && setDraft((current) => [...current, "Add a concrete action"])} disabled={draft.length >= 8}><Plus />Add step</button><button type="button" className="accent" onClick={() => void saveDraft()} disabled={saving}>{saving ? "Saving preset…" : selectedId && !selectedId.startsWith("builtin-") ? "Save preset changes" : "Save new preset"}</button>{selectedId && !selectedId.startsWith("builtin-") && <button type="button" onClick={() => void deletePreset()} disabled={saving}>Delete preset</button>}</div>{status && <small className="settings-message" role="status">{status}</small>}</div></article>;
 }
 
-function Settings({ planning, setPlanning, profile, saveProfile, learningPreferences, saveAdaptive, workflowPresets, saveWorkflowPresets, onSignOut }: { planning: PlanningSettings; setPlanning: (value: PlanningSettings) => void; profile: UserProfile; saveProfile: (patch: Partial<UserProfile>) => Promise<void>; learningPreferences: LearningPreferences; saveAdaptive: (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => Promise<void>; workflowPresets: WorkflowPreset[]; saveWorkflowPresets: (presets: WorkflowPreset[]) => Promise<void>; onSignOut: () => Promise<void> }) {
-  const router = useRouter();
+function Settings({ planning, setPlanning, profile, saveProfile, learningPreferences, saveAdaptive, workflowPresets, saveWorkflowPresets, onSignOut, go }: { planning: PlanningSettings; setPlanning: (value: PlanningSettings) => void; profile: UserProfile; saveProfile: (patch: Partial<UserProfile>) => Promise<void>; learningPreferences: LearningPreferences; saveAdaptive: (patch: Partial<LearningPreferences>, assessments?: SubjectAssessment[]) => Promise<void>; workflowPresets: WorkflowPreset[]; saveWorkflowPresets: (presets: WorkflowPreset[]) => Promise<void>; onSignOut: () => Promise<void>; go: (section: string) => void }) {
   const [email, setEmail] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
@@ -809,7 +822,7 @@ function Settings({ planning, setPlanning, profile, saveProfile, learningPrefere
     <WorkflowPresetEditor presets={workflowPresets} save={saveWorkflowPresets} />
 
     <article><span className="blue"><Warning /></span><p><strong>Study reminders</strong><small>{planning.remindersEnabled ? "Browser permission granted." : "Optional browser and install reminders."}</small></p><button onClick={enableReminders}>{planning.remindersEnabled ? "Enabled" : "Enable"}</button></article>
-    <article className="settings-editor settings-privacy-link"><span className="pink"><Headphones /></span><p><strong>Support and account privacy</strong><small>Search help, send a private support request, or request deletion of your Chaptr account.</small></p><button type="button" onClick={() => router.push("/support")}>Open Support <ArrowRight /></button></article>
+    <article className="settings-editor settings-privacy-link"><span className="pink"><Headphones /></span><p><strong>Support and account privacy</strong><small>Search help, send a private support request, or request deletion of your Chaptr account.</small></p><button type="button" onClick={() => go("Support")}>Open Support <ArrowRight /></button></article>
     {message && <p className="settings-message">{message}</p>}
   </section></main>;
 }
@@ -861,6 +874,21 @@ function TimePicker({ value, onChange, invalid }: { value: string; onChange: (va
       <button type="button" className="time-picker-done" onClick={() => setOpen(false)}>Done</button>
     </div>}
   </div>;
+}
+
+function GoalQueueReviewModal({ drafts, close, change, save }: { drafts: GoalTaskDraft[]; close: () => void; change: (drafts: GoalTaskDraft[]) => void; save: () => void }) {
+  const includedCount = drafts.filter((draft) => draft.included).length;
+  const update = (index: number, patch: Partial<GoalTaskDraft>, taskPatch?: Partial<StudyTask>) => change(drafts.map((draft, itemIndex) => itemIndex === index ? { ...draft, ...patch, task: { ...draft.task, ...taskPatch } } : draft));
+  return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="goal-queue-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form className="goal-queue-review" onSubmit={(event) => { event.preventDefault(); save(); }}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>MONTHLY GOAL · REVIEW BEFORE SAVING</small><h2 id="goal-queue-title">Choose your next study tasks</h2><p className="modal-intro">These suggestions use your chapter priorities, progress, difficult subjects, preferred methods, and session length. Adjust or remove any task before it reaches your calendar.</p><div className="goal-queue-list">{drafts.map((draft, index) => <article className={draft.included ? "" : "excluded"} key={draft.task.id}><label className="goal-queue-include"><input type="checkbox" checked={draft.included} onChange={(event) => update(index, { included: event.target.checked })} /><span><strong>{draft.task.title}</strong><small>{bySubject(draft.task.subjectId).name}</small></span></label><p>{draft.task.reason}</p><div className="goal-queue-fields"><label>Minutes<input type="number" min="10" max="240" value={draft.task.duration} disabled={!draft.included} onChange={(event) => update(index, {}, { duration: Math.max(10, Number(event.target.value)) })} /></label><label>Study method<select value={draft.task.studyMethod ?? "textbook"} disabled={!draft.included} onChange={(event) => update(index, {}, { studyMethod: event.target.value as LearningMethod })}>{learningMethods.map((method) => <option value={method} key={method}>{methodLabel(method)}</option>)}</select></label><label>Date (optional)<input type="date" value={draft.date} disabled={!draft.included} onChange={(event) => update(index, { date: event.target.value })} /></label></div></article>)}</div><div className="modal-actions"><button type="button" onClick={close}>Cancel</button><button className="solid-cta" disabled={!includedCount}><CheckCircle weight="fill" />Add {includedCount} task{includedCount === 1 ? "" : "s"}</button></div></form></div>;
+}
+
+function TaskEditModal({ task, close, save }: { task: StudyTask; close: () => void; save: (task: StudyTask) => void }) {
+  const [duration, setDuration] = useState(task.duration);
+  const [method, setMethod] = useState<LearningMethod>(task.studyMethod ?? "textbook");
+  const [date, setDate] = useState(plannedDate(task) ?? "");
+  const [time, setTime] = useState(timeInputValue(task.plannedTime));
+  const submit = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const changed = { ...task, duration: Math.max(10, duration), studyMethod: method, status: "planned" as const }; save(date ? scheduleOn(changed, date, time) : { ...changed, plannedTime: "Unscheduled", plannedStart: undefined, plannedEnd: undefined }); };
+  return <div className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-task-title" onKeyDown={(event) => { if (event.key === "Escape") close(); }}><button className="modal-scrim" onClick={close} aria-label="Close" /><form className="task-edit-form" onSubmit={submit}><button type="button" className="modal-close" onClick={close} aria-label="Close dialog"><X /></button><small>EDIT STUDY TASK</small><h2 id="edit-task-title">{task.title}</h2><p className="modal-intro">Change how long you will study, the method, or when it appears. Clear the date to keep it unscheduled.</p><div className="form-row"><label>Minutes<input autoFocus type="number" min="10" max="240" value={duration} onChange={(event) => setDuration(Number(event.target.value))} /></label><label>Study method<select value={method} onChange={(event) => setMethod(event.target.value as LearningMethod)}>{learningMethods.map((item) => <option value={item} key={item}>{methodLabel(item)}</option>)}</select></label></div><div className="form-row"><label>Date (optional)<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label>Time<input type="time" value={time} disabled={!date} onChange={(event) => setTime(event.target.value)} /></label></div><div className="modal-actions"><button type="button" onClick={close}>Cancel</button>{plannedDate(task) && <button type="button" onClick={() => save({ ...task, plannedTime: "Unscheduled", plannedStart: undefined, plannedEnd: undefined })}>Unschedule</button>}<button className="solid-cta"><Check />Save changes</button></div></form></div>;
 }
 
 function ManualTaskModal({ close, save, configurePresets, defaultDate, preferences, workflowPresets, preferredMethods }: { close: () => void; save: (task: StudyTask) => void; configurePresets: () => void; defaultDate?: string; preferences: ChapterPreference[]; workflowPresets: WorkflowPreset[]; preferredMethods: LearningMethod[] }) {
@@ -931,7 +959,7 @@ function MockResultModal({ close, save }: { close: () => void; save: (result: Mo
 
 function DatabaseGate({ status, error }: { status: "loading" | "auth-required" | "error"; error: string }) {
   if (status === "auth-required") return <AuthScreen />;
-  if (status === "loading") return <main className="workspace-transition" aria-live="polite" aria-busy="true"><span className="sr-only">Preparing your Chaptr workspace</span></main>;
+  if (status === "loading") return <main className="workspace-transition workspace-loading" aria-live="polite" aria-busy="true"><Image src="/chaptr-icon-192.png" width={52} height={52} alt="" priority /><strong>Opening your study workspace</strong><span>Loading your chapters and plan…</span><i aria-hidden="true" /></main>;
   return <main className="database-gate" aria-live="polite"><section className="panel"><CloudCheck size={42} weight="fill" /><small>SUPABASE WORKSPACE</small><h1>Database connection required</h1><p>{error}</p><Button size="lg" className="solid-cta" onClick={() => location.reload()}><ArrowCounterClockwise />Retry database connection</Button></section></main>;
 }
 
@@ -952,7 +980,7 @@ export default function CommandCenter() {
     const nextPath = sectionRoutes[value] ?? "/home";
     setMenu(false);
     setMobileMoreOpen(false);
-    if (pathname !== nextPath) router.push(nextPath);
+    if (pathname !== nextPath) window.history.pushState(null, "", nextPath);
   };
   useEffect(() => {
     if (!menu) return;
@@ -981,6 +1009,10 @@ export default function CommandCenter() {
   const [journalTask, setJournalTask] = useState<StudyTask | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualDate, setManualDate] = useState<string | undefined>();
+  const [goalQueueDraft, setGoalQueueDraft] = useState<GoalTaskDraft[]>([]);
+  const [editingTask, setEditingTask] = useState<StudyTask | null>(null);
+  const [removingTask, setRemovingTask] = useState<StudyTask | null>(null);
+  const [removedTask, setRemovedTask] = useState<StudyTask | null>(null);
   const [mockOpen, setMockOpen] = useState(false);
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
   const [resourceChapterId, setResourceChapterId] = useState<string | undefined>();
@@ -992,6 +1024,11 @@ export default function CommandCenter() {
   const [databaseStatus, setDatabaseStatus] = useState<"loading" | "ready" | "auth-required" | "error">("loading");
   const [databaseError, setDatabaseError] = useState("");
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  useEffect(() => {
+    if (!removedTask) return;
+    const timeout = window.setTimeout(() => setRemovedTask(null), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [removedTask]);
   const clearWorkspaceState = () => {
     setTasks([]);
     setChapterList([]);
@@ -1009,6 +1046,10 @@ export default function CommandCenter() {
     setStudyWorkflows([]);
     setJournalTask(null);
     setManualOpen(false);
+    setGoalQueueDraft([]);
+    setEditingTask(null);
+    setRemovingTask(null);
+    setRemovedTask(null);
     setMockOpen(false);
     setFocusTaskId(null);
     setResourceChapterId(undefined);
@@ -1032,7 +1073,10 @@ export default function CommandCenter() {
     const bootstrap = async () => {
       let response: Response | null = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        response = await fetch("/api/sync/bootstrap", { cache: "no-store", headers: { "cache-control": "no-cache", "x-ssc-bootstrap-attempt": String(attempt + 1) } }).catch(() => null);
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 10000);
+        response = await fetch("/api/sync/bootstrap", { cache: "no-store", signal: controller.signal, headers: { "cache-control": "no-cache", "x-ssc-bootstrap-attempt": String(attempt + 1) } }).catch(() => null);
+        window.clearTimeout(timeout);
         if (response?.status !== 401 || attempt === 2) break;
         await new Promise((resolve) => window.setTimeout(resolve, 250 * (attempt + 1)));
       }
@@ -1326,6 +1370,13 @@ export default function CommandCenter() {
     });
   };
 
+  const confirmRemoveTask = () => {
+    if (!removingTask) return;
+    setRemovedTask(removingTask);
+    removeTaskFromToday(removingTask);
+    setRemovingTask(null);
+  };
+
   const addTask = (task: StudyTask) => {
     if (preferenceFor(task.chapterId, preferences).excluded) return;
     setTasks([task, ...tasks]);
@@ -1398,9 +1449,15 @@ export default function CommandCenter() {
         reason: `${label} · ${task.reason}`,
       }));
     if (!generated.length) return;
-    const next = [...generated, ...tasks];
-    setTasks(next);
+    setGoalQueueDraft(generated.map((task) => ({ task, included: true, date: "" })));
+  };
+
+  const commitGoalQueue = () => {
+    const generated = goalQueueDraft.filter((draft) => draft.included).map((draft) => draft.date ? scheduleOn(draft.task, draft.date) : draft.task);
+    if (!generated.length) return;
+    setTasks([...generated, ...tasks]);
     persist("study_tasks", generated.map(taskRow));
+    setGoalQueueDraft([]);
     navigate("Calendar");
   };
 
@@ -1501,7 +1558,7 @@ export default function CommandCenter() {
   if (databaseStatus !== "ready") return <DatabaseGate status={databaseStatus} error={databaseError} />;
   if (!profile) return <DatabaseGate status="loading" error="Preparing your private workspace…" />;
   if (!profile.onboardingCompleted || !profile.academicProfileCompleted) return <OnboardingWizard profile={profile} subjects={subjects} chapters={chapterList} learningPreferences={learningPreferences} subjectAssessments={subjectAssessments} save={saveProfile} saveAdaptive={saveAdaptiveProfile} saveCompletedChapters={saveCompletedChapters} examEvents={examEvents} saveExamEvents={saveExamEvents} examPlan={examPlan} saveExamPlan={saveExamPlan} />;
-  const home = <Home tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} learningPreferences={learningPreferences} update={updateTask} remove={removeTaskFromToday} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} plannerState={plannerState} plannerMessage={plannerMessage} sessions={sessions} startFocus={startFocus} updateFocus={updateFocus} resetFocus={resetFocus} go={navigate} startStudy={startStudy} feedback={recordFeedback} goJournal={() => navigate("Journal")} workflows={studyWorkflows} workflowPresets={workflowPresets} preferredMethods={learningPreferences.preferredMethods} quickStartStatus={profile.quickStartStatus ?? "active"} onQuickStartStatusChange={updateQuickStartStatus} />;
+  const home = <Home tasks={tasks} chapters={chapterList} preferences={preferences} mistakes={mistakes} entries={entries} examEvents={examEvents} learningPreferences={learningPreferences} update={updateTask} remove={setRemovingTask} journal={setJournalTask} add={() => openManual()} focusTaskId={focusTaskId} planSummary={planSummary} planToday={planToday} plannerState={plannerState} plannerMessage={plannerMessage} sessions={sessions} startFocus={startFocus} updateFocus={updateFocus} resetFocus={resetFocus} go={navigate} startStudy={startStudy} feedback={recordFeedback} goJournal={() => navigate("Journal")} workflows={studyWorkflows} workflowPresets={workflowPresets} preferredMethods={learningPreferences.preferredMethods} quickStartStatus={profile.quickStartStatus ?? "active"} onQuickStartStatusChange={updateQuickStartStatus} />;
   const content = (() => {
     switch (active) {
       case "Home":
@@ -1509,7 +1566,7 @@ export default function CommandCenter() {
       case "Today": return home;
       case "Syllabus": return <Syllabus list={chapterList} setList={setChapterList} preferences={preferences} updatePreference={updatePreference} completeChapter={completeChapter} uncompleteChapter={uncompleteChapter} persistProgress={(chapter) => persist("chapter_progress", [chapterRow(chapter)])} saveCompletedChapters={saveCompletedChapters} goGoals={() => navigate("Goals")} sessions={sessions} entries={entries} mistakes={mistakes} resources={resources} subjectStrengths={profile.subjectStrengths} subjectAssessments={subjectAssessments} saveSubjectPriority={saveSubjectPriority} goResources={(chapterId) => { setResourceChapterId(chapterId); navigate("Resources"); }} />;
       case "Goals": return <Goals list={chapterList} preferences={preferences} updatePreference={updatePreference} updatePreferences={updatePreferences} completeChapter={completeChapter} uncompleteChapter={uncompleteChapter} setDifficulty={setChapterDifficulty} buildQueue={buildGoalQueue} />;
-      case "Calendar": return <StudyCalendar tasks={tasks} preferences={preferences} update={updateTask} add={openManual} openTask={(task) => { setFocusTaskId(task.id); navigate("Home"); }} />;
+      case "Calendar": return <StudyCalendar tasks={tasks} preferences={preferences} update={updateTask} add={openManual} openTask={setEditingTask} editTask={setEditingTask} removeTask={setRemovingTask} />;
       case "Journal": return <Journal entries={entries} add={() => openJournalEntry()} />;
       case "Progress": return <Progress entries={entries} list={chapterList} mocks={mocks} addMock={() => setMockOpen(true)} sessions={sessions} tasks={tasks} />;
       case "Exam Mode": return <ExamModeFocus chapters={chapterList} sessions={examSessions} onClose={() => navigate("Home")} onSaveSession={saveExamSession} />;
@@ -1517,7 +1574,7 @@ export default function CommandCenter() {
       case "Countdown": return <ExamCountdownCenter events={examEvents} saveEvents={saveExamEvents} chapters={chapterList} tasks={tasks} entries={entries} goToday={() => navigate("Home")} />;
       case "Exam Plan": return <ExamPlan plan={examPlan} save={saveExamPlan} />;
       case "Support": return <SupportPage />;
-      default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} learningPreferences={learningPreferences} saveAdaptive={saveAdaptiveProfile} workflowPresets={workflowPresets} saveWorkflowPresets={saveWorkflowPresets} onSignOut={signOut} />;
+      default: return <Settings planning={planning} setPlanning={updatePlanning} profile={profile} saveProfile={saveProfile} learningPreferences={learningPreferences} saveAdaptive={saveAdaptiveProfile} workflowPresets={workflowPresets} saveWorkflowPresets={saveWorkflowPresets} onSignOut={signOut} go={navigate} />;
     }
   })();
 
@@ -1528,7 +1585,11 @@ export default function CommandCenter() {
     <div className="workspace"><Topbar active={active} open={() => setMenu(true)} expanded={menu} profile={profile} /><div className="page-transition" key={active}>{content}</div></div>
     <nav className="bottom-nav" aria-label="Mobile navigation">{mobilePrimaryNav.map(([label, Icon]) => <button key={label} aria-label={label} aria-current={active === label ? "page" : undefined} className={active === label ? "active" : ""} onClick={() => navigate(label)}><Icon size={20} weight={active === label ? "fill" : "regular"} /><span>{label}</span></button>)}<button aria-label="More sections" aria-expanded={mobileMoreOpen} className={mobileMoreOpen ? "active" : ""} onClick={() => setMobileMoreOpen((open) => !open)}><Rows size={20} weight="bold" /><span>More</span></button></nav>
     {mobileMoreOpen && <><button className="mobile-more-scrim" onClick={() => setMobileMoreOpen(false)} aria-label="Close more sections" /><section className="mobile-more-menu" aria-label="More sections">{nav.filter(([label]) => !mobilePrimaryNav.some(([primary]) => primary === label)).map(([label, Icon]) => <button key={label} className={active === label ? "active" : ""} onClick={() => navigate(label)}><Icon size={18} weight={active === label ? "fill" : "regular"} /><span><strong>{label}</strong><small>Open section</small></span></button>)}</section></>}
-    {manualOpen && <ManualTaskModal close={() => { setManualOpen(false); setManualDate(undefined); }} save={addTask} configurePresets={() => { setManualOpen(false); setManualDate(undefined); router.push("/settings#study-workflows"); }} defaultDate={manualDate} preferences={preferences} workflowPresets={workflowPresets} preferredMethods={learningPreferences.preferredMethods} />}
+    {manualOpen && <ManualTaskModal close={() => { setManualOpen(false); setManualDate(undefined); }} save={addTask} configurePresets={() => { setManualOpen(false); setManualDate(undefined); window.history.pushState(null, "", "/settings#study-workflows"); window.setTimeout(() => document.querySelector("#study-workflows")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0); }} defaultDate={manualDate} preferences={preferences} workflowPresets={workflowPresets} preferredMethods={learningPreferences.preferredMethods} />}
+    {goalQueueDraft.length > 0 && <GoalQueueReviewModal drafts={goalQueueDraft} change={setGoalQueueDraft} close={() => setGoalQueueDraft([])} save={commitGoalQueue} />}
+    {editingTask && <TaskEditModal task={editingTask} close={() => setEditingTask(null)} save={(task) => { updateTask(task); setEditingTask(null); }} />}
+    {removingTask && <div className="modal" role="dialog" aria-modal="true" aria-labelledby="remove-task-title"><button className="modal-scrim" onClick={() => setRemovingTask(null)} aria-label="Cancel removal" /><form className="remove-task-confirm" onSubmit={(event) => { event.preventDefault(); confirmRemoveTask(); }}><button type="button" className="modal-close" onClick={() => setRemovingTask(null)} aria-label="Close dialog"><X /></button><small>REMOVE FROM PLAN</small><h2 id="remove-task-title">Remove this study task?</h2><p><strong>{removingTask.title}</strong> will disappear from Home and Calendar. Your chapter and monthly goal will stay unchanged.</p><div className="modal-actions"><button type="button" onClick={() => setRemovingTask(null)}>Keep task</button><button className="danger-cta"><X />Remove from plan</button></div></form></div>}
+    {removedTask && <div className="task-undo" role="status"><span><strong>Task removed from your plan.</strong><small>The monthly goal was not changed.</small></span><button type="button" onClick={() => { updateTask(removedTask); setRemovedTask(null); }}><ArrowCounterClockwise />Undo</button><button type="button" onClick={() => setRemovedTask(null)} aria-label="Dismiss"><X /></button></div>}
     {journalTask && <JournalModal task={journalTask} close={() => setJournalTask(null)} save={save} />}
     {mockOpen && <MockResultModal close={() => setMockOpen(false)} save={saveMock} />}
     {revisionMistake && <RevisionModal mistake={revisionMistake} close={() => setRevisionMistake(null)} save={(outcome, note) => recordRevision(revisionMistake, outcome, note)} />}
