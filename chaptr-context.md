@@ -2,11 +2,11 @@
 
 > **Purpose:** This document is the durable operating context for Chaptr. Read it before changing product behavior, database schema, authentication, responsive UI, study-planning logic, or deployment configuration.
 
-**Last verified:** 22 August 2026, against the current `main` snapshot audited at commit `da2495f` (`Restore flexible study workflows and Exam Mode`). The repository may advance after this date. Future maintainers must update this file whenever a material route, data-flow, security, deployment, or product-behavior change is made.
+**Last verified:** 15 November 2026, against the `main` snapshot at commit `4881e2f` plus the open-source release updates. The repository may advance after this date. Future maintainers must update this file whenever a material route, data-flow, security, deployment, or product-behavior change is made.
 
 ## 1. Product purpose and non-negotiable product principles
 
-Chaptr is a private, light-mode study workspace for Bangladesh SSC 2027 students. It turns a student’s academic profile, chapter coverage, confidence, difficulty ratings, study preferences, mistakes, question practice, focus sessions, and exam timeline into a practical daily loop. The product is designed for controlled classmate beta use first, with possible commercialization after the beta has produced reliable evidence about retention, study outcomes, and operational needs.
+Chaptr is an open-source (MIT-licensed), private, light-mode study workspace for Bangladesh SSC 2027 students. It turns a student’s academic profile, chapter coverage, confidence, difficulty ratings, study preferences, mistakes, question practice, focus sessions, and exam timeline into a practical daily loop.
 
 Chaptr is not a generic task manager and should not present itself as one. The central promise is: **tell the student what to do now, explain why it matters, let them study in their own way, and preserve evidence for the next decision.** The Home experience therefore combines planning, Today, evidence, repair work, and the close-the-loop journal flow rather than treating each feature as an isolated dashboard widget.
 
@@ -28,7 +28,7 @@ The application is a Next.js App Router project using React and strict TypeScrip
 | Storage | Private Supabase Storage bucket `study-resources` | Uploaded files require signed URLs and explicit cleanup during account deletion. |
 | Auth | Supabase Auth: email/password and Google OAuth | Callback, cookie refresh, policy consent, and provider-specific reauthentication are security-sensitive. |
 | Scheduled automation | Supabase Vault + pg_cron + `process-account-deletions` Edge Function | Never move private cron credentials into client code or public configuration. |
-| Deployment | Vercel for the Next.js app; Supabase for database/functions/storage | Verify the current project/deployment rather than assuming historical domains are still active. |
+| Deployment | Vercel (or self-hosted Node/Next.js) for the app; Supabase for database/functions/storage | Verify the current project/deployment rather than assuming historical domains are still active. |
 
 The most important maintenance risk is `src/components/command-center.tsx` [2]. It is a very large client module containing the shell, state mapping, persistence handlers, page dispatch, and many feature components inline. A safe refactor should preserve route behavior and cloud writes first, then extract coherent components in small changes. The other major risk is `src/app/globals.css`, which contains accumulated desktop and mobile layers; replacing it wholesale is likely to regress the application.
 
@@ -39,17 +39,21 @@ pnpm dev
 pnpm build
 pnpm start
 pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:personalization
 ```
 
-The repository’s package manager declaration is `pnpm@11.19.0`. `.env*`, build output, `.next`, `.vercel`, certificates, and debug logs are ignored. Never commit an environment file, token, private key, student data export, or service-role credential.
+The repository’s package manager declaration is `pnpm@11.19.0`. `.env*` (except `.env.example`), build output, `.next`, `.vercel`, certificates, and debug logs are ignored. Never commit a real environment file, token, private key, student data export, or service-role credential.
 
 ## 3. Local setup and validation
 
-Clone the GitHub repository `zarifceo/chaptr`, install the declared dependencies with pnpm, and provide the required environment variables through an ignored `.env.local` file or the deployment platform’s secret configuration. There is currently no committed environment template in the audited snapshot, so use the source references below as the authoritative variable-name list and do not invent or commit values.
+Clone the GitHub repository `zarifceo/chaptr`, install the declared dependencies with pnpm, copy `.env.example` to `.env.local`, and provide the required environment variables through `.env.local` or the deployment platform’s secret configuration.
 
 ```bash
 gh repo clone zarifceo/chaptr
 cd chaptr
+cp .env.example .env.local
 pnpm install
 pnpm dev
 ```
@@ -57,22 +61,24 @@ pnpm dev
 Before shipping application code, run the same checks used by the project’s normal workflow. Direct package binaries are acceptable if package-manager execution has an environment-specific issue.
 
 ```bash
-./node_modules/.bin/eslint .
-./node_modules/.bin/tsc --noEmit
-./node_modules/.bin/next build
+pnpm lint
+pnpm typecheck
+pnpm test:personalization
+pnpm build
 git diff --check
 ```
 
 For a documentation-only change, `git diff --check` and a careful content review are the minimum checks. For code or migration changes, also exercise the affected route and mobile breakpoint manually, inspect the browser console and network requests, and validate the relevant database migration against the intended Supabase project. Do not apply a migration merely to inspect a repository or to prepare a documentation change.
 
-The configuration names currently used by the app and Edge Function are listed below. This is intentionally a name-only list; values belong only in local/deployment secret stores.
+The configuration names currently used by the app and Edge Function are listed below and in `.env.example`. Real secret values belong only in local/deployment secret stores.
 
 | Variable name | Used for | Exposure rule |
 |---|---|---|
+| `NEXT_PUBLIC_SITE_URL` | Canonical origin for callbacks and redirects (defaults to `https://www.chaptr.space` in production or `http://localhost:3000` locally when unset) | Public configuration is acceptable. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Browser/server Supabase project URL | Public configuration is acceptable. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Preferred publishable browser key | Safe for browser use under Supabase’s publishable-key model, but still configure through the deployment environment. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Legacy/fallback browser key | Used only as a fallback when the publishable key is not present. |
-| `SUPABASE_URL` | Edge Function project URL | Server/Edge Function configuration. |
+| `SUPABASE_URL` | Edge Function project URL | Server/Edge Function configuration (auto-injected in Supabase Edge Runtime). |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server/Edge Function admin operations such as seeding and deleting Auth users | Never expose to client bundles, browser code, logs, or public responses. |
 | `TOKEN_ENCRYPTION_KEY` | Server-side token encryption support where used | Never expose or commit. |
 

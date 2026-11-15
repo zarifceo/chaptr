@@ -2,11 +2,33 @@
   "name": "chaptr",
   "version": "0.1.0",
   "private": true,
+  "description": "Open-source adaptive study planning workspace for Bangladesh SSC 2027 students",
+  "license": "MIT",
+  "homepage": "https://chaptr.space",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zarifceo/chaptr.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zarifceo/chaptr/issues"
+  },
+  "keywords": [
+    "chaptr",
+    "ssc-2027",
+    "bangladesh",
+    "nctb",
+    "study-planner",
+    "adaptive-learning",
+    "nextjs",
+    "supabase"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "pnpm test:personalization",
     "test:personalization": "tsc -p tsconfig.personalization-tests.json && node scripts/run-personalization-tests.mjs"
   },
   "dependencies": {

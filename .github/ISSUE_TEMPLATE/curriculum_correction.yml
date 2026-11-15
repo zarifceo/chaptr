@@ -1,0 +1,37 @@
+name: NCTB Curriculum or Textbook Correction
+description: Report a chapter title, ordering, mark distribution, or NCTB textbook link issue for SSC 2027
+title: "[Curriculum]: "
+labels: ["curriculum"]
+body:
+  - type: dropdown
+    id: group
+    attributes:
+      label: Academic Track / Category
+      options:
+        - Common Compulsory (Bangla, English, Mathematics, ICT)
+        - Science (Physics, Chemistry, Biology, BGS)
+        - Commerce (Business, Finance, Accounting, General Science)
+        - Humanities / Arts (Geography, Economics, History, Civics)
+        - Religion (Islam, Hinduism)
+        - Fourth Subject (Higher Mathematics, Agriculture Studies, Home Science)
+    validations:
+      required: true
+  - type: input
+    id: subject
+    attributes:
+      label: Subject Name
+      placeholder: e.g., Bangla 2nd Paper / Physics / Accounting
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: What needs to be corrected?
+      description: Specify the chapter number, Bangla title, mark distribution (CQ/MCQ/Practical), or official NCTB textbook reference.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Official NCTB / Education Board Reference
+      placeholder: Link or page reference from the official NCTB Class 9–10 textbook or syllabus

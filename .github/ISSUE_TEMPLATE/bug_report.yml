@@ -1,0 +1,64 @@
+name: Bug Report
+description: Report a bug in the Chaptr study workspace, adaptive planner, or mobile layout
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! For security vulnerabilities, please use [GitHub Security Advisories](https://github.com/zarifceo/chaptr/security/advisories/new) instead of opening a public issue.
+  - type: dropdown
+    id: section
+    attributes:
+      label: Affected Workspace Section / Route
+      options:
+        - Home (/home)
+        - Syllabus (/syllabus)
+        - Goals (/goals)
+        - Calendar (/calendar)
+        - Journal (/journal)
+        - Progress (/progress)
+        - Exam Mode (/exam-mode)
+        - Resources (/resources)
+        - Countdown (/countdown)
+        - Exam Plan (/exam-plan)
+        - Support / Account Deletion (/support)
+        - Settings (/settings)
+        - Auth / Onboarding / Policy Consent
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear and concise description of what went wrong. Never include passwords, tokens, or personal student data.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Observe error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: viewport
+    attributes:
+      label: Viewport / Device Class
+      options:
+        - Desktop (> 780px)
+        - Mobile (<= 780px)
+        - Both Desktop and Mobile
+    validations:
+      required: true

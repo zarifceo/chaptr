@@ -11,7 +11,7 @@ type DeletionRow = {
   audit_metadata: Record<string, unknown>;
 };
 
-const PROJECT_URL = Deno.env.get("SUPABASE_URL") ?? "https://jjqmeuizldwymbvqynfw.supabase.co";
+const PROJECT_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const BUCKET = "study-resources";
 const GRACE_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;
@@ -116,7 +116,7 @@ async function processRow(admin: SupabaseClient, row: DeletionRow) {
 
 Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "POST required" }, 405);
-  if (!SERVICE_ROLE_KEY) return json({ error: "Supabase function secrets are not configured" }, 503);
+  if (!PROJECT_URL || !SERVICE_ROLE_KEY) return json({ error: "Supabase function secrets are not configured" }, 503);
 
   const cronToken = request.headers.get("x-cron-token");
   if (!cronToken) return json({ error: "Unauthorized" }, 401);

@@ -1,0 +1,28 @@
+name: Feature or Study Workflow Proposal
+description: Suggest an improvement to Chaptr's study loop, adaptive planner, or student experience
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Student Problem or Study Scenario
+      description: What study friction or learning problem does this solve for an SSC 2027 student?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How should this work inside Chaptr's daily loop (Do now -> If you have more time -> Close the loop)?
+    validations:
+      required: true
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Product Invariant Alignment
+      description: Confirm that this proposal aligns with Chaptr's core principles
+      options:
+        - label: Does not assume Mathematics is universally the hardest subject or favor only one academic group
+        - label: Uses database-backed state rather than browser-only local storage
+        - label: Works cleanly on both desktop and mobile (<= 780px)

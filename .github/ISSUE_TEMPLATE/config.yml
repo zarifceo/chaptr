@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security Vulnerability Report
+    url: https://github.com/zarifceo/chaptr/security/advisories/new
+    about: Report a security or privacy vulnerability privately via GitHub Security Advisories.
+  - name: Developer & Architecture Context
+    url: https://github.com/zarifceo/chaptr/blob/main/chaptr-context.md
+    about: Read the Chaptr architectural manual before proposing schema or route changes.

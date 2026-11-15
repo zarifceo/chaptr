@@ -58,9 +58,10 @@ export default function TermsPage() {
           ],
         },
         {
-          title: "7. Intellectual property",
+          title: "7. Open-source software and intellectual property",
           paragraphs: [
-            "Chaptr’s software, interface, branding, original text, and product design are owned by or licensed to Chaptr and are protected by applicable intellectual-property laws. These terms give you a personal, limited, non-exclusive, non-transferable right to use the service for your own study planning. They do not transfer ownership of Chaptr’s software or branding to you.",
+            "Chaptr’s application source code is open-source software released under the MIT License and available in the public Chaptr GitHub repository. Your rights to inspect, copy, modify, or self-host the source code are governed by the MIT License included with the repository.",
+            "These Terms of Service govern your use of the hosted Chaptr service and student accounts. The Chaptr name, logo, and brand assets remain the property of Chaptr and its maintainers; using the hosted service does not transfer ownership of Chaptr’s trademarks or branding to you.",
           ],
         },
         {
